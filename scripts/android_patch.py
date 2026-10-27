@@ -75,3 +75,19 @@ for d in ('drawable', 'drawable-xhdpi'):
     os.makedirs(f'{res}/{d}', exist_ok=True)
     shutil.copy('android-res/banner.png', f'{res}/{d}/banner.png')
 print('tv banner copied')
+
+# Always sign with the keystore in the repo, so every new build installs over the previous one
+g = 'android/app/build.gradle'
+gs = open(g, encoding='utf-8').read()
+if 'android-res/debug.keystore' not in gs:
+    gs = gs.replace('android {', """android {
+    signingConfigs {
+        debug {
+            storeFile file("../../android-res/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }""", 1)
+    open(g, 'w', encoding='utf-8').write(gs)
+print('fixed signing key wired into gradle')
