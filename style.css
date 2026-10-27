@@ -257,3 +257,113 @@ body.tv{font-size:17px}body.tv :focus-visible{outline-width:4px}body.tv .ch:focu
   #ovTop{padding:14px 14px 40px}#ovBot{padding:40px 12px 14px}#osd b{font-size:30px}#osd strong{font-size:16px}#ovClock{display:none}#cPip,#cRec{display:none}.ob{width:40px;height:40px}.ob .i{width:19px;height:19px}#btns{gap:5px;flex-wrap:wrap;justify-content:center}.gap{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* =====================================================================
+   Style "circuit": a piece of electronics — 7-segment readouts, PCB traces,
+   chamfered panels. Spend the boldness on the numbers; keep the rest quiet.
+   ===================================================================== */
+@font-face{font-family:"DSEG7";src:url(fonts/dseg7-bold.woff2) format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Chakra";src:url(fonts/chakra-petch-latin-500-normal.woff2) format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Chakra";src:url(fonts/chakra-petch-latin-600-normal.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Chakra";src:url(fonts/chakra-petch-latin-700-normal.woff2) format("woff2");font-weight:700 800;font-display:swap}
+.seg{font-family:"DSEG7",var(--fd);font-weight:700;font-style:normal;position:relative;display:inline-block;letter-spacing:.04em;line-height:1}
+.seg::before{content:attr(data-g);position:absolute;right:0;top:0;opacity:.1;pointer-events:none}
+
+html[data-style=circuit]{--bg:#04090e;--panel:#08131b;--panel2:#0c1c26;--surf:rgba(70,200,255,.045);--surf2:rgba(70,200,255,.09);--line:rgba(80,200,255,.14);--text:#e6f6ff;--mut:#7f9cb0;--acc:#2fd8ff;--onacc:#00151c;--vfd:#45f5d2;--fd:"Chakra",system-ui,sans-serif;--cut:12px}
+html[data-style=circuit][data-theme=ocean]{--acc:#45f5d2;--vfd:#45f5d2;--onacc:#00201a}
+html[data-style=circuit][data-theme=amber]{--acc:#ffb020;--vfd:#ffb020;--onacc:#241500}
+html[data-style=circuit][data-theme=ember]{--acc:#ff5a36;--vfd:#ff8a3d;--onacc:#260800}
+html[data-style=circuit][data-theme=neon]{--acc:#ff4fd8;--vfd:#c77dff;--onacc:#25001e}
+html[data-style=circuit] body{background:
+  radial-gradient(900px 520px at 0% -10%,rgba(47,216,255,.16),transparent 60%),
+  radial-gradient(800px 500px at 110% 110%,rgba(69,245,210,.1),transparent 60%),
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' fill='none' stroke='%2333c6ff' stroke-opacity='.075' stroke-width='1.2'%3E%3Cpath d='M0 40h60l20 20h70l20-20h50M40 0v30l20 20M120 220v-50l20-20h40l20-20V90M0 150h40l25 25v45M220 170h-30l-15 15'/%3E%3Ccircle cx='80' cy='60' r='3'/%3E%3Ccircle cx='170' cy='40' r='3'/%3E%3Ccircle cx='140' cy='150' r='3'/%3E%3Ccircle cx='65' cy='175' r='3'/%3E%3C/svg%3E"),
+  var(--bg)}
+html[data-style=circuit] .logo{font-weight:700;letter-spacing:.01em;text-transform:none}
+html[data-style=circuit] .logo span{color:var(--acc);text-shadow:0 0 14px color-mix(in srgb,var(--acc) 60%,transparent)}
+html[data-style=circuit] #title{font-weight:700;letter-spacing:.01em}
+html[data-style=circuit] .clock b{font-size:22px;color:var(--vfd);text-shadow:0 0 12px color-mix(in srgb,var(--vfd) 55%,transparent)}
+html[data-style=circuit] .clock b .seg{letter-spacing:.06em}
+html[data-style=circuit] .ib,html[data-style=circuit] .search,html[data-style=circuit] .btn,html[data-style=circuit] .gq,html[data-style=circuit] .catbtn{border-radius:8px}
+html[data-style=circuit] .ib:hover,html[data-style=circuit] .ib:focus-visible{border-color:var(--acc);color:var(--acc);box-shadow:0 0 0 1px var(--acc),0 0 16px -4px var(--acc);outline:0}
+html[data-style=circuit] :focus-visible{outline-color:var(--acc)}
+
+/* home panels: chamfered, edged in each section's signal colour */
+html[data-style=circuit] .tile{--c:#2fd8ff;border-radius:0;clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut));
+  background:linear-gradient(160deg,color-mix(in srgb,var(--c) 14%,#08131b),#060d13 70%);box-shadow:none;color:var(--text)}
+html[data-style=circuit] .tile::before{content:"";position:absolute;inset:0;right:auto;bottom:auto;width:100%;height:100%;border-radius:0;z-index:-1;background:none;
+  border:1px solid color-mix(in srgb,var(--c) 45%,transparent);clip-path:inherit}
+html[data-style=circuit] .tile::after{content:"";position:absolute;z-index:-1;left:0;right:0;top:auto;bottom:0;width:auto;height:3px;border-radius:0;background:linear-gradient(90deg,var(--c),transparent 70%);box-shadow:0 0 14px var(--c)}
+html[data-style=circuit] .t-live{--c:#2fd8ff}html[data-style=circuit] .t-mov{--c:#ffb020}html[data-style=circuit] .t-ser{--c:#ff4fd8}
+html[data-style=circuit] .tile>.i{color:var(--c);filter:drop-shadow(0 0 8px color-mix(in srgb,var(--c) 70%,transparent));stroke-width:1.6}
+html[data-style=circuit] .tile b{font-weight:700;font-size:31px;letter-spacing:.005em}
+html[data-style=circuit] .tile small{color:var(--mut);display:flex;align-items:baseline;gap:8px;opacity:1}
+html[data-style=circuit] .tile small .seg{font-size:17px;color:var(--c);text-shadow:0 0 10px color-mix(in srgb,var(--c) 60%,transparent)}
+html[data-style=circuit] .tile:hover,html[data-style=circuit] .tile:focus-visible{transform:none;outline:0;background:linear-gradient(160deg,color-mix(in srgb,var(--c) 26%,#08131b),#071018 75%)}
+html[data-style=circuit] .tile:focus-visible::before{border-color:var(--c);border-width:2px}
+.trace{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;display:none}
+html[data-style=circuit] .trace{display:block}
+.trace g{fill:none;stroke:var(--c);stroke-opacity:.28;stroke-width:1.5}.trace circle{fill:var(--c);fill-opacity:.4;stroke:none}
+.trace .pulse{fill:none;stroke:var(--c);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:28 600;stroke-dashoffset:28;filter:drop-shadow(0 0 4px var(--c));animation:pulse-run 3.6s cubic-bezier(.5,0,.3,1) infinite}
+.trace .p2{animation-delay:1.8s}
+.t-mov .trace .pulse{animation-delay:.6s}.t-mov .trace .p2{animation-delay:2.4s}.t-ser .trace .pulse{animation-delay:1.2s}.t-ser .trace .p2{animation-delay:3s}
+@keyframes pulse-run{0%{stroke-dashoffset:28}70%,100%{stroke-dashoffset:-560}}
+html[data-style=circuit] .mini,html[data-style=circuit] .acct,html[data-style=circuit] .chc{border-radius:0;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);background:linear-gradient(160deg,rgba(47,216,255,.07),rgba(47,216,255,.02));border-color:var(--line)}
+html[data-style=circuit] .mini:focus-visible,html[data-style=circuit] .chc:focus-visible{outline:0;background:rgba(47,216,255,.14);box-shadow:inset 0 0 0 2px var(--acc)}
+html[data-style=circuit] .acct dd{font-family:"Chakra";font-weight:700;color:var(--vfd)}
+html[data-style=circuit] .ah>.i,html[data-style=circuit] .sic{border-radius:6px}
+html[data-style=circuit] .chc b .seg{color:var(--vfd);text-shadow:0 0 10px color-mix(in srgb,var(--vfd) 50%,transparent);font-size:18px}
+
+/* lists: the channel number is a lit segment display */
+html[data-style=circuit] .ch{border-radius:4px;margin-bottom:2px}
+html[data-style=circuit] .ch .n{font-size:19px;color:color-mix(in srgb,var(--vfd) 55%,var(--mut))}
+html[data-style=circuit] .ch.on{background:linear-gradient(90deg,rgba(47,216,255,.16),rgba(47,216,255,.03) 70%);box-shadow:inset 3px 0 0 var(--acc),inset 0 0 0 1px rgba(47,216,255,.25)}
+html[data-style=circuit] .ch.on .n,html[data-style=circuit] .ch:focus-visible .n{color:var(--vfd);text-shadow:0 0 10px color-mix(in srgb,var(--vfd) 70%,transparent)}
+html[data-style=circuit] .ch:focus-visible{outline:0;box-shadow:inset 0 0 0 2px var(--acc)}
+html[data-style=circuit] .lgw{border-radius:4px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px var(--line)}
+/* progress as a segmented signal meter */
+html[data-style=circuit] .pb,html[data-style=circuit] .lpb{height:4px;border-radius:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.1) 0 6px,transparent 6px 8px)}
+html[data-style=circuit] .pb i,html[data-style=circuit] .lpb i,html[data-style=circuit] .epg div i,html[data-style=circuit] .pp i{background:repeating-linear-gradient(90deg,var(--vfd) 0 6px,transparent 6px 8px);box-shadow:none;filter:drop-shadow(0 0 3px var(--vfd))}
+html[data-style=circuit] .ch.on .pb i{background:repeating-linear-gradient(90deg,#fff 0 6px,transparent 6px 8px)}
+html[data-style=circuit] .cats button{border-radius:4px;position:relative}
+html[data-style=circuit] .cats button.on,html[data-style=circuit] .catlist button.on{background:rgba(47,216,255,.12);color:var(--text);box-shadow:inset 0 0 0 1px rgba(47,216,255,.35)}
+html[data-style=circuit] .cats button.on::before,html[data-style=circuit] .catlist button.on::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--vfd);box-shadow:0 0 8px var(--vfd);flex:none}
+html[data-style=circuit] .cats button.on small{color:var(--vfd)}
+html[data-style=circuit] .cats button:focus-visible{outline:0;box-shadow:inset 0 0 0 2px var(--acc)}
+html[data-style=circuit] #slot{border-radius:6px;border-color:rgba(47,216,255,.3);box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 40px -14px rgba(47,216,255,.45)}
+html[data-style=circuit] .ihead em .seg{color:var(--vfd);text-shadow:0 0 10px color-mix(in srgb,var(--vfd) 60%,transparent);font-size:17px}
+html[data-style=circuit] .epg div{border-radius:4px}html[data-style=circuit] .epg div.now{background:rgba(69,245,210,.09);box-shadow:inset 2px 0 0 var(--vfd)}html[data-style=circuit] .epg .now time{color:var(--vfd)}
+/* posters & detail */
+html[data-style=circuit] .po{border-radius:6px;box-shadow:0 0 0 1px var(--line),0 14px 28px -16px #000}
+html[data-style=circuit] .pc:focus-visible .po,html[data-style=circuit] .pc:hover .po{box-shadow:0 0 0 2px var(--acc),0 0 22px -4px var(--acc)}
+html[data-style=circuit] .dpost{border-radius:6px;box-shadow:0 0 0 1px rgba(47,216,255,.3),0 30px 60px -24px #000}
+html[data-style=circuit] .dinfo h2{font-weight:700;letter-spacing:0}
+html[data-style=circuit] .chips span{border-radius:3px;background:rgba(47,216,255,.08);box-shadow:inset 0 0 0 1px var(--line)}
+html[data-style=circuit] .btn.big{border-radius:6px;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+html[data-style=circuit] .btn.p{box-shadow:0 0 24px -6px var(--acc)}
+html[data-style=circuit] .seas button{border-radius:4px}html[data-style=circuit] .ep{border-radius:6px}html[data-style=circuit] .ep img,html[data-style=circuit] .ep .en{border-radius:4px}
+/* player */
+html[data-style=circuit] #osd b{font-size:40px;color:var(--vfd);text-shadow:0 0 16px color-mix(in srgb,var(--vfd) 70%,transparent)}
+html[data-style=circuit] #ovClock{color:var(--vfd);font-size:20px;text-shadow:0 0 12px color-mix(in srgb,var(--vfd) 60%,transparent)}
+html[data-style=circuit] #num{font-size:clamp(54px,9vw,104px);color:var(--vfd);text-shadow:0 0 24px color-mix(in srgb,var(--vfd) 80%,transparent),0 4px 30px #000}
+html[data-style=circuit] #num small{font-family:"Chakra";color:var(--text);margin-top:12px}
+html[data-style=circuit] .ob{border-radius:8px;background:rgba(10,24,32,.7);box-shadow:inset 0 0 0 1px rgba(47,216,255,.22)}
+html[data-style=circuit] .ob:hover,html[data-style=circuit] .ob:focus-visible{outline:0;box-shadow:inset 0 0 0 2px var(--acc),0 0 16px -4px var(--acc);color:var(--acc)}
+html[data-style=circuit] #cPlay{background:var(--acc);color:var(--onacc)}
+html[data-style=circuit] #lbNow b,html[data-style=circuit] #lbNext b{color:var(--vfd)}
+html[data-style=circuit] #ovTop{background:linear-gradient(rgba(2,8,12,.85),transparent)}html[data-style=circuit] #ovBot{background:linear-gradient(transparent,rgba(2,8,12,.9))}
+html[data-style=circuit] #spin{border-radius:0;border-width:3px;border-color:rgba(47,216,255,.15);border-top-color:var(--acc);border-right-color:var(--acc)}
+/* guide & dialogs */
+html[data-style=circuit] dialog{background:#06121a;border-radius:8px;border-color:rgba(47,216,255,.25)}
+html[data-style=circuit] dialog.full{border-radius:0;background:var(--bg)}
+html[data-style=circuit] .gscroll{border-radius:6px}html[data-style=circuit] .gcols,html[data-style=circuit] .gc0,html[data-style=circuit] .gc{background:#061019}
+html[data-style=circuit] .gc .n .seg{font-size:13px;color:var(--vfd)}
+html[data-style=circuit] .pg{border-radius:4px}html[data-style=circuit] .pg.now{background:rgba(69,245,210,.12);border-color:var(--vfd)}
+html[data-style=circuit] .gaxis u{background:var(--vfd);box-shadow:0 0 10px var(--vfd)}
+html[data-style=circuit] .tabs,html[data-style=circuit] .tabs button,html[data-style=circuit] .srow{border-radius:6px}
+html[data-style=circuit] #toast{border-radius:4px;background:var(--acc);color:var(--onacc)}
+html[data-style=circuit] .wmark{border-radius:10px;background:linear-gradient(160deg,rgba(47,216,255,.25),#061019);box-shadow:inset 0 0 0 1px var(--acc),0 0 40px -10px var(--acc)}html[data-style=circuit] .wmark .i{color:var(--acc)}
+html[data-style=circuit] .welcome h2{font-weight:700}
+@media (orientation:landscape) and (max-height:540px){html[data-style=circuit] .tile b{font-size:22px}html[data-style=circuit] .tile small .seg{font-size:14px}html[data-style=circuit] #osd b{font-size:30px}}
+@media (max-width:720px) and (orientation:portrait){html[data-style=circuit] .tile b{font-size:24px}html[data-style=circuit] #osd b{font-size:26px}html[data-style=circuit] .ch .n{font-size:15px}}
+#osd b .seg{font-size:inherit;color:inherit;display:inline-block}

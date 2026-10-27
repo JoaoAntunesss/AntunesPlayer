@@ -12,7 +12,7 @@ Object.assign(PT, { 'Filter categories…': 'Filtrar categorias…', 'TV guide':
 Object.assign(PT, { 'Audio': 'Áudio', 'Subtitles': 'Legendas', 'Off': 'Desligadas', 'No extra audio or subtitles': 'Sem áudio ou legendas extra', 'Fit': 'Ajustar', 'Fill': 'Preencher', 'Stretch': 'Esticar', 'Resume': 'Continuar', 'Continue watching': 'Continuar a ver' });
 const VER = 'v20';
 const t = s => (LANG === 'pt' && PT[s]) || s;
-const THEMES = [['night', 'Night'], ['ocean', 'Ocean'], ['amber', 'Amber'], ['ember', 'Ember'], ['neon', 'Neon']];
+const THEMES = [['night', 'Signal'], ['ocean', 'Phosphor'], ['amber', 'Amber'], ['ember', 'Ember'], ['neon', 'Neon']];
 
 /* ---------- tiny IndexedDB key/value ---------- */
 let dbp; const idb = () => dbp || (dbp = new Promise((ok, no) => { const r = indexedDB.open('antunesplayer', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }));
@@ -157,19 +157,19 @@ async function play(c, isRetry) {
   } catch (e) { showMsg(t('Could not play this'), whyHtml(c.url, false, String(e && e.message || e)), true); }
 }
 v.addEventListener('playing', () => { spin(false); $('#msg').hidden = true; }); v.addEventListener('waiting', () => { if (S.cur) spin(true); }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url, proxied(S.cur.url) !== S.cur.url, (v.error ? 'media error ' + v.error.code + (v.error.message ? ' ' + v.error.message : '') : '') + (S.dbg ? ' · ' + S.dbg : '')), true); });
-function showOsd(c) { const n = shownNum(c); $('#osdN').textContent = n === '' ? '' : n; $('#osdT').textContent = c.name; $('#osdS').textContent = c.group || ''; liveBar(c); if (fsOn) showOv(); }
+function showOsd(c) { const n = shownNum(c); $('#osdN').innerHTML = seg(n); $('#osdT').textContent = c.name; $('#osdS').textContent = c.group || ''; liveBar(c); if (fsOn) showOv(); }
 function liveBar(c) { const nn = c.kind === 'live' ? nowNext(c) : null; $('#liveBar').hidden = !(nn && nn.now); if (nn && nn.now) { $('#lbNow').innerHTML = `<b>${hm(nn.now.s)}</b> ${esc(nn.now.t)}`; $('#lbPb').style.width = Math.max(0, Math.min(100, Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100))) + '%'; $('#lbNext').innerHTML = nn.next ? `<b>${hm(nn.next.s)}</b> ${esc(nn.next.t)}` : ''; } }
 function showInfo(c) {
   const box = $('#info'); if (!box || c.kind !== 'live') return;
   const l = epgFor(c), n = Date.now(), up = l ? l.filter(p => p.e > n).slice(0, 8) : [];
-  box.innerHTML = `<div class="ihead"><span class="lgw">${logoHtml(c)}</span><div><b><em>${shownNum(c)}</em> ${esc(c.name)}</b><small>${esc(c.group || '')}</small></div><button class="ib" id="iFs" aria-label="${t('Full screen')}">${ic('expand')}</button></div>` + (up.length ? `<div class="epg">${up.map(p => `<div class="${p.s <= n ? 'now' : ''}"><time>${hm(p.s)}</time><span>${esc(p.t)}</span>${p.s <= n ? `<i style="width:${Math.round((n - p.s) / (p.e - p.s) * 100)}%"></i>` : ''}</div>`).join('')}</div>` : `<p class="mut">${t('No programme guide for this channel')}</p>`);
+  box.innerHTML = `<div class="ihead"><span class="lgw">${logoHtml(c)}</span><div><b><em>${seg(shownNum(c))}</em> ${esc(c.name)}</b><small>${esc(c.group || '')}</small></div><button class="ib" id="iFs" aria-label="${t('Full screen')}">${ic('expand')}</button></div>` + (up.length ? `<div class="epg">${up.map(p => `<div class="${p.s <= n ? 'now' : ''}"><time>${hm(p.s)}</time><span>${esc(p.t)}</span>${p.s <= n ? `<i style="width:${Math.round((n - p.s) / (p.e - p.s) * 100)}%"></i>` : ''}</div>`).join('')}</div>` : `<p class="mut">${t('No programme guide for this channel')}</p>`);
   $('#iFs').onclick = enterFs;
 }
 function zapList() { const m = S.mode; S.mode = 'live'; const g = S.group; S.group = S.gsel.live; const l = baseList().filter(c => c.kind === 'live'); S.group = g; S.mode = m; return l.length ? l : S.channels.filter(c => c.kind === 'live'); }
 function zap(dir) { const l = zapList(); if (!l.length) return; let i = S.cur ? l.findIndex(c => c.key === S.cur.key) : -1; i = i < 0 ? (dir > 0 ? 0 : l.length - 1) : (i + dir + l.length) % l.length; play(l[i]); const r = $(`#list .ch[data-k="${l[i].key}"]`); if (r) r.scrollIntoView({ block: 'nearest' }); }
 function byNumber(n) { if (S.set.numberMode === 'favs') return favLive()[n - 1]; return S.byNum[n]; }
 function numKey(d) {
-  numBuf = (numBuf + d).slice(0, 4); const n = $('#num'); n.hidden = false; const c = byNumber(+numBuf); n.innerHTML = `${numBuf}<small>${c ? esc(c.name) : t('No channel')}</small>`; clearTimeout(numT); numT = setTimeout(commitNum, 1500);
+  numBuf = (numBuf + d).slice(0, 4); const n = $('#num'); n.hidden = false; const c = byNumber(+numBuf); n.innerHTML = `${seg(numBuf.padStart(3, ' ').replace(/ /g, '-'))}<small>${c ? esc(c.name) : t('No channel')}</small>`; clearTimeout(numT); numT = setTimeout(commitNum, 1500);
 }
 function commitNum() { clearTimeout(numT); const n = +numBuf; numBuf = ''; $('#num').hidden = true; if (!n && n !== 0) return; const c = byNumber(n); if (!c) { toast(t('No channel') + ' ' + n); return; } if (fsOn || (S.view === 'browse' && S.mode === 'live')) play(c); else enterFsFor(c); }
 function lastChannel() { const k = LS.get('ap.last', ''), c = S.byKey[S.last || k]; if (c && (!S.cur || c.key !== S.cur.key)) play(c); else toast(t('Last channel') + ' —'); }
@@ -225,7 +225,7 @@ function addDialog(tab0) {
 }
 function settingsDialog() {
   const s = S.set;
-  openDlg(`<h2>${t('Settings')}</h2><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
+  openDlg(`<h2>${t('Settings')}</h2><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
   <label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('Big TV mode')}</label><select id="sTv"><option value="0" ${!s.tv ? 'selected' : ''}>${t('No')}</option><option value="1" ${s.tv ? 'selected' : ''}>${t('Yes')}</option></select>
   <label>${t('Language')}</label><select id="sLang"><option value="en" ${LANG === 'en' ? 'selected' : ''}>English</option><option value="pt" ${LANG === 'pt' ? 'selected' : ''}>Português</option></select>
@@ -233,12 +233,12 @@ function settingsDialog() {
   <h2 style="margin-top:18px">${t('Playlists')}</h2>${S.sources.map(x => `<div style="display:flex;gap:6px;align-items:center;margin:6px 0"><b style="flex:1">${esc(x.name)}</b><button class="btn" data-r="${x.id}">${t('Refresh')}</button><button class="btn" data-d="${x.id}">${t('Delete')}</button></div>`).join('') || '<p class="mut">—</p>'}
   <h2 style="margin-top:18px">${t('Keyboard & remote')}</h2><div class="keys"><kbd>0–9</kbd><span>${t('jump to that channel')}</span><kbd>↑ ↓ / CH±</kbd><span>${t('next / previous channel')}</span><kbd>Enter</kbd><span>${t('channel list')}</span><kbd>F</kbd><span>${t('favourite on/off')}</span><kbd>L</kbd><span>${t('last channel')}</span><kbd>M</kbd><span>${t('mute')}</span><kbd>R</kbd><span>${t('record (needs a browser that allows it)')}</span><kbd>Z</kbd><span>${t('full screen')}</span></div>
   <div class="row"><button class="btn p" id="sOk">${t('Close')}</button></div>`);
-  const chg = () => { s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tv = $('#sTv').value === '1'; s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
-  $$('#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sProxy').onchange = chg; $('#sLang').onchange = e => { LS.set('ap.lang', e.target.value); location.reload(); };
+  const chg = () => { s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tv = $('#sTv').value === '1'; s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
+  $$('#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sProxy').onchange = chg; $('#sLang').onchange = e => { LS.set('ap.lang', e.target.value); location.reload(); };
   $$('[data-r]', dlg).forEach(b => b.onclick = () => { dlg.close(); selectSource(b.dataset.r, true); }); $$('[data-d]', dlg).forEach(b => b.onclick = () => { const id = b.dataset.d; S.sources = S.sources.filter(x => x.id !== id); LS.set('ap.sources', S.sources); idbDel('ch:' + id); idbDel('epg:' + id); dlg.close(); selectSource(S.sources[0] && S.sources[0].id); });
   $('#sOk').onclick = () => dlg.close();
 }
-function applyLook() { if (!THEMES.some(x => x[0] === S.set.theme)) S.set.theme = 'night'; document.documentElement.dataset.theme = S.set.theme; document.body.classList.toggle('tv', !!S.set.tv); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0f1115'; }
+function applyLook() { if (!THEMES.some(x => x[0] === S.set.theme)) S.set.theme = 'night'; document.documentElement.dataset.theme = S.set.theme; document.documentElement.dataset.style = S.set.style || 'circuit'; document.body.classList.toggle('tv', !!S.set.tv); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0f1115'; }
 
 /* ---------- player extras: pause, seek, resume, tracks, aspect, PiP ---------- */
 const POS = LS.get('ap.pos', {}), DUR = LS.get('ap.dur', {}); let posT = 0;
@@ -285,8 +285,9 @@ const IC = {
   refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3M19.5 4.5v4.8h-4.8"/>', user: '<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0115 0"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', stack: '<path d="M4 6h13M4 11h13M4 16h7"/><path d="M15.5 14v6.5l5-3.2z" fill="currentColor" stroke="none"/>', clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'
 };
+const seg = (v, cls) => { v = String(v == null ? '' : v); return v === '' ? '' : `<span class="seg ${cls || ''}" data-g="${v.replace(/[0-9-]/g, '8')}">${esc(v)}</span>`; };
 const ic = (n, c) => `<svg viewBox="0 0 24 24" class="i ${c || ''}" aria-hidden="true">${IC[n] || ''}</svg>`;
-Object.assign(PT, { 'Live TV': 'TV em direto', 'Search': 'Pesquisar', 'Playlists': 'Listas', 'Expires': 'Expira', 'Never': 'Nunca', 'Connections': 'Ligações', 'Recent channels': 'Últimos canais', 'Continue watching': 'Continuar a ver', 'movies': 'filmes', 'series': 'séries', 'All': 'Tudo', 'Loading your playlist…': 'A carregar a tua lista…', 'Watch': 'Ver', 'Resume': 'Continuar', 'Add favourite': 'Adicionar aos favoritos', 'In favourites': 'Nos favoritos', 'Active': 'Ativa', 'Account': 'Conta', 'Add a playlist': 'Adicionar lista', 'Use': 'Usar', 'Search everything': 'Pesquisar tudo', 'Type at least 2 letters': 'Escreve pelo menos 2 letras', 'Tap again for full screen': 'Toca outra vez para ecrã inteiro', 'Pick a channel': 'Escolhe um canal', 'Episode': 'Episódio', 'Seasons': 'Épocas', 'No details from the provider': 'O fornecedor não enviou detalhes', 'Status': 'Estado', 'Xtream login': 'Login Xtream' });
+Object.assign(PT, { 'Style': 'Estilo', 'Circuit (electronic)': 'Circuito (eletrónico)', 'Soft': 'Suave', 'Live TV': 'TV em direto', 'Search': 'Pesquisar', 'Playlists': 'Listas', 'Expires': 'Expira', 'Never': 'Nunca', 'Connections': 'Ligações', 'Recent channels': 'Últimos canais', 'Continue watching': 'Continuar a ver', 'movies': 'filmes', 'series': 'séries', 'All': 'Tudo', 'Loading your playlist…': 'A carregar a tua lista…', 'Watch': 'Ver', 'Resume': 'Continuar', 'Add favourite': 'Adicionar aos favoritos', 'In favourites': 'Nos favoritos', 'Active': 'Ativa', 'Account': 'Conta', 'Add a playlist': 'Adicionar lista', 'Use': 'Usar', 'Search everything': 'Pesquisar tudo', 'Type at least 2 letters': 'Escreve pelo menos 2 letras', 'Tap again for full screen': 'Toca outra vez para ecrã inteiro', 'Pick a channel': 'Escolhe um canal', 'Episode': 'Episódio', 'Seasons': 'Épocas', 'No details from the provider': 'O fornecedor não enviou detalhes', 'Status': 'Estado', 'Xtream login': 'Login Xtream' });
 
 /* ---------- navigation ---------- */
 const kindOf = m => m === 'vod' ? 'vod' : m === 'series' ? 'series' : 'live';
@@ -348,11 +349,12 @@ function renderHeader() {
   $('#bGuide').hidden = !(vw === 'home' || (vw === 'browse' && S.mode === 'live'));
   $('#bSearch').hidden = vw !== 'home' || !S.sources.length; if (!S.sources.length) $('#bGuide').hidden = true;
 }
-function tick() { const d = new Date(), tm = d.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }), dt = d.toLocaleDateString(LANG === 'pt' ? 'pt-PT' : undefined, { weekday: 'short', day: 'numeric', month: 'short' }); $('#clock b').textContent = tm; $('#clock small').textContent = dt; $('#ovClock').textContent = tm; if (S.cur && S.cur.kind === 'live') liveBar(S.cur); }
+function tick() { const d = new Date(), tm = d.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit', hour12: false }), dt = d.toLocaleDateString(LANG === 'pt' ? 'pt-PT' : undefined, { weekday: 'short', day: 'numeric', month: 'short' }); $('#clock b').innerHTML = seg(tm); $('#clock small').textContent = dt; $('#ovClock').innerHTML = seg(tm); if (S.cur && S.cur.kind === 'live') liveBar(S.cur); }
 
 /* ---------- home ---------- */
 const fmtN = n => n.toLocaleString(LANG === 'pt' ? 'pt-PT' : undefined);
 function contList() { return Object.keys(POS).reverse().map(k => S.byKey[k] || EPS[k]).filter(Boolean).slice(0, 14); }
+const TRACE = '<svg class="trace" viewBox="0 0 400 300" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><g><path d="M120 58H230l26 26H400"/><path d="M120 72h70l18 18v40l22 22H400"/><path d="M300 0v40l20 20h80"/><path d="M340 300v-60l-24-24h-40l-20-20v-30"/><circle cx="256" cy="84" r="4"/><circle cx="230" cy="152" r="4"/><circle cx="256" cy="166" r="4"/></g><path class="pulse" d="M120 58H230l26 26H400"/><path class="pulse p2" d="M120 72h70l18 18v40l22 22H400"/></svg>';
 function renderHome() {
   const box = $('#vHome');
   if (!S.sources.length) {
@@ -361,13 +363,13 @@ function renderHome() {
     $('#wX').onclick = () => addDialog('xt'); $('#wU').onclick = () => addDialog('url'); $('#wD').onclick = addDemo; return;
   }
   const n = k => S.channels.filter(c => c.kind === k).length, L = n('live'), M = n('vod'), Se = n('series'), src = curSrc() || {}, a = S.acct, ld = S.loading;
-  const cnt = (x, w) => ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${fmtN(x)} ${w}</small>`;
+  const cnt = (x, w) => ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(x, 'cnt')} ${w}</small>`;
   const exp = a && a.exp ? new Date(a.exp * 1000).toLocaleDateString(LANG === 'pt' ? 'pt-PT' : undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : (a ? t('Never') : '');
   const cont = contList(), rec = S.recent.map(k => S.byKey[k]).filter(c => c && c.kind === 'live').slice(0, 14);
   box.innerHTML = `<div class="hgrid">
-    <button class="tile t-live" data-go="live">${ic('tv')}<b>${t('Live TV')}</b>${cnt(L, t('channels'))}</button>
-    <button class="tile t-mov" data-go="movies">${ic('film')}<b>${t('Movies')}</b>${cnt(M, t('movies'))}</button>
-    <button class="tile t-ser" data-go="series">${ic('series')}<b>${t('Series')}</b>${cnt(Se, t('series'))}</button>
+    <button class="tile t-live" data-go="live">${TRACE}${ic('tv')}<b>${t('Live TV')}</b>${cnt(L, t('channels'))}</button>
+    <button class="tile t-mov" data-go="movies">${TRACE}${ic('film')}<b>${t('Movies')}</b>${cnt(M, t('movies'))}</button>
+    <button class="tile t-ser" data-go="series">${TRACE}${ic('series')}<b>${t('Series')}</b>${cnt(Se, t('series'))}</button>
     <div class="minis">
       <button class="mini" data-go="guide">${ic('guide')}<span>${t('TV guide')}</span></button>
       <button class="mini" data-go="fav">${ic('star')}<span>${t('Favourites')}</span><small>${favList().length}</small></button>
@@ -379,7 +381,7 @@ function renderHome() {
       ${S.loadErr ? `<p class="err">${esc(S.loadErr)}</p>` : ''}</div>
   </div>
   ${cont.length ? `<section class="hrow"><h3>${t('Continue watching')}</h3><div class="rail">${cont.map(posterHtml).join('')}</div></section>` : ''}
-  ${rec.length ? `<section class="hrow"><h3>${t('Recent channels')}</h3><div class="rail chrail">${rec.map(c => `<button class="chc" data-k="${c.key}">${logoHtml(c)}<b>${shownNum(c)}</b><span>${esc(c.name)}</span></button>`).join('')}</div></section>` : ''}`;
+  ${rec.length ? `<section class="hrow"><h3>${t('Recent channels')}</h3><div class="rail chrail">${rec.map(c => `<button class="chc" data-k="${c.key}">${logoHtml(c)}<b>${seg(shownNum(c))}</b><span>${esc(c.name)}</span></button>`).join('')}</div></section>` : ''}`;
   $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'lists') listsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else go(g); });
   $('#hRef').onclick = () => selectSource(S.srcId, true);
   wireItems(box);
@@ -390,7 +392,7 @@ function renderHome() {
 const logoHtml = c => c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'lg',textContent:${esc(JSON.stringify((c.name || '?').charAt(0)))}}))">` : `<span class="lg">${esc((c.name || '?').charAt(0))}</span>`;
 function rowHtml(c) {
   const nn = nowNext(c), fav = S.favs.includes(c.key), n = shownNum(c), pr = nn && nn.now ? Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100) : 0;
-  return `<div class="ch ${S.cur && S.cur.key === c.key ? 'on' : ''}" tabindex="0" data-k="${c.key}"><span class="n">${n}</span><span class="lgw">${logoHtml(c)}</span><div class="t"><b>${esc(c.name)}</b><span>${nn && nn.now ? esc(nn.now.t) : esc(c.group || '')}</span>${nn && nn.now ? `<div class="pb"><i style="width:${pr}%"></i></div>` : ''}</div><span class="ctl2">${S.group === 'fav' && S.view === 'browse' ? `<button class="mv" data-mv="-1" data-k2="${c.key}" aria-label="Move up">${ic('up')}</button><button class="mv" data-mv="1" data-k2="${c.key}" aria-label="Move down">${ic('down')}</button>` : ''}<button class="star ${fav ? 'on' : ''}" data-s="${c.key}" aria-label="${t('Favourite')}">${ic(fav ? 'starF' : 'star')}</button></span></div>`;
+  return `<div class="ch ${S.cur && S.cur.key === c.key ? 'on' : ''}" tabindex="0" data-k="${c.key}"><span class="n">${seg(n)}</span><span class="lgw">${logoHtml(c)}</span><div class="t"><b>${esc(c.name)}</b><span>${nn && nn.now ? esc(nn.now.t) : esc(c.group || '')}</span>${nn && nn.now ? `<div class="pb"><i style="width:${pr}%"></i></div>` : ''}</div><span class="ctl2">${S.group === 'fav' && S.view === 'browse' ? `<button class="mv" data-mv="-1" data-k2="${c.key}" aria-label="Move up">${ic('up')}</button><button class="mv" data-mv="1" data-k2="${c.key}" aria-label="Move down">${ic('down')}</button>` : ''}<button class="star ${fav ? 'on' : ''}" data-s="${c.key}" aria-label="${t('Favourite')}">${ic(fav ? 'starF' : 'star')}</button></span></div>`;
 }
 function posterHtml(c) {
   const pos = POS[c.key], ini = esc((c.name || '?').charAt(0)), fav = S.favs.includes(c.key);
@@ -498,7 +500,7 @@ function openGuide() {
   const base = S.view === 'browse' && S.mode === 'live' ? baseList() : S.channels.filter(c => c.kind === 'live'), list = base.filter(c => c.kind === 'live').slice(0, 200);
   const PX = 4, step = 30 * 60000, now = Date.now(), start = Math.floor((now - 45 * 60000) / step) * step, end = start + 8 * 3600000, W = (end - start) / 60000 * PX;
   const ticks = []; for (let x = start; x < end; x += step) ticks.push(`<i style="left:${(x - start) / 60000 * PX}px">${hm(x)}</i>`);
-  const rows = list.map(c => { const l = epgFor(c) || [], bl = l.filter(p => p.e > start && p.s < end).map(p => { const s = Math.max(p.s, start), e = Math.min(p.e, end); return `<button class="pg ${p.s <= now && p.e > now ? 'now' : ''}" style="left:${(s - start) / 60000 * PX}px;width:${Math.max(24, (e - s) / 60000 * PX - 3)}px" data-k="${c.key}"><b>${esc(p.t)}</b><small>${hm(p.s)} – ${hm(p.e)}</small></button>`; }).join(''); return `<div class="gr"><button class="gc" data-k="${c.key}"><span class="n">${shownNum(c)}</span><span class="lgw">${logoHtml(c)}</span><span class="nm">${esc(c.name)}</span></button><div class="gt" style="width:${W}px">${bl || `<span class="gnone">—</span>`}</div></div>`; }).join('');
+  const rows = list.map(c => { const l = epgFor(c) || [], bl = l.filter(p => p.e > start && p.s < end).map(p => { const s = Math.max(p.s, start), e = Math.min(p.e, end); return `<button class="pg ${p.s <= now && p.e > now ? 'now' : ''}" style="left:${(s - start) / 60000 * PX}px;width:${Math.max(24, (e - s) / 60000 * PX - 3)}px" data-k="${c.key}"><b>${esc(p.t)}</b><small>${hm(p.s)} – ${hm(p.e)}</small></button>`; }).join(''); return `<div class="gr"><button class="gc" data-k="${c.key}"><span class="n">${seg(shownNum(c))}</span><span class="lgw">${logoHtml(c)}</span><span class="nm">${esc(c.name)}</span></button><div class="gt" style="width:${W}px">${bl || `<span class="gnone">—</span>`}</div></div>`; }).join('');
   openDlg(`<div class="gh"><h2>${ic('guide')} ${t('TV guide')}</h2><button class="ib" id="dx" aria-label="${t('Close')}">${ic('back')}</button></div><div class="gscroll" id="gs"><div class="gcols"><div class="gc0"></div><div class="gaxis" style="width:${W}px">${ticks.join('')}<u style="left:${(now - start) / 60000 * PX}px"></u></div></div>${rows || `<div class="empty"><p>${t('No guide data yet')}</p></div>`}</div>`, 'full');
   $('#dx').onclick = () => dlg.close(); const gs = $('#gs'); gs.scrollLeft = Math.max(0, (now - start) / 60000 * PX - 80);
   $$('#gs [data-k]').forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; dlg.close(); if (S.view === 'browse' && S.mode === 'live') play(c); else { go('live'); setTimeout(() => play(c), 30); } });
