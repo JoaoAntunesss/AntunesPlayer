@@ -30,13 +30,22 @@
         <div id="msg" hidden></div>
         <div id="spin" hidden></div>
         <div id="ctl">
+          <div id="seekrow"><span id="tCur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0" aria-label="Seek"><span id="tDur">0:00</span></div>
+          <div id="btns">
+          <button id="cBack" class="vo" title="-10s (←)">⏪</button>
+          <button id="cPlay" class="vo" title="Play/Pause (Space)">⏸</button>
+          <button id="cFwd" class="vo" title="+10s (→)">⏩</button>
           <button id="cFav" title="Favourite (F)">☆</button>
           <button id="cPrev" title="Previous (↓)">⏮</button>
           <button id="cNext" title="Next (↑)">⏭</button>
           <button id="cMute" title="Mute (M)">🔊</button>
           <button id="cRec" title="Record (R)">⏺</button>
           <button id="cList" title="Channels (Enter)">☰</button>
+          <button id="cTrk" title="Audio / subtitles">🎧</button>
+          <button id="cAsp" title="Picture size">▭</button>
+          <button id="cPip" title="Picture in picture">❐</button>
           <button id="cFs" title="Full screen">⛶</button>
+          </div>
         </div>
       </div>
       <div id="info"></div>
