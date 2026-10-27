@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - run: npm install
+      - name: Stamp build number
+        run: echo "window.AP_BUILD = ${{ github.run_number }};" > js/build.js
       - run: node scripts/prepare-www.mjs
       - run: npx cap add android
       - run: pip install pillow && python scripts/android_patch.py
@@ -31,6 +33,6 @@ jobs:
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk AntunesPlayer.apk
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest AntunesPlayer.apk --prerelease --title "AntunesPlayer (latest build)" --notes "Android / Android TV app. Install the APK (allow installs from this source). Updates replace the previous version."
+          gh release create latest AntunesPlayer.apk --prerelease --title "AntunesPlayer build ${{ github.run_number }}" --notes "Android / Android TV app. Install the APK (allow installs from this source). Updates replace the previous version."
       - uses: actions/upload-artifact@v4
         with: { name: AntunesPlayer-apk, path: AntunesPlayer.apk }
