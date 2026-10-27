@@ -220,3 +220,5 @@ dialog.wide{width:min(1180px,98vw);padding:14px}
   #ctl button{width:34px;height:34px;font-size:14px}
   #msg{padding:10px}#msg p{font-size:12px}
 @media (orientation:landscape) and (max-height:520px) and (min-width:560px){#main{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)!important}#top{padding:5px 10px}.ib{width:34px;height:34px}.ch{padding:7px 10px 7px 4px}.ch img,.ch .lg{width:40px;height:40px}#stage{padding:8px}}
+
+#msg{padding-bottom:96px}#screen:not(.vod) #msg{padding-bottom:78px}
