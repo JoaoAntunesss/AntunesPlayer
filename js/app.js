@@ -8,6 +8,7 @@ const LS = { get(k, d) { try { const v = localStorage.getItem(k); return v == nu
 /* ---------- language ---------- */
 const LANG = (LS.get('ap.lang', '') || navigator.language || 'en').slice(0, 2) === 'pt' ? 'pt' : 'en';
 const PT = { 'Search channels…': 'Pesquisar canais…', 'Favourites': 'Favoritos', 'Recent': 'Recentes', 'All channels': 'Todos os canais', 'Movies': 'Filmes', 'Series': 'Séries', 'Add playlist': 'Adicionar lista', 'Settings': 'Definições', 'Cancel': 'Cancelar', 'Save': 'Guardar', 'Add': 'Adicionar', 'Close': 'Fechar', 'Delete': 'Apagar', 'Refresh': 'Atualizar', 'Playlist link (M3U / M3U8)': 'Link da lista (M3U / M3U8)', 'Paste or upload': 'Colar ou carregar', 'Xtream login': 'Login Xtream', 'Name': 'Nome', 'Server (with http/https)': 'Servidor (com http/https)', 'Username': 'Utilizador', 'Password': 'Palavra-passe', 'TV guide link (XMLTV, optional)': 'Link do guia de programação (XMLTV, opcional)', 'Playlist text': 'Texto da lista', 'or choose a file': 'ou escolhe um ficheiro', 'Welcome to AntunesPlayer': 'Bem-vindo ao AntunesPlayer', 'AntunesPlayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.': 'O AntunesPlayer reproduz as listas que lhe deres — não traz canais. Adiciona a tua lista ou experimenta com emissões de teste gratuitas.', 'Try demo channels': 'Experimentar canais de demonstração', 'Nothing found': 'Nada encontrado', 'Show more': 'Mostrar mais', 'Last channel': 'Último canal', 'No channel': 'Sem canal', 'Added to favourites': 'Adicionado aos favoritos', 'Removed from favourites': 'Removido dos favoritos', 'Loading…': 'A carregar…', 'Could not play this': 'Não foi possível reproduzir', 'Retry': 'Tentar de novo', 'Look': 'Aspeto', 'Theme': 'Tema', 'Number keys jump to': 'As teclas numéricas vão para', 'Channel numbers from the playlist': 'Números dos canais da lista', 'My favourites, in order': 'Os meus favoritos, por ordem', 'Big TV mode': 'Modo TV (grande)', 'Network': 'Rede', 'Helper link for blocked playlists (optional)': 'Link auxiliar para listas bloqueadas (opcional)', 'Also use it for streams': 'Usar também nas emissões', 'Yes': 'Sim', 'No': 'Não', 'Playlists': 'Listas', 'Keyboard & remote': 'Teclado e comando', 'Number': 'Número', 'jump to that channel': 'ir para esse canal', 'next / previous channel': 'canal seguinte / anterior', 'channel list': 'lista de canais', 'favourite on/off': 'favorito sim/não', 'last channel': 'último canal', 'mute': 'sem som', 'record (needs a browser that allows it)': 'gravar (precisa de navegador que permita)', 'full screen': 'ecrã inteiro', 'Recording saved': 'Gravação guardada', 'Recording…': 'A gravar…', 'Recording is not possible for this stream': 'Não é possível gravar esta emissão', 'Download': 'Descarregar', 'Now': 'Agora', 'Next': 'A seguir', 'channels': 'canais', 'Language': 'Idioma', 'Playlist added': 'Lista adicionada', 'Could not load the playlist': 'Não foi possível carregar a lista', 'Fill in the fields': 'Preenche os campos', 'No programme guide for this channel': 'Sem guia para este canal', 'Live': 'Em direto', 'Full screen': 'Ecrã inteiro' };
+Object.assign(PT, { 'Filter categories…': 'Filtrar categorias…', 'Categories': 'Categorias', 'TV': 'TV', 'Season': 'Época', 'Episodes': 'Episódios', 'Loading…': 'A carregar…', 'No episodes found': 'Sem episódios' });
 const t = s => (LANG === 'pt' && PT[s]) || s;
 const THEMES = [['night', 'Night'], ['ocean', 'Ocean'], ['ember', 'Ember'], ['neon', 'Neon'], ['light', 'Light']];
 
@@ -63,10 +64,11 @@ async function fetchText(u, force) { const r = await fetch(proxied(u, true === f
 async function loadSource(src) {
   if (src.type === 'xtream') {
     const base = src.server.replace(/\/+$/, ''), api = a => fetchJson(`${base}/player_api.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}&action=${a}`);
-    const [cats, live, vod, vcats] = await Promise.all([api('get_live_categories'), api('get_live_streams'), api('get_vod_streams').catch(() => []), api('get_vod_categories').catch(() => [])]);
-    const cm = {}, vm = {}; (cats || []).forEach(c => cm[c.category_id] = c.category_name); (vcats || []).forEach(c => vm[c.category_id] = c.category_name);
+    const [cats, live, vod, vcats, ser, scats] = await Promise.all([api('get_live_categories'), api('get_live_streams'), api('get_vod_streams').catch(() => []), api('get_vod_categories').catch(() => []), api('get_series').catch(() => []), api('get_series_categories').catch(() => [])]);
+    const cm = {}, vm = {}, sm = {}; (scats || []).forEach(c => sm[c.category_id] = c.category_name); (cats || []).forEach(c => cm[c.category_id] = c.category_name); (vcats || []).forEach(c => vm[c.category_id] = c.category_name);
     const list = (live || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: cm[x.category_id] || '', tvg: x.epg_channel_id || '', num: parseInt(x.num, 10) || 0, url: `${base}/live/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.m3u8`, kind: 'live' }))
-      .concat((vod || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: vm[x.category_id] || 'Movies', tvg: '', num: 0, url: `${base}/movie/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.${x.container_extension || 'mp4'}`, kind: 'vod' })));
+      .concat((vod || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: vm[x.category_id] || 'Movies', tvg: '', num: 0, url: `${base}/movie/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.${x.container_extension || 'mp4'}`, kind: 'vod' })))
+      .concat((ser || []).map(x => ({ name: x.name, logo: x.cover || '', group: sm[x.category_id] || 'Series', tvg: '', num: 0, url: 'xtream-series:' + x.series_id, seriesId: x.series_id, kind: 'series' })));
     return { list: finish(list), epg: src.epg || `${base}/xmltv.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}` };
   }
   const text = src.text != null ? src.text : await fetchText(src.url, true), p = parseM3U(text); return { list: finish(p.list), epg: src.epg || p.epg };
@@ -113,7 +115,7 @@ const favList = () => S.favs.map(k => S.byKey[k]).filter(Boolean);
 function baseList() {
   const g = S.group; let l;
   if (g === 'fav') l = favList(); else if (g === 'recent') l = S.recent.map(k => S.byKey[k]).filter(Boolean);
-  else if (g === 'all') l = S.channels.filter(c => c.kind === 'live'); else if (g.startsWith('v:')) l = S.channels.filter(c => c.kind === 'vod' && (c.group || '—') === g.slice(2)); else if (g === '_vod') l = S.channels.filter(c => c.kind === 'vod'); else if (g === '_series') l = S.channels.filter(c => c.kind === 'series');
+  else if (g === 'all') l = S.channels.filter(c => c.kind === 'live'); else if (g.startsWith('v:')) l = S.channels.filter(c => c.kind === 'vod' && (c.group || '—') === g.slice(2)); else if (g.startsWith('s:')) l = S.channels.filter(c => c.kind === 'series' && (c.group || '—') === g.slice(2)); else if (g === '_vod') l = S.channels.filter(c => c.kind === 'vod'); else if (g === '_series') l = S.channels.filter(c => c.kind === 'series');
   else l = S.channels.filter(c => c.kind === 'live' && c.group === g.slice(2));
   return l;
 }
@@ -121,14 +123,30 @@ function shownNum(c) { if (c.kind !== 'live') return ''; if (S.set.numberMode ==
 function filtered() { let l = baseList(); const q = S.q.trim().toLowerCase(); if (q) l = l.filter(c => (c.name || '').toLowerCase().includes(q) || String(shownNum(c)) === q); return l; }
 
 /* ---------- rendering ---------- */
+const tabOf = g => (g === '_vod' || g.startsWith('v:')) ? 'vod' : (g === '_series' || g.startsWith('s:')) ? 'series' : 'live';
+function catItems(tab) {
+  const cnt = k => { const o = {}; S.channels.filter(c => c.kind === k).forEach(c => { const g = c.group || '—'; o[g] = (o[g] || 0) + 1; }); return o; };
+  if (tab === 'live') { const o = cnt('live'), n = S.channels.filter(c => c.kind === 'live').length; return [{ id: 'fav', label: '★ ' + t('Favourites'), n: favList().length }, { id: 'recent', label: '🕒 ' + t('Recent'), n: S.recent.filter(k => S.byKey[k]).length }, { id: 'all', label: t('All channels'), n }].concat(Object.keys(o).sort().map(g => ({ id: 'g:' + g, label: g, n: o[g] }))); }
+  const k = tab === 'vod' ? 'vod' : 'series', o = cnt(k), n = S.channels.filter(c => c.kind === k).length;
+  return [{ id: tab === 'vod' ? '_vod' : '_series', label: t(tab === 'vod' ? 'Movies' : 'Series'), n }].concat(Object.keys(o).sort().map(g => ({ id: (tab === 'vod' ? 'v:' : 's:') + g, label: g, n: o[g] })));
+}
 function renderGroups() {
-  const live = S.channels.filter(c => c.kind === 'live'), gs = {}; live.forEach(c => { const g = c.group || '—'; gs[g] = (gs[g] || 0) + 1; });
-  const vg = {}; S.channels.filter(c => c.kind === 'vod').forEach(c => { const g = c.group || '—'; vg[g] = (vg[g] || 0) + 1; });
-  const vod = S.channels.filter(c => c.kind === 'vod').length, ser = S.channels.filter(c => c.kind === 'series').length;
-  const item = (id, label, n) => `<button data-g="${esc(id)}" class="${S.group === id ? 'on' : ''}"><span>${label}</span><small>${n}</small></button>`;
-  $('#groups').innerHTML = item('fav', '★ ' + t('Favourites'), favList().length) + item('recent', '🕒 ' + t('Recent'), S.recent.filter(k => S.byKey[k]).length) + item('all', t('All channels'), live.length) +
-    (vod ? item('_vod', '🎬 ' + t('Movies'), vod) + Object.keys(vg).sort().map(g => item('v:' + g, '🎬 ' + esc(g), vg[g])).join('') : '') + (ser ? item('_series', '📺 ' + t('Series'), ser) : '') + Object.keys(gs).sort().map(g => item('g:' + g, esc(g), gs[g])).join('');
-  $$('#groups button').forEach(b => b.onclick = () => { S.group = b.dataset.g; S.shown = 250; render(); $('#list').scrollTop = 0; });
+  const tab = tabOf(S.group), has = k => S.channels.some(c => c.kind === k), items = catItems(tab);
+  const item = it => `<button data-g="${esc(it.id)}" class="${S.group === it.id ? 'on' : ''}"><span>${esc(it.label)}</span><small>${it.n}</small></button>`;
+  const tabs = [['live', '📡 ' + t('TV')], ['vod', '🎬 ' + t('Movies')], ['series', '📺 ' + t('Series')]].filter(x => x[0] === 'live' || has(x[0] === 'vod' ? 'vod' : 'series'));
+  const cur = items.find(x => x.id === S.group) || items[0];
+  $('#groups').innerHTML = `<div class="tabs3">${tabs.map(x => `<button data-tab="${x[0]}" class="${x[0] === tab ? 'on' : ''}">${x[1]}</button>`).join('')}</div>` +
+    `<button class="catbtn" id="catBtn">☰ <span>${esc(cur ? cur.label : t('Categories'))}</span> ▾</button>` +
+    (items.length > 12 ? `<input id="gq" class="gq" placeholder="${t('Filter categories…')}">` : '') + `<div class="cats">${items.map(item).join('')}</div>`;
+  const pick = id => { S.group = id; S.shown = 250; render(); $('#list').scrollTop = 0; };
+  $$('#groups .cats button').forEach(b => b.onclick = () => pick(b.dataset.g));
+  $$('#groups .tabs3 button').forEach(b => b.onclick = () => pick(b.dataset.tab === 'live' ? 'all' : b.dataset.tab === 'vod' ? '_vod' : '_series'));
+  const gq = $('#gq'); if (gq) gq.oninput = () => { const q = gq.value.trim().toLowerCase(); $$('#groups .cats button').forEach(b => b.style.display = !q || b.textContent.toLowerCase().includes(q) ? '' : 'none'); };
+  $('#catBtn').onclick = () => {
+    openDlg(`<h2>${t('Categories')}</h2><input id="dq" placeholder="${t('Filter categories…')}"><div class="catlist">${items.map(item).join('')}</div><div class="row"><button class="btn" id="dx">OK</button></div>`);
+    const f = () => { const q = $('#dq').value.trim().toLowerCase(); $$('.catlist button', dlg).forEach(b => b.style.display = !q || b.textContent.toLowerCase().includes(q) ? '' : 'none'); };
+    $('#dq').oninput = f; $('#dx').onclick = () => dlg.close(); $$('.catlist button', dlg).forEach(b => b.onclick = () => { dlg.close(); pick(b.dataset.g); });
+  };
 }
 function renderList() {
   const box = $('#list'), l = filtered();
@@ -136,7 +154,7 @@ function renderList() {
   if (!l.length) { box.innerHTML = `<div class="empty"><h3>${t('Nothing found')}</h3></div>`; return; }
   box.innerHTML = l.slice(0, S.shown).map(c => { const nn = nowNext(c), fav = S.favs.includes(c.key), n = shownNum(c), pr = nn && nn.now ? Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100) : 0;
     return `<div class="ch ${S.cur && S.cur.key === c.key ? 'on' : ''}" tabindex="0" data-k="${c.key}"><span class="n">${n}</span>${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.outerHTML='<span class=lg>${esc((c.name || '?').charAt(0))}</span>'">` : `<span class="lg">${esc((c.name || '?').charAt(0))}</span>`}<div class="t"><b>${esc(c.name)}</b><span>${nn && nn.now ? esc(nn.now.t) : esc(c.group || '')}</span>${nn && nn.now ? `<div class="pb"><i style="width:${pr}%"></i></div>` : ''}</div><span class="ctl2">${S.group === 'fav' ? `<button class="mv" data-mv="-1" data-k2="${c.key}" aria-label="Move up">▲</button><button class="mv" data-mv="1" data-k2="${c.key}" aria-label="Move down">▼</button>` : ''}<button class="star ${fav ? 'on' : ''}" data-s="${c.key}" aria-label="Favourite">${fav ? '★' : '☆'}</button></span></div>`; }).join('') + (l.length > S.shown ? `<button class="more" id="more">${t('Show more')} (${l.length - S.shown})</button>` : '');
-  $$('.ch', box).forEach(r => { r.onclick = e => { if (e.target.closest('.star')) return; play(S.byKey[r.dataset.k]); }; r.onkeydown = e => { if (e.altKey && S.group === 'fav' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); moveFav(r.dataset.k, e.key === 'ArrowUp' ? -1 : 1); const x = $(`.ch[data-k="${r.dataset.k}"]`); if (x) x.focus(); return; } if (e.key === 'Enter') { e.preventDefault(); play(S.byKey[r.dataset.k]); } }; });
+  $$('.ch', box).forEach(r => { r.onclick = e => { if (e.target.closest('.star') || e.target.closest('.mv')) return; open1(S.byKey[r.dataset.k]); }; r.onkeydown = e => { if (e.altKey && S.group === 'fav' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); moveFav(r.dataset.k, e.key === 'ArrowUp' ? -1 : 1); const x = $(`.ch[data-k="${r.dataset.k}"]`); if (x) x.focus(); return; } if (e.key === 'Enter') { e.preventDefault(); open1(S.byKey[r.dataset.k]); } }; });
   $$('.star', box).forEach(b => b.onclick = e => { e.stopPropagation(); toggleFav(S.byKey[b.dataset.s]); });
   $$('.mv', box).forEach(b => b.onclick = e => { e.stopPropagation(); moveFav(b.dataset.k2, +b.dataset.mv); const f = $(`.mv[data-k2="${b.dataset.k2}"][data-mv="${b.dataset.mv}"]`); if (f) f.focus(); });
   const m = $('#more'); if (m) m.onclick = () => { S.shown += 250; renderList(); };
@@ -145,6 +163,20 @@ function render() { renderSources(); renderGroups(); renderList(); }
 
 /* ---------- favourites ---------- */
 function toggleFav(c) { if (!c) return; const i = S.favs.indexOf(c.key); if (i < 0) { S.favs.push(c.key); toast(t('Added to favourites') + (S.set.numberMode === 'favs' ? ` · ${S.favs.length}` : '')); } else { S.favs.splice(i, 1); toast(t('Removed from favourites')); } LS.set('ap.favs', S.favs); render(); updateFavBtn(); if (S.cur) showOsd(S.cur); }
+const open1 = c => { if (c && c.seriesId) openSeries(c); else play(c); };
+async function openSeries(c) {
+  const src = S.sources.find(x => x.id === S.srcId); if (!src || src.type !== 'xtream') return;
+  const base = src.server.replace(/\/+$/, ''), q = encodeURIComponent;
+  openDlg(`<h2>${esc(c.name)}</h2><p class="mut">${t('Loading…')}</p>`);
+  try {
+    const info = await fetchJson(`${base}/player_api.php?username=${q(src.user)}&password=${q(src.pass)}&action=get_series_info&series_id=${q(c.seriesId)}`);
+    const eps = info.episodes || {}, seasons = Object.keys(eps).sort((a, b) => a - b);
+    if (!seasons.length) { openDlg(`<h2>${esc(c.name)}</h2><p class="mut">${t('No episodes found')}</p><div class="row"><button class="btn" id="dx">OK</button></div>`); $('#dx').onclick = () => dlg.close(); return; }
+    const draw = sn => { $('#epl').innerHTML = (eps[sn] || []).map((e, i) => `<button class="ep" data-i="${i}"><b>${esc(e.episode_num || i + 1)}</b><span>${esc(e.title || '')}</span></button>`).join(''); $$('#epl .ep').forEach(b => b.onclick = () => { const e = eps[sn][+b.dataset.i], url = `${base}/series/${q(src.user)}/${q(src.pass)}/${e.id}.${e.container_extension || 'mp4'}`; const ep = { name: `${c.name} · S${sn}E${e.episode_num || +b.dataset.i + 1}`, logo: c.logo, group: c.group, url, kind: 'vod', num: 0, key: hash(c.name + '|' + url) }; S.byKey[ep.key] = ep; dlg.close(); play(ep); }); };
+    openDlg(`<h2>${esc(c.name)}</h2><label>${t('Season')}</label><select id="sn">${seasons.map(x => `<option value="${esc(x)}">${t('Season')} ${esc(x)}</option>`).join('')}</select><label>${t('Episodes')}</label><div id="epl" class="catlist"></div><div class="row"><button class="btn" id="dx">OK</button></div>`);
+    $('#sn').onchange = e => draw(e.target.value); $('#dx').onclick = () => dlg.close(); draw(seasons[0]);
+  } catch (e) { openDlg(`<h2>${esc(c.name)}</h2><p class="mut">${esc(e.message)}</p><div class="row"><button class="btn" id="dx">OK</button></div>`); $('#dx').onclick = () => dlg.close(); }
+}
 function moveFav(k, d) { const i = S.favs.indexOf(k), j = i + d; if (i < 0 || j < 0 || j >= S.favs.length) return; S.favs.splice(j, 0, S.favs.splice(i, 1)[0]); LS.set('ap.favs', S.favs); renderList(); }
 function updateFavBtn() { const f = S.cur && S.favs.includes(S.cur.key); $('#cFav').textContent = f ? '★' : '☆'; }
 
