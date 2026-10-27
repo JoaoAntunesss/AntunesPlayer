@@ -474,3 +474,10 @@ html[data-style=circuit] .po .rt{border-radius:0 0 6px 0}html[data-style=circuit
   .vrow .rail .pc{width:124px}#list .vrow{padding-left:12px}.ltools{padding:6px 0}
 }
 #list.vhome{padding:2px 0 30px 12px;overflow-x:hidden}
+/* favourites order editing */
+.ftools{display:flex;align-items:center;gap:10px;padding:6px 4px 10px;flex-wrap:wrap}.ftools b{font:700 20px var(--fd)}.ftools small{color:var(--mut)}.ftools .gap{flex:1}.fhint{font-size:12.5px}
+.grip{display:grid;place-items:center;width:36px;height:40px;color:var(--mut);cursor:grab;touch-action:none}.grip .i{width:20px;height:20px}
+.ch.lift{outline:2px dashed var(--acc);outline-offset:-2px;background:color-mix(in srgb,var(--acc) 14%,transparent)}
+.ch.drag{position:relative;z-index:5;background:var(--panel2);box-shadow:0 14px 30px -10px #000;cursor:grabbing}
+#list .ch{transition:transform .2s cubic-bezier(.22,1,.36,1)}#list .ch.drag{transition:none}
+@media (max-width:720px) and (orientation:portrait){.fhint{flex-basis:100%;order:5}}
