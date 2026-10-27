@@ -22,7 +22,7 @@ const S = { sources: LS.get('ap.sources', []), srcId: LS.get('ap.src', ''), chan
 const saveSet = () => LS.set('ap.set', S.set);
 let toastT; const toast = m => { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('on'), 2400); };
 const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
-const proxied = (u, force) => { const p = S.set.proxy; if (!p || !(force || S.set.proxyStreams)) return u; return p.includes('{url}') ? p.replace('{url}', encodeURIComponent(u)) : p + encodeURIComponent(u); };
+const proxied = (u, force) => { const p = S.set.proxy; if (!p || !(force || S.set.proxyStreams || (location.protocol === 'https:' && /^http:/i.test(u)))) return u; return p.includes('{url}') ? p.replace('{url}', encodeURIComponent(u)) : p + encodeURIComponent(u); };
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
 const nativeHttp = () => NATIVE && Capacitor.Plugins && Capacitor.Plugins.CapacitorHttp;
 // In the Android app, hls.js loads through the native HTTP layer so servers that block web pages (CORS) still work.
