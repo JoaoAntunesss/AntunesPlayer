@@ -32,7 +32,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk AntunesPlayer.apk
-          gh release delete latest --yes --cleanup-tag || true
-          gh release create latest AntunesPlayer.apk --prerelease --title "AntunesPlayer build ${{ github.run_number }}" --notes "Android / Android TV app. Install the APK (allow installs from this source). Updates replace the previous version."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest AntunesPlayer.apk --clobber
+            gh release edit latest --title "AntunesPlayer build ${{ github.run_number }}" --prerelease
+          else
+            gh release create latest AntunesPlayer.apk --prerelease --title "AntunesPlayer build ${{ github.run_number }}" --notes "Android / Android TV app. Install the APK (allow installs from this source). Updates replace the previous version."
+          fi
       - uses: actions/upload-artifact@v4
         with: { name: AntunesPlayer-apk, path: AntunesPlayer.apk }
