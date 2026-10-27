@@ -4,7 +4,7 @@ from PIL import Image
 m = 'android/app/src/main/AndroidManifest.xml'; s = open(m, encoding='utf-8').read()
 if 'leanback' not in s:
     s = s.replace('<application', '<uses-feature android:name="android.software.leanback" android:required="false" />\n    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />\n    <application', 1)
-    s = s.replace('<application', '<application android:usesCleartextTraffic="true" android:banner="@mipmap/ic_launcher"', 1)
+    s = s.replace('<application', '<application android:usesCleartextTraffic="true" android:banner="@drawable/banner"', 1)
     s = re.sub(r'(<category android:name="android.intent.category.LAUNCHER" />)', r'\1\n                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />', s, count=1)
     open(m, 'w', encoding='utf-8').write(s)
 res = 'android/app/src/main/res'
@@ -53,3 +53,9 @@ public class MainActivity extends BridgeActivity {
 }
 """)
 print('immersive activity written')
+
+# Android TV / Google TV launcher banner (320x180)
+for d in ('drawable', 'drawable-xhdpi'):
+    os.makedirs(f'{res}/{d}', exist_ok=True)
+    shutil.copy('android-res/banner.png', f'{res}/{d}/banner.png')
+print('tv banner copied')

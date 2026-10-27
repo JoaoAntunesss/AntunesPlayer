@@ -21,7 +21,8 @@ const idbSet = (k, v) => idb().then(d => new Promise(ok => { const tx = d.transa
 const idbDel = k => idb().then(d => new Promise(ok => { const tx = d.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = () => ok(); })).catch(() => { });
 
 /* ---------- state ---------- */
-const S = { sources: LS.get('ap.sources', []), srcId: LS.get('ap.src', ''), channels: [], favs: LS.get('ap.favs', []), recent: LS.get('ap.recent', []), set: Object.assign({ proxy: '', proxyStreams: false, numberMode: 'chno', theme: 'night', tv: false }, LS.get('ap.set', {})), group: 'all', q: '', shown: 250, cur: null, last: null, epg: {}, byNum: {}, byKey: {} };
+const S0 = 0;
+const S = { vis: [], unlocked: false, sort: {}, sources: LS.get('ap.sources', []), srcId: LS.get('ap.src', ''), channels: [], favs: LS.get('ap.favs', []), recent: LS.get('ap.recent', []), set: Object.assign({ proxy: '', proxyStreams: false, numberMode: 'chno', theme: 'night', tv: false }, LS.get('ap.set', {})), group: 'all', q: '', shown: 250, cur: null, last: null, epg: {}, byNum: {}, byKey: {} };
 const saveSet = () => LS.set('ap.set', S.set);
 let toastT; const toast = m => { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('on'), 2400); };
 const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -68,10 +69,10 @@ async function loadSource(src) {
     const base = src.server.replace(/\/+$/, ''), api = a => fetchJson(`${base}/player_api.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}&action=${a}`);
     const [cats, live, vod, vcats, ser, scats] = await Promise.all([api('get_live_categories'), api('get_live_streams'), api('get_vod_streams').catch(() => []), api('get_vod_categories').catch(() => []), api('get_series').catch(() => []), api('get_series_categories').catch(() => [])]);
     const cm = {}, vm = {}, sm = {}; (scats || []).forEach(c => sm[c.category_id] = c.category_name); (cats || []).forEach(c => cm[c.category_id] = c.category_name); (vcats || []).forEach(c => vm[c.category_id] = c.category_name);
-    const list = (live || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: cm[x.category_id] || '', tvg: x.epg_channel_id || '', num: parseInt(x.num, 10) || 0, url: `${base}/live/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.m3u8`, kind: 'live' }))
-      .concat((vod || []).map(x => ({ name: x.name, logo: x.stream_icon || '', vodId: x.stream_id, group: vm[x.category_id] || 'Movies', tvg: '', num: 0, url: `${base}/movie/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.${x.container_extension || 'mp4'}`, kind: 'vod' })))
-      .concat((ser || []).map(x => ({ name: x.name, logo: x.cover || '', group: sm[x.category_id] || 'Series', tvg: '', num: 0, url: 'xtream-series:' + x.series_id, seriesId: x.series_id, kind: 'series' })));
-    const acct = await fetchJson(`${base}/player_api.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}`).then(d => d && d.user_info ? { exp: +d.user_info.exp_date || 0, max: d.user_info.max_connections, act: d.user_info.active_cons, status: d.user_info.status } : null).catch(() => null);
+    const list = (live || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: cm[x.category_id] || '', tvg: x.epg_channel_id || '', num: parseInt(x.num, 10) || 0, url: `${base}/live/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.m3u8`, kind: 'live', sid: x.stream_id, arch: +x.tv_archive || 0, archD: +x.tv_archive_duration || 0 }))
+      .concat((vod || []).map(x => ({ name: x.name, logo: x.stream_icon || '', vodId: x.stream_id, rating: parseFloat(x.rating) || 0, added: +x.added || 0, group: vm[x.category_id] || 'Movies', tvg: '', num: 0, url: `${base}/movie/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.${x.container_extension || 'mp4'}`, kind: 'vod' })))
+      .concat((ser || []).map(x => ({ name: x.name, logo: x.cover || '', group: sm[x.category_id] || 'Series', tvg: '', num: 0, url: 'xtream-series:' + x.series_id, seriesId: x.series_id, rating: parseFloat(x.rating) || 0, added: +x.last_modified || 0, kind: 'series' })));
+    const acct = await fetchJson(`${base}/player_api.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}`).then(d => d && d.user_info ? { exp: +d.user_info.exp_date || 0, max: d.user_info.max_connections, act: d.user_info.active_cons, status: d.user_info.status, tz: d.server_info && d.server_info.timezone || '' } : null).catch(() => null);
     return { acct, list: finish(list), epg: src.epg || `${base}/xmltv.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}` };
   }
   const text = src.text != null ? src.text : await fetchText(src.url, true), p = parseM3U(text); return { list: finish(p.list), epg: src.epg || p.epg };
@@ -85,8 +86,8 @@ function parseXMLTV(xml) {
   const now = Date.now(), res = {}, re = /<programme\s+([^>]*)>([\s\S]*?)<\/programme>/g; let m;
   while ((m = re.exec(xml))) {
     const a = {}; m[1].replace(/(\w+)="([^"]*)"/g, (_, k, v) => { a[k] = v; });
-    const s = xtime(a.start), e = xtime(a.stop); if (!e || e < now - 3600e3 || s > now + 24 * 3600e3) continue;
-    const tm = /<title[^>]*>([\s\S]*?)<\/title>/.exec(m[2]); (res[a.channel] = res[a.channel] || []).push({ s, e, t: tm ? decodeXml(tm[1]).trim() : '' });
+    const s = xtime(a.start), e = xtime(a.stop); if (!e || e < now - 72 * 3600e3 || s > now + 30 * 3600e3) continue;
+    const tm = /<title[^>]*>([\s\S]*?)<\/title>/.exec(m[2]), dm = /<desc[^>]*>([\s\S]*?)<\/desc>/.exec(m[2]); (res[a.channel] = res[a.channel] || []).push({ s, e, t: tm ? decodeXml(tm[1]).trim() : '', d: dm ? decodeXml(dm[1]).trim().slice(0, 400) : '' });
   }
   Object.keys(res).forEach(k => res[k].sort((x, y) => x.s - y.s)); return res;
 }
@@ -108,20 +109,23 @@ const hm = ms => new Date(ms).toLocaleTimeString(LOC, { hour: '2-digit', minute:
 const curSrc = () => S.sources.find(x => x.id === S.srcId) || S.sources[0];
 async function selectSource(id, refresh) {
   const src = S.sources.find(x => x.id === id); if (!src) { S.channels = []; S.srcId = ''; S.acct = null; indexChannels(); render(); return; }
-  S.srcId = id; LS.set('ap.src', id); S.epg = {}; S.loadErr = ''; let data = refresh ? null : await idbGet('ch:' + id);
-  if (!data) { S.loading = true; render(); try { data = await loadSource(src); await idbSet('ch:' + id, data); } catch (e) { S.loading = false; S.loadErr = t('Could not load the playlist') + ': ' + e.message; render(); return; } }
-  S.loading = false; S.channels = data.list; S.acct = data.acct || null; src.epgUrl = data.epg; indexChannels(); S.shown = 250; render(); loadEpg(id, data.epg);
+  S.srcId = id; LS.set('ap.src', id); S.epg = {}; S.loadErr = ''; let data = refresh ? null : await idbGet('ch:' + id); if (data && data.v !== 3) data = null;
+  if (!data) { S.loading = true; render(); try { data = await loadSource(src); data.v = 3; await idbSet('ch:' + id, data); } catch (e) { S.loading = false; S.loadErr = t('Could not load the playlist') + ': ' + e.message; render(); return; } }
+  S.loading = false; S.channels = data.list; S.acct = data.acct || null; src.epgUrl = data.epg; indexChannels(); refreshVis(); S.shown = 250; render(); loadEpg(id, data.epg);
 }
 function indexChannels() { S.byNum = {}; S.byKey = {}; S.channels.forEach(c => { S.byKey[c.key] = c; if (c.kind === 'live' && c.num && !S.byNum[c.num]) S.byNum[c.num] = c; }); }
 const favList = () => S.favs.map(k => S.byKey[k]).filter(Boolean);
 function baseList() {
   const g = S.group; let l;
   if (g === 'fav') l = favList().filter(c => c.kind === kindOf(S.mode)); else if (g === 'recent') l = S.recent.map(k => S.byKey[k]).filter(c => c && c.kind === 'live');
-  else if (g === 'all') l = S.channels.filter(c => c.kind === 'live'); else if (g.startsWith('v:')) l = S.channels.filter(c => c.kind === 'vod' && (c.group || '—') === g.slice(2)); else if (g.startsWith('s:')) l = S.channels.filter(c => c.kind === 'series' && (c.group || '—') === g.slice(2)); else if (g === '_vod') l = S.channels.filter(c => c.kind === 'vod'); else if (g === '_series') l = S.channels.filter(c => c.kind === 'series');
-  else l = S.channels.filter(c => c.kind === 'live' && c.group === g.slice(2));
+  else if (g === 'all') l = S.vis.filter(c => c.kind === 'live'); else if (g.startsWith('v:')) l = S.vis.filter(c => c.kind === 'vod' && (c.group || '—') === g.slice(2)); else if (g.startsWith('s:')) l = S.vis.filter(c => c.kind === 'series' && (c.group || '—') === g.slice(2)); else if (g === '_vod' || g === '_vod!') l = S.vis.filter(c => c.kind === 'vod'); else if (g === '_series' || g === '_series!') l = S.vis.filter(c => c.kind === 'series');
+  else l = S.vis.filter(c => c.kind === 'live' && c.group === g.slice(2));
   return l;
 }
 function shownNum(c) { if (c.kind !== 'live') return ''; if (S.set.numberMode === 'favs') { const i = favLive().indexOf(c); return i < 0 ? '' : i + 1; } return c.num || ''; }
+const gkey = c => c.kind + ':' + (c.group || '—');
+const lockedSet = () => new Set(S.set.pin ? (S.set.locked || []) : []);
+function refreshVis() { const H = new Set(S.set.hidden || []), L = lockedSet(); S.vis = S.channels.filter(c => { const g = gkey(c); return !H.has(g) && (S.unlocked || !L.has(g)); }); }
 const favLive = () => favList().filter(c => c.kind === 'live');
 
 /* ---------- player ---------- */
@@ -142,7 +146,7 @@ async function play(c, isRetry) {
   if (!c) return; if (S.cur && S.cur.key !== c.key) S.last = S.cur.key; if (!isRetry) { retried = false; } if (S.cur && S.cur.key !== c.key) LS.set('ap.last', S.cur.key);
   S.cur = c; LS.set('ap.cur', c.key); S.recent = [c.key].concat(S.recent.filter(k => k !== c.key)).slice(0, 30); LS.set('ap.recent', S.recent);
   S.dbg = ''; stopRec(true); destroyPlayer(); $('#screen').classList.toggle('vod', c.kind !== 'live'); $('#msg').hidden = true; spin(true); showOsd(c); showInfo(c); updateFavBtn(); $$('#list .ch').forEach(r => r.classList.toggle('on', r.dataset.k === c.key));
-  const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, url = proxied(cu), isHls = /m3u8/i.test(cu), isTs = c.kind === 'live' && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu);
+  const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, url = proxied(cu), isHls = /m3u8/i.test(cu), isTs = (c.kind === 'live' || c.kind === 'catchup') && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu);
   try {
     if (isHls) {
       if (!window.Hls && !v.canPlayType('application/vnd.apple.mpegurl')) await loadScript('js/hls.min.js');
@@ -150,7 +154,7 @@ async function play(c, isRetry) {
       else v.src = url;
     } else if (isTs) {
       if (!window.mpegts) await loadScript('js/mpegts.min.js');
-      if (window.mpegts && mpegts.isSupported()) { mpg = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true }); mpg.attachMediaElement(v); mpg.load(); mpg.on(mpegts.Events.ERROR, (a, b) => { const was = c.useTs; c.useTs = false; showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, String(b || a || '')), true); }); }
+      if (window.mpegts && mpegts.isSupported()) { mpg = mpegts.createPlayer({ type: 'mpegts', isLive: c.kind === 'live', url }, { enableWorker: true, liveBufferLatencyChasing: true }); mpg.attachMediaElement(v); mpg.load(); mpg.on(mpegts.Events.ERROR, (a, b) => { const was = c.useTs; c.useTs = false; showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, String(b || a || '')), true); }); }
       else v.src = url;
     } else v.src = url;
     await v.play().catch(() => { });
@@ -161,9 +165,9 @@ function showOsd(c) { const n = shownNum(c); $('#osdN').innerHTML = seg(n); $('#
 function liveBar(c) { const nn = c.kind === 'live' ? nowNext(c) : null; $('#liveBar').hidden = !(nn && nn.now); if (nn && nn.now) { $('#lbNow').innerHTML = `<b>${hm(nn.now.s)}</b> ${esc(nn.now.t)}`; $('#lbPb').style.width = Math.max(0, Math.min(100, Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100))) + '%'; $('#lbNext').innerHTML = nn.next ? `<b>${hm(nn.next.s)}</b> ${esc(nn.next.t)}` : ''; } }
 function showInfo(c) {
   const box = $('#info'); if (!box || c.kind !== 'live') return;
-  const l = epgFor(c), n = Date.now(), up = l ? l.filter(p => p.e > n).slice(0, 8) : [];
-  box.innerHTML = `<div class="ihead"><span class="lgw">${logoHtml(c)}</span><div><b><em>${seg(shownNum(c))}</em> ${esc(c.name)}</b><small>${esc(c.group || '')}</small></div><button class="ib" id="iFs" aria-label="${t('Full screen')}">${ic('expand')}</button></div>` + (up.length ? `<div class="epg">${up.map(p => `<div class="${p.s <= n ? 'now' : ''}"><time>${hm(p.s)}</time><span>${esc(p.t)}</span>${p.s <= n ? `<i style="width:${Math.round((n - p.s) / (p.e - p.s) * 100)}%"></i>` : ''}</div>`).join('')}</div>` : `<p class="mut">${t('No programme guide for this channel')}</p>`);
-  $('#iFs').onclick = enterFs;
+  const l = epgFor(c), n = Date.now(), up = l ? l.filter(p => p.e > n).slice(0, 8) : [], past = l && c.arch ? l.filter(p => p.e <= n && canCatch(c, p)).slice(-6) : [];
+  box.innerHTML = `<div class="ihead"><span class="lgw">${logoHtml(c)}</span><div><b><em>${seg(shownNum(c))}</em> ${esc(c.name)}</b><small>${esc(c.group || '')}</small></div><button class="ib" id="iFs" aria-label="${t('Full screen')}">${ic('expand')}</button></div>` + (past.length ? `<div class="epg past">${past.map(p => `<button data-ps="${p.s}">${ic('archive')}<time>${hm(p.s)}</time><span>${esc(p.t)}</span></button>`).join('')}</div>` : '') + (up.length ? `<div class="epg">${up.map(p => `<div class="${p.s <= n ? 'now' : ''}"><time>${hm(p.s)}</time><span>${esc(p.t)}</span>${p.s <= n ? `<i style="width:${Math.round((n - p.s) / (p.e - p.s) * 100)}%"></i>` : ''}</div>`).join('')}</div>` : `<p class="mut">${t('No programme guide for this channel')}</p>`);
+  $('#iFs').onclick = enterFs; $$('#info [data-ps]').forEach(b => b.onclick = () => { const p = l.find(x => x.s === +b.dataset.ps); if (p) playCatch(c, p); });
 }
 function zapList() { const m = S.mode; S.mode = 'live'; const g = S.group; S.group = S.gsel.live; const l = baseList().filter(c => c.kind === 'live'); S.group = g; S.mode = m; return l.length ? l : S.channels.filter(c => c.kind === 'live'); }
 function zap(dir) { const l = zapList(); if (!l.length) return; let i = S.cur ? l.findIndex(c => c.key === S.cur.key) : -1; i = i < 0 ? (dir > 0 ? 0 : l.length - 1) : (i + dir + l.length) % l.length; play(l[i]); const r = $(`#list .ch[data-k="${l[i].key}"]`); if (r) r.scrollIntoView({ block: 'nearest' }); }
@@ -174,14 +178,6 @@ function numKey(d) {
 function commitNum() { clearTimeout(numT); const n = +numBuf; numBuf = ''; $('#num').hidden = true; if (!n && n !== 0) return; const c = byNumber(n); if (!c) { toast(t('No channel') + ' ' + n); return; } if (fsOn || (S.view === 'browse' && S.mode === 'live')) play(c); else enterFsFor(c); }
 function lastChannel() { const k = LS.get('ap.last', ''), c = S.byKey[S.last || k]; if (c && (!S.cur || c.key !== S.cur.key)) play(c); else toast(t('Last channel') + ' —'); }
 
-/* ---------- quick list inside the player (works in full screen) ---------- */
-let quick = null;
-function openQuick() {
-  closeQuick(); const l = zapList(); if (!l.length) return; const q = document.createElement('div'); q.id = 'quick'; 
-  q.innerHTML = l.slice(0, 400).map(c => `<div class="ch ${S.cur && S.cur.key === c.key ? 'on' : ''}" tabindex="0" data-k="${c.key}"><span class="n">${shownNum(c)}</span><span class="lgw">${logoHtml(c)}</span><div class="t"><b>${esc(c.name)}</b></div><span></span></div>`).join('');
-  $('#screen').appendChild(q); quick = q; $$('.ch', q).forEach(r => { r.onclick = () => { play(S.byKey[r.dataset.k]); closeQuick(); }; r.onkeydown = e => { if (e.key === 'Enter') { play(S.byKey[r.dataset.k]); closeQuick(); } }; }); const on = $('.ch.on', q) || $('.ch', q); if (on) { on.focus(); on.scrollIntoView({ block: 'center' }); }
-}
-function closeQuick() { if (quick) { quick.remove(); quick = null; } }
 
 /* ---------- recording (browser capture; works only when the stream allows it) ---------- */
 function stopRec(silent) { if (!rec) return; const r = rec; rec = null; try { r.mr.stop(); } catch (e) { } $('#cRec').classList.remove('rec'); if (silent) r.silent = true; }
@@ -229,14 +225,15 @@ function settingsDialog() {
   <label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('Big TV mode')}</label><select id="sTv"><option value="0" ${!s.tv ? 'selected' : ''}>${t('No')}</option><option value="1" ${s.tv ? 'selected' : ''}>${t('Yes')}</option></select>
   <label>${t('Language')}</label><select id="sLang"><option value="en" ${LANG === 'en' ? 'selected' : ''}>English</option><option value="pt" ${LANG === 'pt' ? 'selected' : ''}>Português</option></select>
-  <label>${t('Helper link for blocked playlists (optional)')}</label><input id="sProxy" value="${esc(s.proxy)}" placeholder="https://your-helper.example/?url={url}"><label>${t('Also use it for streams')}</label><select id="sPS"><option value="0" ${!s.proxyStreams ? 'selected' : ''}>${t('No')}</option><option value="1" ${s.proxyStreams ? 'selected' : ''}>${t('Yes')}</option></select>
+  <h2 style="margin-top:18px">${ic('lock')} ${t('Parental control')}</h2><label>${t('PIN (4 digits, empty = off)')}</label><input id="sPin" type="password" inputmode="numeric" maxlength="8" value="${esc(s.pin || '')}" autocomplete="off"><div class="row" style="justify-content:flex-start"><button class="btn" id="sCats">${t('Manage categories')}</button></div><label>${t('Helper link for blocked playlists (optional)')}</label><input id="sProxy" value="${esc(s.proxy)}" placeholder="https://your-helper.example/?url={url}"><label>${t('Also use it for streams')}</label><select id="sPS"><option value="0" ${!s.proxyStreams ? 'selected' : ''}>${t('No')}</option><option value="1" ${s.proxyStreams ? 'selected' : ''}>${t('Yes')}</option></select>
   <h2 style="margin-top:18px">${t('Playlists')}</h2>${S.sources.map(x => `<div style="display:flex;gap:6px;align-items:center;margin:6px 0"><b style="flex:1">${esc(x.name)}</b><button class="btn" data-r="${x.id}">${t('Refresh')}</button><button class="btn" data-d="${x.id}">${t('Delete')}</button></div>`).join('') || '<p class="mut">—</p>'}
   <h2 style="margin-top:18px">${t('Keyboard & remote')}</h2><div class="keys"><kbd>0–9</kbd><span>${t('jump to that channel')}</span><kbd>↑ ↓ / CH±</kbd><span>${t('next / previous channel')}</span><kbd>Enter</kbd><span>${t('channel list')}</span><kbd>F</kbd><span>${t('favourite on/off')}</span><kbd>L</kbd><span>${t('last channel')}</span><kbd>M</kbd><span>${t('mute')}</span><kbd>R</kbd><span>${t('record (needs a browser that allows it)')}</span><kbd>Z</kbd><span>${t('full screen')}</span></div>
   <div class="row"><button class="btn p" id="sOk">${t('Close')}</button></div>`);
   const chg = () => { s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tv = $('#sTv').value === '1'; s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
   $$('#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sProxy').onchange = chg; $('#sLang').onchange = e => { LS.set('ap.lang', e.target.value); location.reload(); };
   $$('[data-r]', dlg).forEach(b => b.onclick = () => { dlg.close(); selectSource(b.dataset.r, true); }); $$('[data-d]', dlg).forEach(b => b.onclick = () => { const id = b.dataset.d; S.sources = S.sources.filter(x => x.id !== id); LS.set('ap.sources', S.sources); idbDel('ch:' + id); idbDel('epg:' + id); dlg.close(); selectSource(S.sources[0] && S.sources[0].id); });
-  $('#sOk').onclick = () => dlg.close();
+  $('#sOk').onclick = () => dlg.close(); $('#sCats').onclick = catsDialog;
+  $('#sPin').onchange = () => { const p = $('#sPin').value.trim(); const had = !!s.pin; s.pin = p; if (p && !had) { const a = new Set(s.locked || []); S.channels.forEach(c => { if (ADULT.test(c.group || '')) a.add(gkey(c)); }); s.locked = [...a]; } S.unlocked = false; saveSet(); refreshVis(); render(); };
 }
 function applyLook() { if (!THEMES.some(x => x[0] === S.set.theme)) S.set.theme = 'night'; document.documentElement.dataset.theme = S.set.theme; document.documentElement.dataset.style = S.set.style || 'circuit'; document.body.classList.toggle('tv', !!S.set.tv); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0f1115'; }
 
@@ -246,6 +243,7 @@ const isVodNow = () => S.cur && S.cur.kind !== 'live';
 const fmtT = x => { if (!isFinite(x) || x < 0) return '0:00'; x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x % 3600 / 60), s2 = x % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0'); };
 function savePos() { if (!isVodNow() || !isFinite(v.duration) || v.duration < 60) return; const k = S.cur.key; if (v.currentTime > v.duration - 30) delete POS[k]; else { POS[k] = Math.floor(v.currentTime); DUR[k] = Math.floor(v.duration); LS.set('ap.dur', DUR); } const ks = Object.keys(POS); if (ks.length > 300) delete POS[ks[0]]; LS.set('ap.pos', POS); }
 v.addEventListener('timeupdate', () => { if (!isVodNow()) return; if (!seeking) $('#seek').value = v.duration ? Math.round(v.currentTime / v.duration * 1000) : 0; $('#tCur').textContent = fmtT(v.currentTime); $('#tDur').textContent = fmtT(v.duration); if (Date.now() - posT > 5000) { posT = Date.now(); savePos(); } });
+v.addEventListener('ended', () => { const nx = nextEpisode(); if (nx) { toast(t('Next episode') + ': ' + nx.name); setTimeout(() => { if (S.cur && S.cur.ser) enterFsFor(nx); }, 1500); } });
 v.addEventListener('loadedmetadata', () => { if (isVodNow() && POS[S.cur.key] > 10 && isFinite(v.duration) && POS[S.cur.key] < v.duration - 30) { v.currentTime = POS[S.cur.key]; toast(t('Resume') + ' ' + fmtT(POS[S.cur.key])); } });
 v.addEventListener('pause', () => { $('#cPlay').innerHTML = ic('play'); screenEl.classList.add('paused'); if (fsOn) showOv(true); savePos(); }); v.addEventListener('play', () => { $('#cPlay').innerHTML = ic('pause'); screenEl.classList.remove('paused'); if (fsOn) showOv(); });
 let seeking = false; const sk = $('#seek'); sk.oninput = () => { seeking = true; if (v.duration) $('#tCur').textContent = fmtT(sk.value / 1000 * v.duration); }; sk.onchange = () => { if (v.duration) v.currentTime = sk.value / 1000 * v.duration; seeking = false; };
@@ -254,7 +252,6 @@ const togglePlay = () => { if (v.paused) v.play().catch(() => { }); else v.pause
 $('#cPlay').onclick = togglePlay; $('#cBack').onclick = () => seekBy(-10); $('#cFwd').onclick = () => seekBy(10);
 const ASP = [['contain', 'Fit'], ['cover', 'Fill'], ['fill', 'Stretch']]; let aspI = 0;
 $('#cAsp').onclick = () => { aspI = (aspI + 1) % ASP.length; v.style.objectFit = ASP[aspI][0]; toast(t(ASP[aspI][1])); };
-$('#cPip').onclick = () => { try { if (document.pictureInPictureElement) document.exitPictureInPicture(); else v.requestPictureInPicture(); } catch (e) { toast('PiP ✕'); } };
 $('#cTrk').onclick = () => {
   const au = [], su = []; let cur = { a: -1, s: -1 };
   if (hls) { (hls.audioTracks || []).forEach((x, i) => au.push({ i, n: x.name || x.lang || 'Audio ' + (i + 1) })); (hls.subtitleTracks || []).forEach((x, i) => su.push({ i, n: x.name || x.lang || 'Sub ' + (i + 1) })); cur = { a: hls.audioTrack, s: hls.subtitleTrack }; }
@@ -283,11 +280,16 @@ const IC = {
   aspect: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M7 11V9h2.5M17 13v2h-2.5"/>', pip: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><rect x="11.5" y="11" width="7" height="5.5" rx="1"/>',
   rec: '<circle cx="12" cy="12" r="5.5" fill="currentColor" stroke="none"/>', expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3M19.5 4.5v4.8h-4.8"/>', user: '<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0115 0"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>', stack: '<path d="M4 6h13M4 11h13M4 16h7"/><path d="M15.5 14v6.5l5-3.2z" fill="currentColor" stroke="none"/>', clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'
+  plus: '<path d="M12 5v14M5 12h14"/>', sort: '<path d="M7 4v16M3.5 16.5L7 20l3.5-3.5M13 6h8M13 11h6M13 16h4"/>', lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/>', archive: '<path d="M4 12a8 8 0 108-8 8.2 8.2 0 00-5.7 2.3L4 8.5"/><path d="M4 4v4.5h4.5M12 8v4.5l3 1.8"/>', sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.2"/>', dots: '<circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/>',
+  left: '<path d="M14.5 6l-6 6 6 6"/>', right: '<path d="M9.5 6l6 6-6 6"/>', close: '<path d="M6 6l12 12M18 6L6 18"/>', home: '<path d="M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z"/>',
+  skp: '<path d="M6.5 5v14"/><path d="M18.5 5.5v13l-9.5-6.5z" fill="currentColor"/>', skn: '<path d="M17.5 5v14"/><path d="M5.5 5.5v13l9.5-6.5z" fill="currentColor"/>',
+  rew10: '<path d="M4.5 12a7.5 7.5 0 107.5-7.5H8"/><path d="M10.5 1.8L7.6 4.6l2.9 2.8"/><text x="12" y="15.6" font-size="7" font-family="sans-serif" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">10</text>',
+  fwd10: '<path d="M19.5 12A7.5 7.5 0 1112 4.5h4"/><path d="M13.5 1.8l2.9 2.8-2.9 2.8"/><text x="12" y="15.6" font-size="7" font-family="sans-serif" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">10</text>', stack: '<path d="M4 6h13M4 11h13M4 16h7"/><path d="M15.5 14v6.5l5-3.2z" fill="currentColor" stroke="none"/>', clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'
 };
 const seg = (v, cls) => { v = String(v == null ? '' : v); return v === '' ? '' : `<span class="seg ${cls || ''}" data-g="${v.replace(/[0-9-]/g, '8')}">${esc(v)}</span>`; };
 const ic = (n, c) => `<svg viewBox="0 0 24 24" class="i ${c || ''}" aria-hidden="true">${IC[n] || ''}</svg>`;
-Object.assign(PT, { 'Style': 'Estilo', 'Circuit (electronic)': 'Circuito (eletrónico)', 'Soft': 'Suave', 'Live TV': 'TV em direto', 'Search': 'Pesquisar', 'Playlists': 'Listas', 'Expires': 'Expira', 'Never': 'Nunca', 'Connections': 'Ligações', 'Recent channels': 'Últimos canais', 'Continue watching': 'Continuar a ver', 'movies': 'filmes', 'series': 'séries', 'All': 'Tudo', 'Loading your playlist…': 'A carregar a tua lista…', 'Watch': 'Ver', 'Resume': 'Continuar', 'Add favourite': 'Adicionar aos favoritos', 'In favourites': 'Nos favoritos', 'Active': 'Ativa', 'Account': 'Conta', 'Add a playlist': 'Adicionar lista', 'Use': 'Usar', 'Search everything': 'Pesquisar tudo', 'Type at least 2 letters': 'Escreve pelo menos 2 letras', 'Tap again for full screen': 'Toca outra vez para ecrã inteiro', 'Pick a channel': 'Escolhe um canal', 'Episode': 'Episódio', 'Seasons': 'Épocas', 'No details from the provider': 'O fornecedor não enviou detalhes', 'Status': 'Estado', 'Xtream login': 'Login Xtream' });
+Object.assign(PT, { 'Default order': 'Ordem original', 'A–Z': 'A–Z', 'Recently added': 'Adicionados recentemente', 'Top rated': 'Melhor nota', 'See all': 'Ver tudo', 'Details': 'Detalhes', 'Enter PIN': 'Introduz o PIN', 'Wrong PIN': 'PIN errado', 'Parental control': 'Controlo parental', 'PIN (4 digits, empty = off)': 'PIN (4 dígitos, vazio = desligado)', 'Manage categories': 'Gerir categorias', 'Hide': 'Esconder', 'Lock': 'Bloquear', 'Catch-up': 'Ver de novo', 'Next episode': 'Próximo episódio', 'Watch from the start': 'Ver desde o início', 'Home': 'Início', 'Group': 'Grupo', 'More': 'Mais', 'Speed': 'Velocidade', 'Picture size': 'Tamanho da imagem', 'Picture in picture': 'Imagem no ecrã', 'Record': 'Gravar', 'Stop recording': 'Parar gravação', 'More channels': 'Mais canais', 'Tap or swipe up': 'Toque ou deslize para cima', 'Press ◀ on the remote': 'Carrega ◀ no comando', 'Style': 'Estilo', 'Circuit (electronic)': 'Circuito (eletrónico)', 'Soft': 'Suave', 'Live TV': 'TV em direto', 'Search': 'Pesquisar', 'Playlists': 'Listas', 'Expires': 'Expira', 'Never': 'Nunca', 'Connections': 'Ligações', 'Recent channels': 'Últimos canais', 'Continue watching': 'Continuar a ver', 'movies': 'filmes', 'series': 'séries', 'All': 'Tudo', 'Loading your playlist…': 'A carregar a tua lista…', 'Watch': 'Ver', 'Resume': 'Continuar', 'Add favourite': 'Adicionar aos favoritos', 'In favourites': 'Nos favoritos', 'Active': 'Ativa', 'Account': 'Conta', 'Add a playlist': 'Adicionar lista', 'Use': 'Usar', 'Search everything': 'Pesquisar tudo', 'Type at least 2 letters': 'Escreve pelo menos 2 letras', 'Tap again for full screen': 'Toca outra vez para ecrã inteiro', 'Pick a channel': 'Escolhe um canal', 'Episode': 'Episódio', 'Seasons': 'Épocas', 'No details from the provider': 'O fornecedor não enviou detalhes', 'Status': 'Estado', 'Xtream login': 'Login Xtream' });
 
 /* ---------- navigation ---------- */
 const kindOf = m => m === 'vod' ? 'vod' : m === 'series' ? 'series' : 'live';
@@ -308,10 +310,11 @@ function route() {
   S.view = view; document.body.dataset.view = view; document.body.dataset.mode = view === 'browse' ? S.mode : '';
   render();
   if (view === 'search') setTimeout(() => $('#q').focus(), 50);
-  const f = $(`#v${view[0].toUpperCase() + view.slice(1)} [tabindex], #v${view[0].toUpperCase() + view.slice(1)} button`); if (S.set.tv && f && !document.activeElement.closest('.view')) f.focus();
+  if (S.set.tv) setTimeout(tvFocus, 30);
 }
 window.addEventListener('popstate', route);
-function back() { if (dlg.open) { dlg.close(); return true; } if (quick) { closeQuick(); return true; } if ((location.hash || '#home') !== '#home') { if (history.state && history.state.d > 0) history.back(); else go('home', true); return true; } return false; }
+function tvFocus() { if (fsOn || dlg.open) return; const ae = document.activeElement; if (ae && ae !== document.body && ae.closest('.view') && ae.offsetParent) return; const v2 = $(`#v${S.view[0].toUpperCase() + S.view.slice(1)}`); const f = $('#list .ch.on', v2) || $('#list .ch', v2) || $('.hacts .btn', v2) || $('#list .pc', v2) || $('.tile', v2) || $('#dPlay', v2) || $('#dFav', v2) || $('button, [tabindex="0"]', v2); if (f) { f.focus({ preventScroll: true }); f.scrollIntoView({ block: 'nearest' }); } }
+function back() { if (dlg.open) { dlg.close(); return true; } if (fsOn && closeQuick()) return true; if (fsOn && screenEl.classList.contains('show') && screenEl.contains(document.activeElement)) { hideOv(); return true; } if (S.view === 'browse' && S.mode !== 'live' && S.group !== GDEF[S.mode]) { S.group = GDEF[S.mode]; S.gsel[S.mode] = S.group; S.q = ''; $('#q').value = ''; renderBrowse(); $('#list').scrollTop = 0; return true; } if ((location.hash || '#home') !== '#home') { if (history.state && history.state.d > 0) history.back(); else go('home', true); return true; } return false; }
 
 /* ---------- full screen player ---------- */
 function enterFs() {
@@ -329,26 +332,102 @@ function doFs(on) {
 }
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && fsOn && location.hash === '#play') history.back(); });
 function stopPlayback() { savePos(); stopRec(true); destroyPlayer(); spin(false); $('#msg').hidden = true; S.cur = null; $$('.ch.on').forEach(r => r.classList.remove('on')); const i = $('#info'); if (i) i.innerHTML = sideEmpty(); }
-function showOv(keep) { screenEl.classList.add('show'); clearTimeout(ovT); if (!keep) ovT = setTimeout(() => { if (!(isVodNow() && v.paused)) screenEl.classList.remove('show'); }, 4500); }
-let lastTap = 0, tapX = 0, touchY = null;
+function showOv(keep) { screenEl.classList.add('show'); clearTimeout(ovT); if (!keep) ovT = setTimeout(() => { if (!(isVodNow() && v.paused)) hideOv(); }, 5000); }
+/* ---------- player chrome: gestures, channel panel (TV), channel strip (touch) ---------- */
+let lastTap = 0, tapX = 0, tch = null, lastInput = 'touch', bri = 1;
+const isTouch = () => lastInput === 'touch';
+document.addEventListener('keydown', () => { lastInput = 'key'; }, true);
+document.addEventListener('pointerdown', e => { lastInput = e.pointerType === 'mouse' ? 'mouse' : 'touch'; }, true);
+const panelOpen = () => !$('#chPanel').hidden || !$('#chStrip').hidden;
 v.addEventListener('click', e => {
   if (!fsOn) { if (S.cur) enterFs(); return; }
+  if (panelOpen()) { closeQuick(); return; }
   const now = Date.now(), r = v.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
   if (isVodNow() && now - lastTap < 320 && Math.abs(x - tapX) < .2 && (x < .35 || x > .65)) { seekBy(x < .35 ? -10 : 10); toast(x < .35 ? '−10 s' : '+10 s'); lastTap = 0; showOv(); return; }
-  lastTap = now; tapX = x; screenEl.classList.contains('show') ? screenEl.classList.remove('show') : showOv();
+  lastTap = now; tapX = x; screenEl.classList.contains('show') ? hideOv() : showOv();
 });
-screenEl.addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
-screenEl.addEventListener('touchend', e => { if (touchY == null || !fsOn || isVodNow() || quick) return; const dy = e.changedTouches[0].clientY - touchY; touchY = null; if (Math.abs(dy) > 70) zap(dy < 0 ? 1 : -1); }, { passive: true });
+$('#ov').addEventListener('click', e => { if (e.target === $('#ov') || e.target.id === 'ovMid') { hideOv(); } });
+function hideOv() { screenEl.classList.remove('show'); clearTimeout(ovT); if (screenEl.contains(document.activeElement) && !panelOpen()) document.activeElement.blur(); }
+const pill = (el, icon, val) => { el.querySelector('i').innerHTML = ic(icon); el.querySelector('b').textContent = Math.round(val * 100) + '%'; el.style.setProperty('--lv', Math.round(val * 100) + '%'); el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 900); };
+screenEl.addEventListener('touchstart', e => { if (!fsOn || panelOpen() || e.target.closest('#ovTop,#ovBot,#ovMid button,dialog')) { tch = null; return; } const t0 = e.touches[0], r = screenEl.getBoundingClientRect(); tch = { x: t0.clientX, y: t0.clientY, side: (t0.clientX - r.left) / r.width, h: r.height, bri, vol: v.muted ? 0 : v.volume, mode: '' }; }, { passive: true });
+screenEl.addEventListener('touchmove', e => {
+  if (!tch) return; const t0 = e.touches[0], dx = t0.clientX - tch.x, dy = t0.clientY - tch.y;
+  if (!tch.mode) { if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) tch.mode = tch.side < .38 ? 'bri' : tch.side > .62 ? 'vol' : 'mid'; else return; }
+  const d = -dy / (tch.h * .7);
+  if (tch.mode === 'bri') { bri = Math.max(.15, Math.min(1, tch.bri + d)); $('#dim').style.opacity = String(1 - bri); pill($('#gBri'), 'sun', bri); }
+  else if (tch.mode === 'vol') { const vv = Math.max(0, Math.min(1, tch.vol + d)); v.volume = vv; v.muted = vv === 0; $('#cMute').innerHTML = ic(v.muted ? 'mute' : 'vol'); pill($('#gVol'), v.muted ? 'mute' : 'vol', vv); }
+}, { passive: true });
+screenEl.addEventListener('touchend', e => { if (!tch) return; const dy = e.changedTouches[0].clientY - tch.y, m = tch.mode; tch = null; if (m === 'mid' && dy < -60 && !isVodNow()) openStrip(); });
 screenEl.addEventListener('pointermove', e => { if (fsOn && e.pointerType === 'mouse') showOv(); });
+
+/* resolution badge */
+const resLabel = () => { const w = v.videoWidth, h = v.videoHeight; if (!w) return ''; const q = h >= 2000 ? '4K' : h >= 1000 ? 'FHD' : h >= 700 ? 'HD' : 'SD'; return `${w}×${h} · ${q}`; };
+['loadedmetadata', 'resize'].forEach(ev => v.addEventListener(ev, () => { const l = resLabel(); $('#resB').textContent = l; $('#resB').hidden = !l; }));
+
+/* left channel panel — TV remote ◀ */
+let cpGroup = null, cpT = 0;
+const liveGroups = () => catItems('live').filter(x => x.n > 0 || x.id === 'all');
+function cpBump() { clearTimeout(cpT); cpT = setTimeout(() => { if (!$('#chPanel').hidden && !$('#chPanel').contains(document.activeElement)) closeQuick(); }, 12000); }
+function openPanel(focusCur = true) {
+  $('#chStrip').hidden = true; hideOv(); const gs = liveGroups(); if (!gs.find(g => g.id === cpGroup)) cpGroup = S.gsel.live;
+  if (!gs.find(g => g.id === cpGroup)) cpGroup = 'all';
+  const g = gs.find(x => x.id === cpGroup) || gs[0], l = groupList(cpGroup);
+  $('#cpGroup').innerHTML = `${esc(g ? g.label : '')}<small>${fmtN(l.length)}</small>`;
+  $('#cpList').innerHTML = l.slice(0, 400).map(c => { const nn = nowNext(c), pr = nn && nn.now ? Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100) : 0; return `<button class="cpi ${S.cur && S.cur.key === c.key ? 'on' : ''}" data-k="${c.key}"><span class="n">${seg(shownNum(c))}</span><span class="lgw">${logoHtml(c)}</span><span class="t"><b>${esc(c.name)}</b><small>${nn && nn.now ? esc(nn.now.t) : ''}</small>${nn && nn.now ? `<i class="pb"><i style="width:${pr}%"></i></i>` : ''}</span></button>`; }).join('') || `<p class="mut" style="padding:20px">${t('Nothing found')}</p>`;
+  $('#chPanel').hidden = false;
+  $$('#cpList .cpi').forEach(b => { b.onclick = () => { const c = S.byKey[b.dataset.k]; S.gsel.live = cpGroup; LS.set('ap.gsel', S.gsel); play(c); $$('#cpList .cpi').forEach(x => x.classList.toggle('on', x === b)); cpBump(); }; b.onfocus = cpBump; });
+  if (focusCur) { const on = $('#cpList .cpi.on') || $('#cpList .cpi'); if (on) { on.focus({ preventScroll: true }); on.scrollIntoView({ block: 'center' }); } }
+  cpBump();
+}
+function cpShift(d) { const gs = liveGroups(); let i = gs.findIndex(x => x.id === cpGroup); i = (i + d + gs.length) % gs.length; cpGroup = gs[i].id; openPanel(); }
+function groupList(id) { const m = S.mode, g = S.group; S.mode = 'live'; S.group = id; const l = baseList().filter(c => c.kind === 'live'); S.mode = m; S.group = g; return l; }
+
+/* bottom channel strip — touch "More channels" */
+let csGroup = null;
+function openStrip() {
+  $('#chPanel').hidden = true; hideOv(); const gs = liveGroups(); if (!gs.find(g => g.id === csGroup)) csGroup = gs.find(g => g.id === S.gsel.live) ? S.gsel.live : 'all';
+  const g = gs.find(x => x.id === csGroup), l = groupList(csGroup);
+  $('#csTitle').innerHTML = `${t('Group')}: ${esc(g ? g.label : '')} <small>${fmtN(l.length)}</small>`;
+  $('#csChips').innerHTML = gs.map(x => `<button data-g="${esc(x.id)}" class="${x.id === csGroup ? 'on' : ''}">${esc(x.label)}</button>`).join('');
+  $('#csCards').innerHTML = l.slice(0, 200).map(c => { const nn = nowNext(c), pr = nn && nn.now ? Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100) : 0; return `<button class="csc ${S.cur && S.cur.key === c.key ? 'on' : ''}" data-k="${c.key}"><span class="cl">${logoHtml(c)}</span><b><em>${seg(shownNum(c))}</em>${esc(c.name)}</b><small>${nn && nn.now ? esc(nn.now.t) : esc(c.group || '')}</small><i class="pb"><i style="width:${pr}%"></i></i></button>`; }).join('');
+  $('#chStrip').hidden = false;
+  $$('#csChips button').forEach(b => b.onclick = () => { csGroup = b.dataset.g; openStrip(); });
+  $$('#csCards .csc').forEach(b => b.onclick = () => { S.gsel.live = csGroup; LS.set('ap.gsel', S.gsel); play(S.byKey[b.dataset.k]); closeQuick(); });
+  const on = $('#csCards .csc.on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' }); const oc = $('#csChips .on'); if (oc) oc.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+function openQuick() { if (isVodNow()) return; isTouch() ? openStrip() : openPanel(); }
+function closeQuick() { const had = panelOpen(); $('#chPanel').hidden = true; $('#chStrip').hidden = true; clearTimeout(cpT); if (had && screenEl.contains(document.activeElement)) document.activeElement.blur(); return had; }
+$('#cpPrev').onclick = () => cpShift(-1); $('#cpNext').onclick = () => cpShift(1); $('#csClose').onclick = () => closeQuick();
+
+/* info + more */
+$('#cInfo').onclick = () => {
+  const c = S.cur; if (!c) return; const l = epgFor(c) || [], n = Date.now(), nn = nowNext(c), cur = nn && nn.now;
+  openDlg(`<h2>${c.kind === 'live' ? seg(shownNum(c)) + ' ' : ''}${esc(c.name)}</h2>${cur ? `<p class="mut">${hm(cur.s)} – ${hm(cur.e)}</p><h3 style="margin:4px 0 8px">${esc(cur.t)}</h3>${cur.d ? `<p class="plot">${esc(cur.d)}</p>` : ''}` : `<p class="mut">${esc(c.group || '')}</p>`}${l.filter(p => p.s > n).slice(0, 5).map(p => `<div class="epgl"><time>${hm(p.s)}</time><span>${esc(p.t)}</span></div>`).join('')}<div class="row"><button class="btn p" id="dx">OK</button></div>`);
+  $('#dx').onclick = () => dlg.close();
+};
+$('#cMore').onclick = () => {
+  const sp = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  openDlg(`<h2>${t('More')}</h2>${isVodNow() ? `<label>${t('Speed')}</label><div class="tabs">${sp.map(x => `<button data-sp="${x}" class="${v.playbackRate === x ? 'on' : ''}">${x}×</button>`).join('')}</div>` : ''}
+  <label>${t('Picture size')}</label><div class="tabs">${ASP.map((x, i) => `<button data-as="${i}" class="${aspI === i ? 'on' : ''}">${t(x[1])}</button>`).join('')}</div>
+  <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button>` : ''}</div><div class="row"><button class="btn p" id="dx">OK</button></div>`);
+  $('#dx').onclick = () => dlg.close();
+  $$('[data-sp]', dlg).forEach(b => b.onclick = () => { v.playbackRate = +b.dataset.sp; $$('[data-sp]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
+  $$('[data-as]', dlg).forEach(b => b.onclick = () => { aspI = +b.dataset.as; v.style.objectFit = ASP[aspI][0]; $$('[data-as]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
+  const p = $('#mPip'); if (p) p.onclick = () => { dlg.close(); try { v.requestPictureInPicture(); } catch (e) { } };
+  const r = $('#mRec'); if (r) r.onclick = () => { dlg.close(); toggleRec(); };
+};
 
 /* ---------- header ---------- */
 const TITLES = { live: 'Live TV', vod: 'Movies', series: 'Series' };
 function renderHeader() {
+  renderNav();
   const vw = S.view; $('#title').textContent = vw === 'browse' ? t(TITLES[S.mode]) : vw === 'search' ? t('Search') : '';
   $('#q').placeholder = vw === 'search' ? t('Search channels, movies, series…') : vw === 'browse' ? (t('Search') + ' · ' + t(TITLES[S.mode])) : '';
   $('#bGuide').hidden = !(vw === 'home' || (vw === 'browse' && S.mode === 'live'));
   $('#bSearch').hidden = vw !== 'home' || !S.sources.length; if (!S.sources.length) $('#bGuide').hidden = true;
 }
+const NAV = [['home', 'home', 'Home'], ['live', 'tv', 'Live TV'], ['movies', 'film', 'Movies'], ['series', 'series', 'Series'], ['search', 'search', 'Search']];
+function renderNav() { const cur = S.view === 'browse' ? (S.mode === 'live' ? 'live' : S.mode === 'vod' ? 'movies' : 'series') : S.view; $$('#bnav button').forEach((b, i) => { const n = NAV[i]; if (!b.innerHTML) { b.innerHTML = ic(n[1]) + `<span>${t(n[2])}</span>`; b.onclick = () => { if (n[0] === 'search') { S.q = ''; $('#q').value = ''; } go(n[0]); }; } b.classList.toggle('on', n[0] === cur); }); $('#bnav').hidden = !S.sources.length; }
 function tick() { const d = new Date(), tm = d.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit', hour12: false }), dt = d.toLocaleDateString(LANG === 'pt' ? 'pt-PT' : undefined, { weekday: 'short', day: 'numeric', month: 'short' }); $('#clock b').innerHTML = seg(tm); $('#clock small').textContent = dt; $('#ovClock').innerHTML = seg(tm); if (S.cur && S.cur.kind === 'live') liveBar(S.cur); }
 
 /* ---------- home ---------- */
@@ -362,7 +441,7 @@ function renderHome() {
     <div class="wacts"><button class="btn p big" id="wX">${ic('user')} ${t('Xtream login')}</button><button class="btn big" id="wU">${ic('plus')} ${t('Add a playlist')}</button><button class="btn big ghost" id="wD">${ic('play')} ${t('Try demo channels')}</button></div></div>`;
     $('#wX').onclick = () => addDialog('xt'); $('#wU').onclick = () => addDialog('url'); $('#wD').onclick = addDemo; return;
   }
-  const n = k => S.channels.filter(c => c.kind === k).length, L = n('live'), M = n('vod'), Se = n('series'), src = curSrc() || {}, a = S.acct, ld = S.loading;
+  const n = k => S.vis.filter(c => c.kind === k).length, L = n('live'), M = n('vod'), Se = n('series'), src = curSrc() || {}, a = S.acct, ld = S.loading;
   const cnt = (x, w) => ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(x, 'cnt')} ${w}</small>`;
   const exp = a && a.exp ? new Date(a.exp * 1000).toLocaleDateString(LANG === 'pt' ? 'pt-PT' : undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : (a ? t('Never') : '');
   const cont = contList(), rec = S.recent.map(k => S.byKey[k]).filter(c => c && c.kind === 'live').slice(0, 14);
@@ -396,7 +475,7 @@ function rowHtml(c) {
 }
 function posterHtml(c) {
   const pos = POS[c.key], ini = esc((c.name || '?').charAt(0)), fav = S.favs.includes(c.key);
-  return `<div class="pc" tabindex="0" data-k="${c.key}"><div class="po">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${ini}</span>${fav ? `<i class="fv">${ic('starF')}</i>` : ''}${pos ? `<div class="pp"><i style="width:${Math.min(100, Math.round(pos / (DUR[c.key] || c.dur || 5400) * 100))}%"></i></div>` : ''}</div><b>${esc(c.name)}</b></div>`;
+  return `<div class="pc" tabindex="0" data-k="${c.key}"><div class="po">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${ini}</span>${c.rating ? `<i class="rt">${c.rating.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : ''}${fav ? `<i class="fv">${ic('starF')}</i>` : ''}${pos ? `<div class="pp"><i style="width:${Math.min(100, Math.round(pos / (DUR[c.key] || c.dur || 5400) * 100))}%"></i></div>` : ''}</div><b>${esc(c.name)}</b></div>`;
 }
 function wireItems(box) {
   $$('.ch', box).forEach(r => { r.onclick = e => { if (e.target.closest('.star') || e.target.closest('.mv')) return; pick(S.byKey[r.dataset.k]); }; r.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); pick(S.byKey[r.dataset.k]); } }; });
@@ -413,17 +492,17 @@ function pick(c) {
 /* ---------- browse (live / movies / series) ---------- */
 const tabOf = g => (g === '_vod' || g.startsWith('v:')) ? 'vod' : (g === '_series' || g.startsWith('s:')) ? 'series' : 'live';
 function catItems(tab) {
-  const k = kindOf(tab), o = {}; let n = 0; S.channels.forEach(c => { if (c.kind !== k) return; n++; const g = c.group || '—'; o[g] = (o[g] || 0) + 1; });
+  const k = kindOf(tab), o = {}, H = new Set(S.set.hidden || []), L = lockedSet(); let n = 0; S.channels.forEach(c => { if (c.kind !== k) return; const g = c.group || '—', gk = k + ':' + g; if (H.has(gk)) return; if (!L.has(gk) || S.unlocked) n++; o[g] = (o[g] || 0) + 1; });
   const favN = favList().filter(c => c.kind === k).length, pre = tab === 'live' ? 'g:' : tab === 'vod' ? 'v:' : 's:';
   const head = tab === 'live' ? [{ id: 'all', label: t('All channels'), n }, { id: 'fav', label: t('Favourites'), n: favN, icon: 'star' }, { id: 'recent', label: t('Recent'), n: S.recent.filter(x => S.byKey[x] && S.byKey[x].kind === 'live').length, icon: 'clock' }] : [{ id: GDEF[tab], label: t('All'), n }, { id: 'fav', label: t('Favourites'), n: favN, icon: 'star' }];
-  return head.concat(Object.keys(o).map(g => ({ id: pre + g, label: g, n: o[g] })));
+  return head.concat(Object.keys(o).map(g => ({ id: pre + g, label: g, n: o[g], icon: L.has(k + ':' + g) && !S.unlocked ? 'lock' : '' })));
 }
 function renderBrowse() {
   const items = catItems(S.mode), cur = items.find(x => x.id === S.group) || items[0];
   const item = it => `<button data-g="${esc(it.id)}" class="${S.group === it.id ? 'on' : ''}">${it.icon ? ic(it.icon) : ''}<span>${esc(it.label)}</span><small>${fmtN(it.n)}</small></button>`;
   $('#groups').innerHTML = (items.length > 14 ? `<label class="gq">${ic('search')}<input id="gq" placeholder="${t('Filter categories…')}"></label>` : '') + `<div class="cats">${items.map(item).join('')}</div>`;
   $('#catBtn').innerHTML = `${ic('list')}<span>${esc(cur ? cur.label : '')}</span><small>${cur ? fmtN(cur.n) : ''}</small>${ic('down')}`;
-  const pickG = id => { S.group = id; S.gsel[S.mode] = id; LS.set('ap.gsel', S.gsel); S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; };
+  const pickG = id => { const it = items.find(x => x.id === id); if (it && it.icon === 'lock') { askPin(() => { S.unlocked = true; refreshVis(); S.group = id; S.gsel[S.mode] = id; LS.set('ap.gsel', S.gsel); S.shown = 250; renderBrowse(); }); return; } S.group = id; S.gsel[S.mode] = id; LS.set('ap.gsel', S.gsel); S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; };
   $$('#groups .cats button').forEach(b => b.onclick = () => pickG(b.dataset.g));
   const gq = $('#gq'); if (gq) gq.oninput = () => { const q = gq.value.trim().toLowerCase(); $$('#groups .cats button').forEach(b => b.style.display = !q || b.textContent.toLowerCase().includes(q) ? '' : 'none'); };
   $('#catBtn').onclick = () => {
@@ -440,17 +519,44 @@ function renderList() {
   box.classList.toggle('grid', grid);
   if (S.loading && !S.channels.length) { box.innerHTML = `<div class="empty"><div class="ld"></div><p>${t('Loading your playlist…')}</p></div>`; return; }
   if (!l.length) { box.innerHTML = `<div class="empty"><h3>${t('Nothing found')}</h3></div>`; return; }
-  box.innerHTML = l.slice(0, S.shown).map(grid ? posterHtml : rowHtml).join('') + (l.length > S.shown ? `<button class="more" id="more">${t('Show more')} (${fmtN(l.length - S.shown)})</button>` : '');
+  clearInterval(heroT);
+  box.classList.remove('vhome');
+  if (grid && !S.q.trim() && S.group === GDEF[S.mode]) { box.classList.remove('grid'); box.classList.add('vhome'); vodHome(box); return; }
+  let L2 = l; const so = S.sort[S.mode] || 'def';
+  if (grid && so !== 'def') { L2 = l.slice(); if (so === 'az') L2.sort((a, b) => (a.name || '').localeCompare(b.name || '')); else if (so === 'new') L2.sort((a, b) => (b.added || 0) - (a.added || 0)); else if (so === 'rate') L2.sort((a, b) => (b.rating || 0) - (a.rating || 0)); }
+  const cur = grid ? catItems(S.mode).find(x => x.id === S.group.replace('!', '')) : null;
+  box.innerHTML = (grid ? `<div class="ltools"><b>${esc(cur ? cur.label : t('Search'))}</b><small>${fmtN(l.length)}</small><span class="gap"></span><button class="btn sm" id="sortB">${ic('sort')} ${t(SORTS[so])}</button></div>` : '') + L2.slice(0, S.shown).map(grid ? posterHtml : rowHtml).join('') + (l.length > S.shown ? `<button class="more" id="more">${t('Show more')} (${fmtN(l.length - S.shown)})</button>` : '');
   wireItems(box); const m = $('#more', box); if (m) m.onclick = () => { S.shown += 250; renderList(); };
+  const sb = $('#sortB', box); if (sb) sb.onclick = () => { const ks = Object.keys(SORTS); S.sort[S.mode] = ks[(ks.indexOf(so) + 1) % ks.length]; renderList(); $('#sortB').focus(); };
 }
 function filtered() {
   const q = S.q.trim().toLowerCase(); if (!q) return baseList();
-  const k = kindOf(S.mode); return S.channels.filter(c => c.kind === k && ((c.name || '').toLowerCase().includes(q) || String(shownNum(c)) === q));
+  const k = kindOf(S.mode); return S.vis.filter(c => c.kind === k && ((c.name || '').toLowerCase().includes(q) || String(shownNum(c)) === q));
+}
+const SORTS = { def: 'Default order', az: 'A–Z', new: 'Recently added', rate: 'Top rated' };
+let heroT = 0;
+function vodHome(box) {
+  const k = kindOf(S.mode), all = S.vis.filter(c => c.kind === k);
+  let top = all.filter(c => c.rating > 0 && c.logo).sort((a, b) => b.rating - a.rating).slice(0, 10); if (top.length < 4) top = all.filter(c => c.logo).sort((a, b) => (b.added || 0) - (a.added || 0)).slice(0, 10);
+  const rows = [[t('Continue watching'), contList().filter(c => c.kind === k || (k === 'series' && c.ser)), ''], [t('Favourites'), favList().filter(c => c.kind === k), 'fav'], [t('Recently added'), all.slice().sort((a, b) => (b.added || 0) - (a.added || 0)).slice(0, 24), 'new']];
+  catItems(S.mode).filter(x => !['fav', GDEF[S.mode]].includes(x.id) && x.icon !== 'lock').slice(0, 16).forEach(g => rows.push([g.label, all.filter(c => (c.group || '—') === g.id.slice(2)).slice(0, 24), g.id, g.n]));
+  box.innerHTML = (top.length ? `<div class="hero" id="hero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"><span class="hn">${i + 1}</span></div><div class="hi"><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${t('Watch')}</button><button class="btn" data-hd="${c.key}">${ic('info')} ${t('Details')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') +
+    rows.filter(r => r[1].length).map(r => `<section class="hrow vrow"><div class="rh"><h3>${esc(r[0])} <small>${fmtN(r[3] || r[1].length)}</small></h3>${r[2] && r[2] !== 'new' ? `<button class="seeall" data-g="${esc(r[2])}">${t('See all')}</button>` : r[2] === 'new' ? `<button class="seeall" data-sort="new">${t('See all')}</button>` : ''}</div><div class="rail">${r[1].map(posterHtml).join('')}</div></section>`).join('') || `<div class="empty"><h3>${t('Nothing found')}</h3></div>`;
+  wireItems(box);
+  const slides = $$('.hs', box), dots = $$('.hdots button', box); let hi = 0;
+  const show = n => { hi = (n + slides.length) % slides.length; slides.forEach((x, i) => x.classList.toggle('on', i === hi)); dots.forEach((x, i) => x.classList.toggle('on', i === hi)); };
+  dots.forEach(d => d.onclick = () => { show(+d.dataset.hi); clearInterval(heroT); });
+  $$('[data-hp]', box).forEach(b => b.onclick = e => { e.stopPropagation(); const c = S.byKey[b.dataset.hp]; c.seriesId ? openDetail(c) : enterFsFor(c); });
+  $$('[data-hd]', box).forEach(b => b.onclick = e => { e.stopPropagation(); openDetail(S.byKey[b.dataset.hd]); });
+  slides.forEach(x => { x.onclick = () => openDetail(S.byKey[x.dataset.k]); x.addEventListener('focusin', () => clearInterval(heroT)); });
+  if (slides.length > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches) heroT = setInterval(() => { if (S.view === 'browse' && document.visibilityState === 'visible') show(hi + 1); }, 7000);
+  let sx = null; const hero = $('#hero', box); if (hero) { hero.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true }); hero.addEventListener('touchend', e => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 50) { show(hi + (dx < 0 ? 1 : -1)); clearInterval(heroT); } }); }
+  $$('.seeall', box).forEach(b => b.onclick = () => { if (b.dataset.sort) { S.sort[S.mode] = 'new'; S.group = GDEF[S.mode] + '!'; } else { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; });
 }
 function renderSearch() {
   const box = $('#sres'), q = S.q.trim().toLowerCase();
   if (q.length < 2) { box.innerHTML = `<div class="empty">${ic('search')}<p>${t('Type at least 2 letters')}</p></div>`; return; }
-  const res = S.channels.filter(c => (c.name || '').toLowerCase().includes(q)), sec = (k, label, f) => { const a = res.filter(c => c.kind === k); return a.length ? `<section class="hrow"><h3>${label} <small>${fmtN(a.length)}</small></h3>${k === 'live' ? `<div class="slist">${a.slice(0, 60).map(rowHtml).join('')}</div>` : `<div class="rail">${a.slice(0, 40).map(posterHtml).join('')}</div>`}</section>` : ''; };
+  const res = S.vis.filter(c => (c.name || '').toLowerCase().includes(q)), sec = (k, label, f) => { const a = res.filter(c => c.kind === k); return a.length ? `<section class="hrow"><h3>${label} <small>${fmtN(a.length)}</small></h3>${k === 'live' ? `<div class="slist">${a.slice(0, 60).map(rowHtml).join('')}</div>` : `<div class="rail">${a.slice(0, 40).map(posterHtml).join('')}</div>`}</section>` : ''; };
   box.innerHTML = (sec('live', t('Live TV')) + sec('vod', t('Movies')) + sec('series', t('Series'))) || `<div class="empty"><h3>${t('Nothing found')}</h3></div>`;
   wireItems(box);
 }
@@ -487,23 +593,52 @@ function renderDetailShell() {
   $('#dFav').onclick = () => { toggleFav(c); renderDetailShell(); };
   if (seasons.length) { const draw = sn => { $$('.seas button').forEach(b => b.classList.toggle('on', b.dataset.sn === sn)); $('#eps').innerHTML = (S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key]; return `<button class="ep" data-i="${n}">${e.info && e.info.movie_image ? `<img loading="lazy" src="${esc(e.info.movie_image)}" alt="" onerror="this.remove()">` : `<span class="en">${esc(e.episode_num || n + 1)}</span>`}<span class="et"><b>${t('Episode')} ${esc(e.episode_num || n + 1)}</b><span>${esc(e.title || '')}</span>${ps ? `<i class="epp"></i>` : ''}</span>${ic('play')}</button>`; }).join(''); $$('#eps .ep').forEach(b => b.onclick = () => { const e = S.deps[sn][+b.dataset.i]; enterFsFor(epObj(c, sn, e, +b.dataset.i)); }); }; $$('.seas button').forEach(b => b.onclick = () => draw(b.dataset.sn)); draw(seasons[0]); }
 }
-function epObj(c, sn, e, n) { const x = xbase(); const url = `${x.base}/series/${x.q(x.s.user)}/${x.q(x.s.pass)}/${e.id}.${e.container_extension || 'mp4'}`; return { name: `${c.name} · S${sn}E${e.episode_num || n + 1}`, logo: c.logo, group: c.group, url, kind: 'vod', num: 0, key: hash(c.name + '|' + url), dur: e.info && +e.info.duration_secs || 0 }; }
+function epObj(c, sn, e, n) { const x = xbase(); const url = `${x.base}/series/${x.q(x.s.user)}/${x.q(x.s.pass)}/${e.id}.${e.container_extension || 'mp4'}`; return { name: `${c.name} · S${sn}E${e.episode_num || n + 1}`, logo: c.logo, group: c.group, url, kind: 'vod', num: 0, key: hash(c.name + '|' + url), dur: e.info && +e.info.duration_secs || 0, ser: c.key, sn, n }; }
 function enterFsFor(c) { if (c.kind !== 'live' && !S.byKey[c.key]) { S.byKey[c.key] = c; EPS[c.key] = c; const ks = Object.keys(EPS); if (ks.length > 60) delete EPS[ks[0]]; LS.set('ap.eps', EPS); } play(c); enterFs(); }
 
 /* ---------- favourites ---------- */
 function toggleFav(c) { if (!c) return; const i = S.favs.indexOf(c.key); if (i < 0) { S.favs.push(c.key); toast(t('Added to favourites') + (S.set.numberMode === 'favs' && c.kind === 'live' ? ` · ${favList().filter(x => x.kind === 'live').length}` : '')); } else { S.favs.splice(i, 1); toast(t('Removed from favourites')); } LS.set('ap.favs', S.favs); if (S.view !== 'detail') render(); updateFavBtn(); }
+function askPin(ok) {
+  openDlg(`<h2>${ic('lock')} ${t('Enter PIN')}</h2><input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off"><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="pOk">OK</button></div>`);
+  const go2 = () => { if ($('#pin').value === String(S.set.pin || '')) { dlg.close(); ok(); } else { toast(t('Wrong PIN')); $('#pin').value = ''; } };
+  $('#pOk').onclick = go2; $('#pin').onkeydown = e => { if (e.key === 'Enter') go2(); }; $('#dx').onclick = () => dlg.close(); setTimeout(() => $('#pin').focus(), 50);
+}
+function catsDialog() {
+  const H = new Set(S.set.hidden || []), L = new Set(S.set.locked || []), gs = {}; S.channels.forEach(c => { gs[gkey(c)] = (gs[gkey(c)] || 0) + 1; });
+  const lab = { live: t('Live TV'), vod: t('Movies'), series: t('Series') }, keys = Object.keys(gs).sort();
+  openDlg(`<h2>${t('Manage categories')}</h2><label class="gq">${ic('search')}<input id="cq" placeholder="${t('Filter categories…')}"></label><div class="catm">${keys.map(k => { const [kd, ...g] = k.split(':'); return `<div class="cm" data-n="${esc(k.toLowerCase())}"><span><b>${esc(g.join(':'))}</b><small>${lab[kd]} · ${gs[k]}</small></span><label class="tg"><input type="checkbox" data-h="${esc(k)}" ${H.has(k) ? 'checked' : ''}>${t('Hide')}</label><label class="tg"><input type="checkbox" data-l="${esc(k)}" ${L.has(k) ? 'checked' : ''} ${S.set.pin ? '' : 'disabled'}>${ic('lock')}</label></div>`; }).join('')}</div><div class="row"><button class="btn p" id="dx">OK</button></div>`);
+  $('#cq').oninput = () => { const q = $('#cq').value.trim().toLowerCase(); $$('.cm', dlg).forEach(r => r.style.display = !q || r.dataset.n.includes(q) ? '' : 'none'); };
+  $$('[data-h]', dlg).forEach(x => x.onchange = () => { const a = new Set(S.set.hidden || []); x.checked ? a.add(x.dataset.h) : a.delete(x.dataset.h); S.set.hidden = [...a]; saveSet(); refreshVis(); });
+  $$('[data-l]', dlg).forEach(x => x.onchange = () => { const a = new Set(S.set.locked || []); x.checked ? a.add(x.dataset.l) : a.delete(x.dataset.l); S.set.locked = [...a]; saveSet(); refreshVis(); });
+  $('#dx').onclick = () => { dlg.close(); render(); };
+}
+const ADULT = /adult|xxx|porn|\+ ?18|18 ?\+|erotic|for adults/i;
+function catchUrl(c, p) {
+  const x = xbase(); if (!x || !c.sid) return ''; const tz = S.acct && S.acct.tz, d = new Date(p.s);
+  let parts; try { parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(o => [o.type, o.value])); } catch (e) { parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(o => [o.type, o.value])); }
+  const st = `${parts.year}-${parts.month}-${parts.day}:${parts.hour}-${parts.minute}`, dur = Math.max(1, Math.ceil((p.e - p.s) / 60000));
+  return `${x.base}/timeshift/${x.q(x.s.user)}/${x.q(x.s.pass)}/${dur}/${st}/${c.sid}.ts`;
+}
+const canCatch = (c, p) => c.arch && c.sid && p.e <= Date.now() + 60000 && p.s > Date.now() - (c.archD || 1) * 86400000 && xbase();
+function playCatch(c, p) { const url = catchUrl(c, p); if (!url) return; enterFsFor({ name: `${c.name} · ${p.t}`, logo: c.logo, group: `${t('Catch-up')} · ${hm(p.s)}–${hm(p.e)}`, url, kind: 'catchup', num: 0, key: hash(url) }); }
+function nextEpisode() {
+  const c = S.cur, d = S.detail; if (!c || !c.ser || !d || d.key !== c.ser || !S.deps) return null;
+  const ss = Object.keys(S.deps).sort((a, b) => a - b), list = S.deps[c.sn] || [];
+  if (c.n + 1 < list.length) return epObj(d, c.sn, list[c.n + 1], c.n + 1);
+  const ns = ss[ss.indexOf(String(c.sn)) + 1]; return ns && S.deps[ns] && S.deps[ns][0] ? epObj(d, ns, S.deps[ns][0], 0) : null;
+}
 function moveFav(k, d) { const i = S.favs.indexOf(k), j = i + d; if (i < 0 || j < 0 || j >= S.favs.length) return; S.favs.splice(j, 0, S.favs.splice(i, 1)[0]); LS.set('ap.favs', S.favs); renderList(); }
 function updateFavBtn() { const f = S.cur && S.favs.includes(S.cur.key); $('#cFav').innerHTML = ic(f ? 'starF' : 'star'); $('#cFav').classList.toggle('on', !!f); }
 
 /* ---------- TV guide ---------- */
 function openGuide() {
   const base = S.view === 'browse' && S.mode === 'live' ? baseList() : S.channels.filter(c => c.kind === 'live'), list = base.filter(c => c.kind === 'live').slice(0, 200);
-  const PX = 4, step = 30 * 60000, now = Date.now(), start = Math.floor((now - 45 * 60000) / step) * step, end = start + 8 * 3600000, W = (end - start) / 60000 * PX;
+  const PX = 4, step = 30 * 60000, now = Date.now(), start = Math.floor((now - (list.some(c => c.arch) ? 3 * 3600000 : 45 * 60000)) / step) * step, end = start + 9 * 3600000, W = (end - start) / 60000 * PX;
   const ticks = []; for (let x = start; x < end; x += step) ticks.push(`<i style="left:${(x - start) / 60000 * PX}px">${hm(x)}</i>`);
-  const rows = list.map(c => { const l = epgFor(c) || [], bl = l.filter(p => p.e > start && p.s < end).map(p => { const s = Math.max(p.s, start), e = Math.min(p.e, end); return `<button class="pg ${p.s <= now && p.e > now ? 'now' : ''}" style="left:${(s - start) / 60000 * PX}px;width:${Math.max(24, (e - s) / 60000 * PX - 3)}px" data-k="${c.key}"><b>${esc(p.t)}</b><small>${hm(p.s)} – ${hm(p.e)}</small></button>`; }).join(''); return `<div class="gr"><button class="gc" data-k="${c.key}"><span class="n">${seg(shownNum(c))}</span><span class="lgw">${logoHtml(c)}</span><span class="nm">${esc(c.name)}</span></button><div class="gt" style="width:${W}px">${bl || `<span class="gnone">—</span>`}</div></div>`; }).join('');
+  const rows = list.map(c => { const l = epgFor(c) || [], bl = l.filter(p => p.e > start && p.s < end).map(p => { const s = Math.max(p.s, start), e = Math.min(p.e, end); const cp = p.e <= now && canCatch(c, p); return `<button class="pg ${p.s <= now && p.e > now ? 'now' : ''} ${cp ? 'cu' : ''}" ${cp ? `data-ps="${p.s}"` : ''} style="left:${(s - start) / 60000 * PX}px;width:${Math.max(24, (e - s) / 60000 * PX - 3)}px" data-k="${c.key}"><b>${esc(p.t)}</b><small>${hm(p.s)} – ${hm(p.e)}</small></button>`; }).join(''); return `<div class="gr"><button class="gc" data-k="${c.key}"><span class="n">${seg(shownNum(c))}</span><span class="lgw">${logoHtml(c)}</span><span class="nm">${esc(c.name)}</span></button><div class="gt" style="width:${W}px">${bl || `<span class="gnone">—</span>`}</div></div>`; }).join('');
   openDlg(`<div class="gh"><h2>${ic('guide')} ${t('TV guide')}</h2><button class="ib" id="dx" aria-label="${t('Close')}">${ic('back')}</button></div><div class="gscroll" id="gs"><div class="gcols"><div class="gc0"></div><div class="gaxis" style="width:${W}px">${ticks.join('')}<u style="left:${(now - start) / 60000 * PX}px"></u></div></div>${rows || `<div class="empty"><p>${t('No guide data yet')}</p></div>`}</div>`, 'full');
   $('#dx').onclick = () => dlg.close(); const gs = $('#gs'); gs.scrollLeft = Math.max(0, (now - start) / 60000 * PX - 80);
-  $$('#gs [data-k]').forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; dlg.close(); if (S.view === 'browse' && S.mode === 'live') play(c); else { go('live'); setTimeout(() => play(c), 30); } });
+  $$('#gs [data-k]').forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; dlg.close(); if (b.dataset.ps) { const p = (epgFor(c) || []).find(x => x.s === +b.dataset.ps); if (p) { playCatch(c, p); return; } } if (S.view === 'browse' && S.mode === 'live') play(c); else { go('live'); setTimeout(() => play(c), 30); } });
   if (!Object.keys(S.epg).length) toast(t('No guide data yet'));
 }
 
@@ -518,13 +653,14 @@ function listsDialog() {
 }
 
 /* ---------- wiring ---------- */
-[['#bBack', 'back'], ['#bSearch', 'search'], ['#bGuide', 'guide'], ['#bSet', 'gear'], ['#qWrap .si', 'search'], ['#pExpand', 'expand'], ['#cExit', 'back'], ['#cBack', 'rew'], ['#cFwd', 'fwd'], ['#cPlay', 'pause'], ['#bigPlay', 'play'], ['#cPrev', 'down'], ['#cNext', 'up'], ['#cList', 'list'], ['#cTrk', 'cc'], ['#cAsp', 'aspect'], ['#cPip', 'pip'], ['#cRec', 'rec'], ['#cMute', 'vol']].forEach(([s, n]) => { $(s).innerHTML = ic(n); });
+[['#bBack', 'back'], ['#bSearch', 'search'], ['#bGuide', 'guide'], ['#bSet', 'gear'], ['#qWrap .si', 'search'], ['#pExpand', 'expand'], ['#cExit', 'back'], ['#cBack', 'rew10'], ['#cFwd', 'fwd10'], ['#cPlay', 'pause'], ['#cPrev', 'skp'], ['#cNext', 'skn'], ['#cTrk', 'cc'], ['#cAsp', 'aspect'], ['#cRec', 'rec'], ['#cMute', 'vol'], ['#cInfo', 'info'], ['#cMore', 'dots'], ['#cpPrev', 'left'], ['#cpNext', 'right'], ['#csClose', 'close'], ['#cList i', 'stack']].forEach(([s, n]) => { $(s).innerHTML = ic(n); });
 $('#bBack').onclick = () => back(); $('#bSearch').onclick = () => { S.q = ''; $('#q').value = ''; go('search'); }; $('#bGuide').onclick = openGuide; $('#bSet').onclick = settingsDialog; $('#logo').onclick = () => go('home');
 let qT; $('#q').oninput = e => { S.q = e.target.value; S.shown = 250; clearTimeout(qT); qT = setTimeout(() => S.view === 'search' ? renderSearch() : renderList(), 150); };
-$('#cFav').onclick = () => toggleFav(S.cur); $('#cPrev').onclick = () => zap(-1); $('#cNext').onclick = () => zap(1); $('#cRec').onclick = toggleRec; $('#cList').onclick = () => quick ? closeQuick() : openQuick();
+$('#cFav').onclick = () => toggleFav(S.cur); $('#cPrev').onclick = () => zap(-1); $('#cNext').onclick = () => zap(1); $('#cRec').onclick = toggleRec;
 $('#cMute').onclick = () => { v.muted = !v.muted; $('#cMute').innerHTML = ic(v.muted ? 'mute' : 'vol'); };
-$('#pExpand').onclick = e => { e.stopPropagation(); enterFs(); }; $('#cExit').onclick = () => back(); $('#bigPlay').onclick = e => { e.stopPropagation(); togglePlay(); };
+$('#pExpand').onclick = e => { e.stopPropagation(); enterFs(); }; $('#cExit').onclick = () => back();
 $('#ovBot').addEventListener('click', () => showOv()); $('#ovTop').addEventListener('click', () => showOv());
+$('#cList b').textContent = t('More channels'); $('#cList small').textContent = S.set.tv ? t('Press ◀ on the remote') : t('Tap or swipe up'); $('#cList').onclick = () => isTouch() ? openStrip() : openPanel();
 document.body.appendChild($('#num')); $('#slot').appendChild(screenEl);
 
 /* ---------- remote / keyboard ---------- */
@@ -541,29 +677,40 @@ function spatial(k, scope) {
   if (best) { best.focus({ preventScroll: true }); best.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return true; } return false;
 }
 document.addEventListener('keydown', e => {
-  const k = e.key;
+  const k = e.key; if (e.defaultPrevented) return;
   if (dlg.open) { if (k.startsWith('Arrow') && !/input|textarea|select/i.test(e.target.tagName)) { if (spatial(k, dlg)) e.preventDefault(); } return; }
   if (k === 'Escape' || k === 'GoBack' || k === 'BrowserBack') { e.preventDefault(); if (numBuf) { numBuf = ''; $('#num').hidden = true; return; } back(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return; const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select') { if (k === 'ArrowDown' && e.target.id === 'q') { e.preventDefault(); e.target.blur(); spatial(k); } return; }
   if (/^[0-9]$/.test(k)) { e.preventDefault(); numKey(k); return; }
   if (k === 'Enter' && numBuf) { e.preventDefault(); commitNum(); return; }
-  if (quick && (k === 'ArrowUp' || k === 'ArrowDown')) { e.preventDefault(); const a = $$('.ch', quick), i = a.indexOf(document.activeElement), n = a[Math.max(0, Math.min(a.length - 1, i + (k === 'ArrowDown' ? 1 : -1)))]; if (n) { n.focus(); n.scrollIntoView({ block: 'nearest' }); } return; }
   if (k === 'ChannelUp' || k === 'PageUp') { e.preventDefault(); zap(1); return; }
   if (k === 'ChannelDown' || k === 'PageDown') { e.preventDefault(); zap(-1); return; }
   const lk = k.toLowerCase();
   if (fsOn) {
-    showOv(); const onBtn = e.target.closest && e.target.closest('#ov button');
-    if (isVodNow()) { if (k === ' ' || (k === 'Enter' && !onBtn) || k === 'MediaPlayPause') { e.preventDefault(); togglePlay(); return; } if (!onBtn && (k === 'ArrowLeft' || k === 'ArrowRight')) { e.preventDefault(); seekBy(k === 'ArrowLeft' ? -10 : 10); return; } if (k.startsWith('Arrow')) { if (spatial(k)) e.preventDefault(); return; } }
-    else { if (k === 'ArrowUp') { e.preventDefault(); zap(1); return; } if (k === 'ArrowDown') { e.preventDefault(); zap(-1); return; } if ((k === 'Enter' && !onBtn) || k === 'ArrowRight') { e.preventDefault(); quick ? closeQuick() : openQuick(); return; } if (k === 'ArrowLeft') { closeQuick(); return; } }
-    if (k === 'Backspace') { e.preventDefault(); lastChannel(); return; }
+    const inPanel = !$('#chPanel').hidden, inStrip = !$('#chStrip').hidden, inOv = screenEl.classList.contains('show') && $('#ov').contains(document.activeElement);
+    if (k === 'Backspace') { e.preventDefault(); back(); return; }
+    if (inPanel) { if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); cpShift(k === 'ArrowLeft' ? -1 : 1); return; } if (k === 'ArrowUp' || k === 'ArrowDown') { e.preventDefault(); spatial(k, $('#cpList')); cpBump(); return; } }
+    else if (inStrip) { if (k.startsWith('Arrow')) { e.preventDefault(); spatial(k, $('#chStrip')); return; } }
+    else if (inOv) { showOv(); if (k.startsWith('Arrow')) { e.preventDefault(); spatial(k, $('#ov')); return; } if (k === 'Enter') return; }
+    else if (isVodNow()) {
+      if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); seekBy(k === 'ArrowLeft' ? -10 : 10); showOv(); return; }
+      if (k === ' ' || k === 'MediaPlayPause') { e.preventDefault(); togglePlay(); showOv(); return; }
+      if (k === 'Enter' || k === 'ArrowUp' || k === 'ArrowDown') { e.preventDefault(); showOv(); $('#cPlay').focus(); return; }
+    } else {
+      if (k === 'ArrowUp') { e.preventDefault(); zap(1); return; } if (k === 'ArrowDown') { e.preventDefault(); zap(-1); return; }
+      if (k === 'ArrowLeft') { e.preventDefault(); openPanel(); return; }
+      if (k === 'Enter' || k === 'ArrowRight') { e.preventDefault(); showOv(); $('#cPlay').focus(); return; }
+    }
   } else if (k.startsWith('Arrow')) { if (spatial(k)) e.preventDefault(); return; }
   else if (k === 'Backspace') { e.preventDefault(); back(); return; }
   if (lk === 'f') toggleFav(S.cur); else if (lk === 'l') lastChannel(); else if (lk === 'm') $('#cMute').click(); else if (lk === 'r') toggleRec(); else if (lk === 'z') { fsOn ? back() : enterFs(); } else if (lk === 'i' && S.cur) showOsd(S.cur);
 });
 
 /* ---------- start ---------- */
-if (/Tizen|Web0S|SmartTV|HbbTV|AFT|Android TV|CrKey|BRAVIA|GoogleTV/i.test(navigator.userAgent) && !('tv' in LS.get('ap.set', {}))) { S.set.tv = true; }
+const TVDEV = /Tizen|Web0S|SmartTV|HbbTV|AFT|Android TV|CrKey|BRAVIA|GoogleTV|Chromecast/i.test(navigator.userAgent) || (NATIVE && navigator.maxTouchPoints === 0);
+if (TVDEV && !('tv' in LS.get('ap.set', {}))) { S.set.tv = true; }
+if (S.set.tv) lastInput = 'key'; $('#cList small').textContent = S.set.tv ? t('Press ◀ on the remote') : t('Tap or swipe up');
 if (NATIVE && Capacitor.Plugins && Capacitor.Plugins.App) Capacitor.Plugins.App.addListener('backButton', () => { if (!back()) Capacitor.Plugins.App.exitApp(); });
 S.last = LS.get('ap.last', ''); window.__player = { S, play, byNumber, numKey, zap, parseM3U, parseXMLTV, finish, go, back };
 applyLook(); tick(); setInterval(tick, 15000);

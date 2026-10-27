@@ -41,6 +41,7 @@
 
 <div id="screen" class="pv">
   <video id="v" playsinline></video>
+  <div id="dim"></div>
   <div id="spin" hidden></div>
   <div id="num" hidden></div>
   <button id="pExpand" aria-label="Full screen"></button>
@@ -48,31 +49,43 @@
     <div id="ovTop">
       <button class="ob" id="cExit" aria-label="Back"></button>
       <div id="osd"><b id="osdN"></b><div><strong id="osdT"></strong><span id="osdS"></span></div></div>
-      <time id="ovClock"></time>
-    </div>
-    <button id="bigPlay" aria-label="Play/Pause"></button>
-    <div id="ovBot">
-      <div id="seekrow"><span id="tCur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0" aria-label="Seek"><span id="tDur">0:00</span></div>
-      <div id="liveBar"><span id="lbNow"></span><div class="lpb"><i id="lbPb"></i></div><span id="lbNext"></span></div>
-      <div id="btns">
-        <button class="ob vo" id="cBack" aria-label="-10s"></button>
-        <button class="ob vo" id="cPlay" aria-label="Play/Pause"></button>
-        <button class="ob vo" id="cFwd" aria-label="+10s"></button>
-        <button class="ob lo" id="cPrev" aria-label="Previous channel"></button>
-        <button class="ob lo" id="cList" aria-label="Channel list"></button>
-        <button class="ob lo" id="cNext" aria-label="Next channel"></button>
-        <span class="gap"></span>
+      <div class="topacts">
+        <button class="ob" id="cInfo" aria-label="Info"></button>
         <button class="ob" id="cFav" aria-label="Favourite"></button>
         <button class="ob" id="cTrk" aria-label="Audio / subtitles"></button>
         <button class="ob" id="cAsp" aria-label="Picture size"></button>
-        <button class="ob" id="cPip" aria-label="Picture in picture"></button>
-        <button class="ob lo" id="cRec" aria-label="Record"></button>
+        <button class="ob" id="cMore" aria-label="More"></button>
+      </div>
+    </div>
+    <div id="ovMid">
+      <button class="cb lo" id="cPrev" aria-label="Previous channel"></button>
+      <button class="cb vo" id="cBack" aria-label="-10s"></button>
+      <button class="cb big" id="cPlay" aria-label="Play/Pause"></button>
+      <button class="cb vo" id="cFwd" aria-label="+10s"></button>
+      <button class="cb lo" id="cNext" aria-label="Next channel"></button>
+    </div>
+    <div id="ovBot">
+      <div id="seekrow"><span id="tCur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0" aria-label="Seek"><span id="tDur">0:00</span></div>
+      <div id="liveBar"><span id="lbNow"></span><div class="lpb"><i id="lbPb"></i></div><span id="lbNext"></span></div>
+      <div id="ovFoot">
+        <span class="badge" id="resB" hidden></span><time id="ovClock"></time>
+        <span class="gap"></span>
         <button class="ob" id="cMute" aria-label="Mute"></button>
+        <button class="ob lo" id="cRec" aria-label="Record"></button>
+        <button class="morech lo" id="cList"><span><b></b><small></small></span><i></i></button>
       </div>
     </div>
   </div>
+  <div class="gpill" id="gBri"><i></i><b></b></div>
+  <div class="gpill" id="gVol"><i></i><b></b></div>
+  <aside id="chPanel" hidden><div class="cph"><button class="ob" id="cpPrev" aria-label="Previous group"></button><b id="cpGroup"></b><button class="ob" id="cpNext" aria-label="Next group"></button></div><div id="cpList"></div></aside>
+  <section id="chStrip" hidden><div class="csh"><b id="csTitle"></b><button class="ob" id="csClose" aria-label="Close"></button></div><div class="cschips" id="csChips"></div><div class="cscards" id="csCards"></div></section>
   <div id="msg" hidden></div>
 </div>
+
+<nav id="bnav" aria-label="Sections">
+  <button data-nav="home"></button><button data-nav="live"></button><button data-nav="movies"></button><button data-nav="series"></button><button data-nav="search"></button>
+</nav>
 
 <dialog id="dlg"></dialog>
 <div id="toast" role="status"></div>
