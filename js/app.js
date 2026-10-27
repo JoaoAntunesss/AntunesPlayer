@@ -215,26 +215,32 @@ const v = $('#v'); let hls = null, mpg = null, osdT, numBuf = '', numT, retried 
 function destroyPlayer() { if (hls) { try { hls.destroy(); } catch (e) { } hls = null; } if (mpg) { try { mpg.destroy(); } catch (e) { } mpg = null; } v.removeAttribute('src'); try { v.load(); } catch (e) { } }
 const spin = on => { $('#spin').hidden = !on; };
 function showMsg(title, text, retry) { spin(false); const m = $('#msg'); m.innerHTML = `<b>${esc(title)}</b><p>${text}</p>${retry ? `<div><button class="btn p" id="mRetry">${t('Retry')}</button></div>` : ''}`; m.hidden = false; const b = $('#mRetry'); if (b) b.onclick = () => play(S.cur, true); }
-function whyHtml(url) { const mixed = location.protocol === 'https:' && /^http:/i.test(url); return mixed ? (LANG === 'pt' ? 'Esta emissão usa <code>http</code> e esta página usa <code>https</code>, por isso o navegador bloqueia. Usa um link <code>https</code>, ou abre o AntunesPlayer por <code>http</code> na tua rede.' : 'This stream uses plain <code>http</code> but this page is <code>https</code>, so the browser blocks it. Use an <code>https</code> link, or open AntunesPlayer over <code>http</code> on your own network.') : (LANG === 'pt' ? 'O servidor pode bloquear páginas web (CORS), o formato pode não ser suportado ou o canal está offline.' : 'The server may block web pages (CORS), the format may be unsupported, or the channel is offline.'); }
+function whyHtml(url, viaHelper, detail) {
+  const pt = LANG === 'pt', mixed = location.protocol === 'https:' && /^http:/i.test(url) && !viaHelper && !NATIVE;
+  const d = detail ? `<br><small style="opacity:.7">${esc(detail)}</small>` : '';
+  if (mixed) return (pt ? 'Esta emissão usa <code>http</code> e esta página usa <code>https</code>, por isso o navegador bloqueia. Em Definições, põe o <b>link auxiliar</b> (Cloudflare), ou usa a app Android.' : 'This stream uses plain <code>http</code> but this page is <code>https</code>, so the browser blocks it. In Settings set the <b>helper link</b> (Cloudflare), or use the Android app.') + d;
+  if (viaHelper) return (pt ? 'O ajudante não conseguiu obter este canal. O fornecedor pode ter bloqueado o ajudante, o canal pode estar offline, ou o limite gratuito da Cloudflare foi atingido.' : 'The helper could not fetch this channel. The provider may block the helper, the channel may be offline, or the free Cloudflare limit was reached.') + d;
+  return (pt ? 'O servidor pode bloquear páginas web (CORS), o formato pode não ser suportado ou o canal está offline.' : 'The server may block web pages (CORS), the format may be unsupported, or the channel is offline.') + d;
+}
 async function play(c, isRetry) {
   if (!c) return; if (S.cur && S.cur.key !== c.key) S.last = S.cur.key; if (!isRetry) { retried = false; } if (S.cur && S.cur.key !== c.key) LS.set('ap.last', S.cur.key);
   S.cur = c; LS.set('ap.cur', c.key); S.recent = [c.key].concat(S.recent.filter(k => k !== c.key)).slice(0, 30); LS.set('ap.recent', S.recent);
   stopRec(true); destroyPlayer(); $('#screen').classList.toggle('vod', c.kind !== 'live'); $('#msg').hidden = true; spin(true); showOsd(c); showInfo(c); updateFavBtn(); $$('#list .ch').forEach(r => r.classList.toggle('on', r.dataset.k === c.key));
-  const url = proxied(c.url), isHls = /m3u8/i.test(c.url), isTs = c.kind === 'live' && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(c.url);
+  const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, url = proxied(cu), isHls = /m3u8/i.test(cu), isTs = c.kind === 'live' && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu);
   try {
     if (isHls) {
       if (!window.Hls && !v.canPlayType('application/vnd.apple.mpegurl')) await loadScript('js/hls.min.js');
-      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: true, maxBufferLength: 20 }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else showMsg(t('Could not play this'), whyHtml(c.url), true); }); }
+      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: true, maxBufferLength: 20, manifestLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } }, playlistLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } } }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried && !/manifest|level/i.test(d.details || '')) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else if (!c.useTs && /\/live\/[^/]+\/[^/]+\/[^/]+\.m3u8/i.test(c.url)) { c.useTs = true; play(c, true); } else showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, (d.details || '') + (d.response && d.response.code ? ' · HTTP ' + d.response.code : '')), true); }); }
       else v.src = url;
     } else if (isTs) {
       if (!window.mpegts) await loadScript('js/mpegts.min.js');
-      if (window.mpegts && mpegts.isSupported()) { mpg = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true }); mpg.attachMediaElement(v); mpg.load(); mpg.on(mpegts.Events.ERROR, () => showMsg(t('Could not play this'), whyHtml(c.url), true)); }
+      if (window.mpegts && mpegts.isSupported()) { mpg = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true }); mpg.attachMediaElement(v); mpg.load(); mpg.on(mpegts.Events.ERROR, (a, b) => { const was = c.useTs; c.useTs = false; showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, String(b || a || '')), true); }); }
       else v.src = url;
     } else v.src = url;
     await v.play().catch(() => { });
-  } catch (e) { showMsg(t('Could not play this'), whyHtml(c.url), true); }
+  } catch (e) { showMsg(t('Could not play this'), whyHtml(c.url, false, String(e && e.message || e)), true); }
 }
-v.addEventListener('playing', () => { spin(false); $('#msg').hidden = true; }); v.addEventListener('waiting', () => { if (S.cur) spin(true); }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url), true); });
+v.addEventListener('playing', () => { spin(false); $('#msg').hidden = true; }); v.addEventListener('waiting', () => { if (S.cur) spin(true); }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url, proxied(S.cur.url) !== S.cur.url, v.error ? 'media error ' + v.error.code : ''), true); });
 function showOsd(c) {
   const nn = nowNext(c), n = shownNum(c); $('#osdN').textContent = n === '' ? '·' : n; $('#osdT').textContent = c.name; $('#osdS').textContent = nn && nn.now ? `${t('Now')}: ${nn.now.t}${nn.next ? ' · ' + t('Next') + ': ' + nn.next.t : ''}` : (c.kind === 'live' ? t('Live') : c.group);
   const o = $('#osd'); o.hidden = false; $('#screen').classList.add('show'); clearTimeout(osdT); osdT = setTimeout(() => { o.hidden = true; $('#screen').classList.remove('show'); }, 4200);
