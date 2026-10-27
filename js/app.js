@@ -339,7 +339,7 @@ v.addEventListener('click', e => {
 });
 screenEl.addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
 screenEl.addEventListener('touchend', e => { if (touchY == null || !fsOn || isVodNow() || quick) return; const dy = e.changedTouches[0].clientY - touchY; touchY = null; if (Math.abs(dy) > 70) zap(dy < 0 ? 1 : -1); }, { passive: true });
-screenEl.addEventListener('mousemove', () => { if (fsOn) showOv(); });
+screenEl.addEventListener('pointermove', e => { if (fsOn && e.pointerType === 'mouse') showOv(); });
 
 /* ---------- header ---------- */
 const TITLES = { live: 'Live TV', vod: 'Movies', series: 'Series' };
