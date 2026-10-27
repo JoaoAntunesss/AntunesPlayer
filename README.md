@@ -12,6 +12,16 @@ A fast, no-install **IPTV player** for the browser, phone and TV. Bring your own
 - Installable **PWA**, 5 colour themes, big **TV mode** with remote-friendly focus, English and Português.
 - Everything stays on your device (localStorage + IndexedDB). No accounts, no tracking.
 
+## Layout (v2)
+
+Built like the IPTV apps people already know (IPTV Smarters, TiviMate, iMPlayer):
+
+- **Home**: big tiles for Live TV, Movies and Series, plus TV guide, favourites, search, playlists and the Xtream account (expiry date, connections). Continue watching and recent channels below.
+- **Live TV**: categories · channel list · preview player with the programme guide. Tap a channel to preview, tap again for full screen.
+- **Movies / Series**: categories and a poster grid. A detail page shows poster, year, genre, rating and plot; series have seasons and episodes.
+- **Full screen player**: channel number and name, now/next bar, zapping with ↑/↓ or swipes, quick channel list, audio/subtitles, picture size, double-tap to skip ±10 s in films.
+- Remote / D-pad navigation on Android TV, number keys jump to a channel. The Android app runs full screen and the back button works as expected.
+
 ## Use it
 Open the page, press **Add playlist**, paste your link (or *Try demo channels* for free test streams).
 
