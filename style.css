@@ -56,3 +56,5 @@ dialog .row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-w
 body.tv #app{font-size:18px}body.tv .ch{padding:12px 14px}body.tv .ch:focus,body.tv #groups button:focus,body.tv .star:focus{outline:3px solid var(--acc);outline-offset:-3px}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+#screen.fake{position:fixed;inset:0;z-index:60;width:100vw;height:100vh;border-radius:0;aspect-ratio:auto}body.nofs{overflow:hidden}

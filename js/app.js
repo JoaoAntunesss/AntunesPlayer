@@ -23,6 +23,22 @@ const saveSet = () => LS.set('ap.set', S.set);
 let toastT; const toast = m => { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('on'), 2400); };
 const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 const proxied = (u, force) => { const p = S.set.proxy; if (!p || !(force || S.set.proxyStreams)) return u; return p.includes('{url}') ? p.replace('{url}', encodeURIComponent(u)) : p + encodeURIComponent(u); };
+const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+const nativeHttp = () => NATIVE && Capacitor.Plugins && Capacitor.Plugins.CapacitorHttp;
+// In the Android app, hls.js loads through the native HTTP layer so servers that block web pages (CORS) still work.
+class NativeLoader {
+  constructor() { this.stats = { aborted: false, loaded: 0, retry: 0, total: 0, chunkCount: 0, bwEstimate: 0, loading: { start: 0, first: 0, end: 0 }, parsing: { start: 0, end: 0 }, buffering: { start: 0, first: 0, end: 0 } }; this.dead = false; }
+  destroy() { this.dead = true; } abort() { this.dead = true; this.stats.aborted = true; }
+  load(ctx, cfg, cb) {
+    const st = this.stats; st.loading.start = performance.now(); const bin = ctx.responseType === 'arraybuffer', headers = {};
+    if (ctx.rangeStart != null && ctx.rangeEnd != null) headers.Range = `bytes=${ctx.rangeStart}-${ctx.rangeEnd - 1}`;
+    nativeHttp().request({ url: ctx.url, method: 'GET', headers, responseType: bin ? 'arraybuffer' : 'text', connectTimeout: 15000, readTimeout: 20000 }).then(r => {
+      if (this.dead) return; if (r.status >= 400) { cb.onError({ code: r.status, text: 'HTTP ' + r.status }, ctx, r); return; }
+      let data = r.data; if (bin) { const b = atob(typeof data === 'string' ? data : ''), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); data = u.buffer; }
+      st.loading.first = st.loading.end = performance.now(); st.loaded = st.total = bin ? data.byteLength : String(data).length; cb.onSuccess({ url: r.url || ctx.url, data }, st, ctx, r);
+    }).catch(e => { if (!this.dead) cb.onError({ code: 0, text: String(e && e.message || e) }, ctx, null); });
+  }
+}
 const loadScript = src => new Promise((ok, no) => { const e = document.createElement('script'); e.src = src; e.onload = ok; e.onerror = () => no(new Error('Could not load ' + src)); document.head.appendChild(e); });
 
 /* ---------- playlist parsing ---------- */
@@ -143,7 +159,7 @@ async function play(c, isRetry) {
   try {
     if (isHls) {
       if (!window.Hls && !v.canPlayType('application/vnd.apple.mpegurl')) await loadScript('js/hls.min.js');
-      if (window.Hls && Hls.isSupported()) { hls = new Hls({ lowLatencyMode: true, maxBufferLength: 20 }); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else showMsg(t('Could not play this'), whyHtml(c.url), true); }); }
+      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: true, maxBufferLength: 20 }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else showMsg(t('Could not play this'), whyHtml(c.url), true); }); }
       else v.src = url;
     } else if (isTs) {
       if (!window.mpegts) await loadScript('js/mpegts.min.js');
@@ -242,11 +258,12 @@ function applyLook() { document.documentElement.dataset.theme = S.set.theme; doc
 $('#bAdd').onclick = addDialog; $('#bSet').onclick = settingsDialog; $('#src').onchange = e => selectSource(e.target.value); $('#q').oninput = e => { S.q = e.target.value; S.shown = 250; renderList(); };
 $('#cFav').onclick = () => toggleFav(S.cur); $('#cPrev').onclick = () => zap(-1); $('#cNext').onclick = () => zap(1); $('#cRec').onclick = toggleRec; $('#cList').onclick = () => quick ? closeQuick() : openQuick();
 $('#cMute').onclick = () => { v.muted = !v.muted; $('#cMute').textContent = v.muted ? '🔇' : '🔊'; };
-const fs = () => { const e = $('#screen'); if (document.fullscreenElement) document.exitFullscreen(); else if (e.requestFullscreen) e.requestFullscreen(); else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen(); };
+const isFull = () => !!document.fullscreenElement || $('#screen').classList.contains('fake');
+const fs = () => { const e = $('#screen'); if (NATIVE) { e.classList.toggle('fake'); document.body.classList.toggle('nofs', e.classList.contains('fake')); if (!e.classList.contains('fake')) closeQuick(); return; } if (document.fullscreenElement) document.exitFullscreen(); else if (e.requestFullscreen) e.requestFullscreen(); else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen(); };
 $('#cFs').onclick = fs; $('#v').ondblclick = fs;
 document.addEventListener('keydown', e => {
   if (dlg.open || e.ctrlKey || e.metaKey || e.altKey) return; const tag = (e.target.tagName || '').toLowerCase(); if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-  const k = e.key, full = !!document.fullscreenElement;
+  const k = e.key, full = isFull();
   if (/^[0-9]$/.test(k)) { e.preventDefault(); numKey(k); return; }
   if (k === 'Enter' && numBuf) { e.preventDefault(); commitNum(); return; }
   if (quick && (k === 'ArrowUp' || k === 'ArrowDown')) { e.preventDefault(); const a = $$('.ch', quick), i = a.indexOf(document.activeElement), n = a[Math.max(0, Math.min(a.length - 1, i + (k === 'ArrowDown' ? 1 : -1)))]; if (n) n.focus(); return; }

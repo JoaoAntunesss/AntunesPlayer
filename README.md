@@ -30,3 +30,17 @@ Any static host works: GitHub Pages (branch `main`, root) or Firebase Hosting (`
 
 ## Credits
 [hls.js](https://github.com/video-dev/hls.js) (Apache-2.0), [mpegts.js](https://github.com/xqq/mpegts.js) (Apache-2.0), Bricolage Grotesque and Figtree (SIL OFL).
+
+## Android app (APK) and Android TV
+
+The same code ships as an Android app, built automatically on GitHub (no PC tools needed).
+
+1. Open the repo's **Releases** page and download `AntunesPlayer.apk` from the `latest` release (or run the *Build Android APK* workflow under **Actions**).
+2. On the phone / TV box, open the file and allow "install from this source".
+3. On Android TV it appears in the launcher; the remote's number keys switch channels.
+
+In the app, streams load through the native HTTP layer, so servers that block browsers (CORS) and plain `http://` streams work. Status: built by CI, not yet tested on a real device.
+
+## Web version
+
+Enable **Settings → Pages → Deploy from branch → main / root** and open `https://<user>.github.io/AntunesPlayer/`.

@@ -1,0 +1,8 @@
+{
+  "appId": "com.antunes.player",
+  "appName": "AntunesPlayer",
+  "webDir": "www",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "allowMixedContent": true },
+  "plugins": { "CapacitorHttp": { "enabled": true } }
+}
