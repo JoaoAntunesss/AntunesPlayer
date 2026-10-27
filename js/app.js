@@ -819,15 +819,21 @@ document.addEventListener('keydown', e => {
 
 /* ---------- app updates (Android app only; the web version updates by itself) ---------- */
 const BUILD = +(window.AP_BUILD || 0);
+function openExternal(url) {
+  const P = window.Capacitor && Capacitor.Plugins;
+  if (NATIVE && P && P.Browser) { P.Browser.open({ url }).catch(() => { location.href = url; }); return; }
+  if (NATIVE && P && P.AppLauncher) { P.AppLauncher.openUrl({ url }).catch(() => { location.href = url; }); return; }
+  const w = window.open(url, '_blank'); if (!w) location.href = url;
+}
 async function checkUpdate(manual) {
   if (!NATIVE) { if (manual) toast(t('The web version is always up to date')); return; }
   if (!manual && Date.now() - LS.get('ap.updT', 0) < 6 * 3600e3) return; LS.set('ap.updT', Date.now());
   try {
-    const r = await fetch('https://api.github.com/repos/JoaoAntunesss/AntunesPlayer/releases/tags/latest', { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } }); if (r.status === 404) { if (manual) toast(t('A new version is being prepared. Try again in a few minutes.')); return; } if (!r.ok) throw new Error('HTTP ' + r.status);
+    const r = await fetch('https://api.github.com/repos/JoaoAntunesss/AntunesPlayer/releases/tags/latest', { cache: 'no-store', headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'AntunesPlayer-App' } }); if (r.status === 404) { if (manual) toast(t('A new version is being prepared. Try again in a few minutes.')); return; } if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json(), n = +((/build\s+(\d+)/i.exec(d.name || '') || [])[1] || 0), a = (d.assets || []).find(x => /\.apk$/i.test(x.name));
     if (!a || !n || n <= BUILD) { if (manual) toast(t('You have the latest version') + (BUILD ? ' · build ' + BUILD : '')); return; }
     openDlg(`<h2>${ic('refresh')} ${t('New version available')}</h2><p>${t('Build')} ${n} · ${t('you have')} ${BUILD || '—'}</p><p class="mut">${t('The download opens in the browser. Then open the file to install it over this version; your lists and favourites stay.')}</p><div class="row"><button class="btn" id="dx">${t('Later')}</button><button class="btn p" id="uGo">${ic('plus')} ${t('Download')}</button></div>`);
-    $('#dx').onclick = () => dlg.close(); $('#uGo').onclick = () => { dlg.close(); location.href = a.browser_download_url; };
+    $('#dx').onclick = () => dlg.close(); $('#uGo').onclick = () => { dlg.close(); openExternal(a.browser_download_url); };
   } catch (e) { if (manual) toast(t('Could not check for updates') + ': ' + e.message); }
 }
 
