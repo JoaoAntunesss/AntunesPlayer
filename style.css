@@ -53,7 +53,7 @@ body[data-view=search] #vSearch{display:block;overflow:auto;padding:0 22px 30px}
 .t-ser{background:linear-gradient(145deg,#b583ff 0%,#7a4dff 55%,#4b34d8 100%)}
 .tile:hover,.tile:focus-visible{transform:translateY(-4px);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 28px 50px -22px rgba(0,0,0,.9)}
 .tile:focus-visible{outline:4px solid #fff;outline-offset:3px}
-.minis{grid-column:1/4;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.minis{grid-column:1/4;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
 .mini{display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:18px;background:var(--surf);border:1px solid var(--line);text-align:left}
 .mini span{font-weight:700;flex:1}.mini small{color:var(--mut);font-weight:600}.mini .i{color:var(--acc);width:24px;height:24px}
 .mini:hover{background:var(--surf2)}
@@ -481,3 +481,6 @@ html[data-style=circuit] .po .rt{border-radius:0 0 6px 0}html[data-style=circuit
 .ch.drag{position:relative;z-index:5;background:var(--panel2);box-shadow:0 14px 30px -10px #000;cursor:grabbing}
 #list .ch{transition:transform .2s cubic-bezier(.22,1,.36,1)}#list .ch.drag{transition:none}
 @media (max-width:720px) and (orientation:portrait){.fhint{flex-basis:100%;order:5}}
+
+.empty .btn{margin-top:6px}
+@media (max-width:720px) and (orientation:portrait){.minis{grid-template-columns:1fr 1fr}.minis .mini:last-child{grid-column:1/-1}}
