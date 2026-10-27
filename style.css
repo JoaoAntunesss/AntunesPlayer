@@ -58,3 +58,5 @@ body.tv #app{font-size:18px}body.tv .ch{padding:12px 14px}body.tv .ch:focus,body
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 #screen.fake{position:fixed;inset:0;z-index:60;width:100vw;height:100vh;border-radius:0;aspect-ratio:auto}body.nofs{overflow:hidden}
+
+.ctl2{display:flex;align-items:center}.mv{border:0;background:none;color:var(--mut);font-size:13px;padding:8px 6px}.mv:hover,.mv:focus{color:var(--acc)}
