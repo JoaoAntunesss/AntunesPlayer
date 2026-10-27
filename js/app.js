@@ -274,7 +274,7 @@ function addDialog(tab0) {
 }
 function settingsDialog() {
   const s = S.set;
-  openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
+  openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
   <label>${t('When the app opens')}</label><select id="sStart"><option value="last" ${(s.startup || 'last') === 'last' ? 'selected' : ''}>${t('Last channel in full screen (favourites)')}</option><option value="home" ${s.startup === 'home' ? 'selected' : ''}>${t('Home screen')}</option></select><label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('TV mode (remote, bigger text)')}</label><select id="sTv"><option value="auto" ${(s.tvMode || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${isTvDevice() ? t('TV detected') : t('no TV detected')}</option><option value="on" ${s.tvMode === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.tvMode === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
   <label>${t('Language')}</label><select id="sLang"><option value="en" ${LANG === 'en' ? 'selected' : ''}>English</option><option value="pt" ${LANG === 'pt' ? 'selected' : ''}>Português</option></select>
@@ -285,7 +285,7 @@ function settingsDialog() {
   const chg = () => { s.startup = $('#sStart').value; s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tvMode = $('#sTv').value; applyTvMode(); s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
   $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sProxy').onchange = chg; $('#sLang').onchange = e => { LS.set('ap.lang', e.target.value); location.reload(); };
   $$('[data-r]', dlg).forEach(b => b.onclick = () => { dlg.close(); selectSource(b.dataset.r, true); }); $$('[data-d]', dlg).forEach(b => b.onclick = () => { const id = b.dataset.d; S.sources = S.sources.filter(x => x.id !== id); LS.set('ap.sources', S.sources); idbDel('ch:' + id); idbDel('epg:' + id); dlg.close(); selectSource(S.sources[0] && S.sources[0].id); });
-  $('#sOk').onclick = () => dlg.close(); $('#sCats').onclick = catsDialog; $('#sFavs').onclick = favsDialog; $('#sBak').onclick = backupDialog; $('#sUpd').onclick = () => { dlg.close(); checkUpdate(true); };
+  $('#sOk').onclick = () => dlg.close(); $('#sAcc').onclick = accountDialog; $('#sCats').onclick = catsDialog; $('#sFavs').onclick = favsDialog; $('#sBak').onclick = backupDialog; $('#sUpd').onclick = () => { dlg.close(); checkUpdate(true); };
   $('#sPin').onchange = () => { const p = $('#sPin').value.trim(); const had = !!s.pin; s.pin = p; if (p && !had) { const a = new Set(s.locked || []); S.channels.forEach(c => { if (ADULT.test(c.group || '')) a.add(gkey(c)); }); s.locked = [...a]; } S.unlocked = false; saveSet(); refreshVis(); render(); };
 }
 function applyLook() { if (!THEMES.some(x => x[0] === S.set.theme)) S.set.theme = 'night'; document.documentElement.dataset.theme = S.set.theme; document.documentElement.dataset.style = S.set.style || 'circuit'; document.body.classList.toggle('tv', !!S.set.tv); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0f1115'; }
@@ -495,8 +495,8 @@ function renderHome() {
   const box = $('#vHome');
   if (!S.sources.length) {
     box.innerHTML = `<div class="welcome"><div class="wmark">${ic('tv')}</div><h2>${t('Welcome to AntunesPlayer')}</h2><p>${t('AntunesPlayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.')}</p>
-    <div class="wacts"><button class="btn p big" id="wX">${ic('user')} ${t('Xtream login')}</button><button class="btn big" id="wU">${ic('plus')} ${t('Add a playlist')}</button><button class="btn big ghost" id="wD">${ic('play')} ${t('Try demo channels')}</button><button class="btn big ghost" id="wS">${ic('gear')} ${t('Settings')}</button></div></div>`;
-    $('#wX').onclick = () => addDialog('xt'); $('#wU').onclick = () => addDialog('url'); $('#wD').onclick = addDemo; $('#wS').onclick = settingsDialog; return;
+    <div class="wacts"><button class="btn p big" id="wX">${ic('user')} ${t('Xtream login')}</button><button class="btn big" id="wU">${ic('plus')} ${t('Add a playlist')}</button><button class="btn big ghost" id="wD">${ic('play')} ${t('Try demo channels')}</button><button class="btn big ghost" id="wS">${ic('gear')} ${t('Settings')}</button></div><div class="wacts"><button class="btn big" id="wG">${ic('user')} ${t('Sign in with Google')}</button><button class="btn big ghost" id="wC">${ic('tv')} ${t('Sign in with a code (TV)')}</button></div><p class="mut">${t('Your playlists are already in your Google account. Sign in to get them back.')}</p></div>`;
+    $('#wX').onclick = () => addDialog('xt'); $('#wU').onclick = () => addDialog('url'); $('#wD').onclick = addDemo; $('#wS').onclick = settingsDialog; $('#wG').onclick = signInFlow; $('#wC').onclick = pairDialog; return;
   }
   const n = k => S.vis.filter(c => c.kind === k).length, L = n('live'), M = n('vod'), Se = n('series'), src = curSrc() || {}, a = S.acct, ld = S.loading;
   const cnt = (x, w) => ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(x, 'cnt')} ${w}</small>`;
@@ -837,6 +837,136 @@ async function checkUpdate(manual) {
   } catch (e) { if (manual) toast(t('Could not check for updates') + ': ' + e.message); }
 }
 
+/* ---------- Google account: playlists (encrypted), favourites, lists and settings follow you to every device ---------- */
+const FB = { apiKey: 'AIzaSyAANTo-ceh1SDXu6b6oRG-ujR4_JiiL4GA', authDomain: 'iptv-364a1.firebaseapp.com', databaseURL: 'https://iptv-364a1-default-rtdb.europe-west1.firebasedatabase.app', projectId: 'iptv-364a1', storageBucket: 'iptv-364a1.firebasestorage.app', messagingSenderId: '835085103047', appId: '1:835085103047:web:dceffba87c28fbf73ef3e2' };
+const CK = ['ap.sources', 'ap.favs', 'ap.lists', 'ap.set'], PEPPER = '|AntunesPlayer.sync.v1';
+const C = { user: null, pushT: 0, applying: false, dev: LS.get('ap.dev', '') || (() => { const d = 'd' + Math.random().toString(36).slice(2, 10); LS.set('ap.dev', d); return d; })() };
+Object.assign(PT, { 'Google account': 'Conta Google', 'Sign in with Google': 'Entrar com Google', 'Sign out': 'Sair', 'Signed in as': 'Entraste como', 'Sync now': 'Sincronizar agora', 'Synced': 'Sincronizado', 'Not synced yet': 'Ainda não sincronizado', 'Your playlists, favourites, lists and settings are saved in your Google account and appear on every device where you sign in. Playlist logins are encrypted before they leave this device.': 'As tuas listas, favoritos, listas próprias e definições ficam guardados na tua conta Google e aparecem em todos os aparelhos onde entrares. Os logins das listas são encriptados antes de saírem deste aparelho.', 'Sign in with a code (TV)': 'Entrar com código (TV)', 'Send to a TV': 'Enviar para uma TV', 'Code shown on the TV': 'Código que aparece na TV', 'Sent. Look at the TV.': 'Enviado. Olha para a TV.', 'The code has 8 letters/numbers': 'O código tem 8 letras/números', 'On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:': 'No telemóvel, abre o AntunesPlayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:', 'Waiting for your phone…': 'À espera do telemóvel…', 'The code expired. Open it again for a new one.': 'O código expirou. Abre outra vez para teres um novo.', 'Playlists in your account': 'Listas na tua conta', 'Pick the playlists to connect on this device:': 'Escolhe as listas a ligar neste aparelho:', 'Connect': 'Ligar', 'Connected': 'Ligado', 'Nothing saved in your account yet. What you add here will be saved.': 'Ainda não tens nada guardado na conta. O que adicionares aqui fica guardado.', 'Could not sign in': 'Não foi possível entrar', 'Update the app to sign in': 'Atualiza a app para poderes entrar', 'Signed out. Your data stays on this device.': 'Saíste. Os dados ficam neste aparelho.', 'Account': 'Conta', 'Your playlists are already in your Google account. Sign in to get them back.': 'As tuas listas podem estar na tua conta Google. Entra para as recuperares.', 'on this device': 'neste aparelho', 'Sync error': 'Erro de sincronização' });
+let fbp;
+const fbLoad = () => fbp || (fbp = (async () => { for (const f of ['app', 'auth', 'database']) await loadScript(`js/vendor/firebase-${f}-compat.js`); if (!firebase.apps.length) firebase.initializeApp(FB); return firebase; })().catch(e => { fbp = null; throw e; }));
+// AES-GCM; the key comes from PBKDF2 so logins never sit in the database as plain text
+const toB64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const KEYS = {};
+const ckey = secret => KEYS[secret] || (KEYS[secret] = crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'PBKDF2', false, ['deriveKey']).then(b => crypto.subtle.deriveKey({ name: 'PBKDF2', salt: new TextEncoder().encode('AntunesPlayer-salt-v1'), iterations: 120000, hash: 'SHA-256' }, b, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])));
+async function seal(obj, secret) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await ckey(secret), new TextEncoder().encode(JSON.stringify(obj))); return toB64(iv) + '.' + toB64(ct); }
+async function unseal(s, secret) { const [a, b] = String(s).split('.'); const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(a) }, await ckey(secret), fromB64(b)); return JSON.parse(new TextDecoder().decode(pt)); }
+const userSecret = () => C.user.uid + PEPPER;
+function bundle() {
+  const set = Object.assign({}, S.set); delete set.tv; delete set.tvMode;
+  const sources = S.sources.map(x => { const o = Object.assign({}, x); if (o.text && o.text.length > 400000) delete o.text; return o; });
+  return { sources, favs: S.favs, lists: S.lists, set };
+}
+const sameSrc = (a, b) => a.type === b.type && (a.type === 'xtream' ? a.server === b.server && a.user === b.user : (a.url || a.name) === (b.url || b.name));
+function applyBundle(b, mode, pick) {
+  C.applying = true;
+  try {
+    const rs = (b.sources || []).filter(x => !pick || pick.includes(x.id));
+    if (mode === 'replace') S.sources = rs.map(x => Object.assign({}, x));
+    else rs.forEach(x => { if (!S.sources.some(y => sameSrc(x, y))) S.sources.push(Object.assign({}, x)); });
+    LS.set('ap.sources', S.sources);
+    const f = (b.favs || []).slice(); if (mode !== 'replace') S.favs.forEach(k => { if (!f.includes(k)) f.push(k); }); S.favs = f; LS.set('ap.favs', f);
+    const L = (b.lists || []).slice(); if (mode !== 'replace') S.lists.forEach(l => { if (!L.some(x => x.id === l.id)) L.push(l); }); S.lists = L; LS.set('ap.lists', L);
+    if (b.set) { const keep = { tv: S.set.tv, tvMode: S.set.tvMode }; Object.assign(S.set, b.set, keep); saveSet(); applyLook(); }
+  } finally { C.applying = false; }
+  if (typeof refreshVis === 'function') refreshVis();
+  if (!S.sources.some(x => x.id === S.srcId)) selectSource(S.sources[0] && S.sources[0].id); else render();
+}
+async function cloudPush() {
+  if (!C.user) return; const fb = await fbLoad(), now = Date.now();
+  await fb.database().ref('users/' + C.user.uid).set({ d: await seal(bundle(), userSecret()), t: now, dev: C.dev });
+  LS.set('ap.cloudT', now); LS.set('ap.dirty', false); C.err = '';
+}
+const schedulePush = () => { if (C.applying) return; LS.set('ap.dirty', true); if (!C.user) return; clearTimeout(C.pushT); C.pushT = setTimeout(() => cloudPush().catch(e => { C.err = e.message; console.warn('sync', e); }), 2500); };
+{ const raw = LS.set; LS.set = (k, v) => { raw(k, v); if (CK.includes(k)) schedulePush(); }; }
+async function readRemote() { const fb = await fbLoad(); const v = (await fb.database().ref('users/' + C.user.uid).get()).val(); return v && v.d ? { t: v.t || 0, dev: v.dev, data: await unseal(v.d, userSecret()) } : null; }
+async function onSignedIn(u) {
+  C.user = u; const first = LS.get('ap.cloudUid', '') !== u.uid; LS.set('ap.cloudUid', u.uid);
+  let r; try { r = await readRemote(); } catch (e) { C.err = e.message; toast(t('Sync error') + ': ' + e.message); return; }
+  if (!r) { await cloudPush().catch(e => { C.err = e.message; }); if (first) toast(t('Nothing saved in your account yet. What you add here will be saved.')); }
+  else if (first) {
+    if ((r.data.sources || []).length) connectDialog(r.data, S.sources.length ? 'merge' : 'replace');
+    else { applyBundle(r.data, 'merge'); await cloudPush().catch(() => { }); }
+  } else if (LS.get('ap.dirty', false)) await cloudPush().catch(e => { C.err = e.message; });
+  else if (r.t > LS.get('ap.cloudT', 0)) { applyBundle(r.data, 'replace'); LS.set('ap.cloudT', r.t); }
+  // changes made on other devices arrive while the app is open
+  const fb = await fbLoad(); fb.database().ref('users/' + u.uid).on('value', async s => {
+    const v = s.val(); if (!v || !v.d || v.dev === C.dev || v.t <= LS.get('ap.cloudT', 0) || LS.get('ap.dirty', false) || dlg.open) return;
+    try { applyBundle(await unseal(v.d, userSecret()), 'replace'); LS.set('ap.cloudT', v.t); } catch (e) { }
+  });
+}
+function connectDialog(data, mode, after) {
+  const src = data.sources || [];
+  openDlg(`<h2>${ic('user')} ${t('Playlists in your account')}</h2><p class="mut">${t('Pick the playlists to connect on this device:')}</p><div class="srcs">${src.map(x => `<label class="srow"><input type="checkbox" data-pk="${esc(x.id)}" checked><span class="sic">${ic(x.type === 'xtream' ? 'user' : 'stack')}</span><div><b>${esc(x.name)}</b><small>${x.type === 'xtream' ? 'Xtream' : 'M3U'}${S.sources.some(y => sameSrc(x, y)) ? ' · ' + t('on this device') : ''}</small></div></label>`).join('')}</div><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="pkGo">${t('Connect')}</button></div>`);
+  $('#dx').onclick = () => dlg.close();
+  $('#pkGo').onclick = async () => { const pick = $$('[data-pk]', dlg).filter(c => c.checked).map(c => c.dataset.pk); dlg.close(); applyBundle(data, mode, pick); if (S.sources.length && !S.srcId) selectSource(S.sources[0].id); toast(t('Connected')); if (after) after(); else if (C.user) cloudPush().catch(() => { }); };
+}
+async function googleSignIn() {
+  const fb = await fbLoad(), P = window.Capacitor && Capacitor.Plugins;
+  if (NATIVE) {
+    if (!P || !P.FirebaseAuthentication) throw new Error(t('Update the app to sign in'));
+    const r = await P.FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true }); const tok = r && r.credential && r.credential.idToken;
+    if (!tok) throw new Error('no token'); await fb.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(tok));
+  } else {
+    const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+    try { await fb.auth().signInWithPopup(p); } catch (e) { if (/popup-blocked|operation-not-supported/.test(e.code || '')) await fb.auth().signInWithRedirect(p); else throw e; }
+  }
+}
+let authHooked = false;
+async function cloudBoot(force) {
+  if (!force && !LS.get('ap.cloudUid', '')) return; const fb = await fbLoad(); if (authHooked) return; authHooked = true;
+  fb.auth().onAuthStateChanged(u => { if (u && (!C.user || C.user.uid !== u.uid)) onSignedIn(u); if (!u) C.user = null; });
+}
+function accountDialog() {
+  const u = C.user, when = LS.get('ap.cloudT', 0);
+  openDlg(`<h2>${ic('user')} ${t('Google account')}</h2><p class="mut">${t('Your playlists, favourites, lists and settings are saved in your Google account and appear on every device where you sign in. Playlist logins are encrypted before they leave this device.')}</p>
+  ${u ? `<p>${t('Signed in as')} <b>${esc(u.email || u.displayName || '')}</b><br><small class="mut">${when ? t('Synced') + ' · ' + new Date(when).toLocaleString(LANG === 'pt' ? 'pt-PT' : undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : t('Not synced yet')}${C.err ? ' · ' + esc(C.err) : ''}</small></p>
+  <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn" id="aSync">${ic('refresh')} ${t('Sync now')}</button><button class="btn" id="aTv">${ic('tv')} ${t('Send to a TV')}</button><button class="btn" id="aOut">${t('Sign out')}</button></div>`
+    : `<div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn p" id="aIn">${ic('user')} ${t('Sign in with Google')}</button><button class="btn" id="aCode">${ic('tv')} ${t('Sign in with a code (TV)')}</button></div>`}
+  <div class="row"><button class="btn p" id="dx">${t('Close')}</button></div>`);
+  $('#dx').onclick = () => dlg.close();
+  if (u) {
+    $('#aSync').onclick = async () => { try { await cloudPush(); toast(t('Synced')); accountDialog(); } catch (e) { toast(t('Sync error') + ': ' + e.message); } };
+    $('#aTv').onclick = sendToTvDialog;
+    $('#aOut').onclick = async () => { try { const fb = await fbLoad(); await fb.auth().signOut(); const P = window.Capacitor && Capacitor.Plugins; if (NATIVE && P && P.FirebaseAuthentication) P.FirebaseAuthentication.signOut().catch(() => { }); } catch (e) { } C.user = null; LS.set('ap.cloudUid', ''); dlg.close(); toast(t('Signed out. Your data stays on this device.')); };
+  } else {
+    $('#aIn').onclick = signInFlow;
+    $('#aCode').onclick = pairDialog;
+  }
+}
+async function signInFlow() {
+  try { await cloudBoot(true); await googleSignIn(); if (dlg.open) dlg.close(); }
+  catch (e) { const m = String(e && (e.message || e.code) || e); if (!/cancel|closed-by-user|12501/i.test(m)) toast(t('Could not sign in') + ': ' + m); }
+}
+/* TV without a keyboard: the TV shows a code, the phone (signed in) sends the encrypted data for that code */
+const PAIR_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+let pairT = 0;
+function pairDialog() {
+  const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => PAIR_ABC[b % 32]).join(''), url = FB.databaseURL + '/pair/' + code + '.json', end = Date.now() + 10 * 60e3;
+  openDlg(`<h2>${ic('tv')} ${t('Sign in with a code (TV)')}</h2><p>${t('On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="pSt">${t('Waiting for your phone…')}</p><p class="mut"><small>joaoantunesss.github.io/AntunesPlayer</small></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button></div>`);
+  const stop = () => clearTimeout(pairT); $('#dx').onclick = () => { stop(); dlg.close(); };
+  const poll = async () => {
+    if (!dlg.open || !$('.paircode', dlg)) return;
+    if (Date.now() > end) { $('#pSt').textContent = t('The code expired. Open it again for a new one.'); return; }
+    try {
+      const r = await fetch(url, { cache: 'no-store' }); const v = r.ok ? await r.json() : null;
+      if (v && v.d) { fetch(url, { method: 'DELETE' }).catch(() => { }); const data = await unseal(v.d, code + PEPPER); connectDialog(data, S.sources.length ? 'merge' : 'replace', () => { }); return; }
+    } catch (e) { }
+    pairT = setTimeout(poll, 3000);
+  };
+  pairT = setTimeout(poll, 2500);
+}
+function sendToTvDialog() {
+  openDlg(`<h2>${ic('tv')} ${t('Send to a TV')}</h2><label>${t('Code shown on the TV')}</label><input id="tvC" autocomplete="off" autocapitalize="characters" placeholder="ABCD-EFGH" style="text-transform:uppercase;letter-spacing:.2em"><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="tvGo">${t('Send to a TV')}</button></div>`);
+  $('#dx').onclick = accountDialog;
+  $('#tvGo').onclick = async () => {
+    const code = $('#tvC').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (code.length !== 8) { toast(t('The code has 8 letters/numbers')); return; }
+    try { const fb = await fbLoad(); await fb.database().ref('pair/' + code).set({ d: await seal(bundle(), code + PEPPER), t: firebase.database.ServerValue.TIMESTAMP }); toast(t('Sent. Look at the TV.')); dlg.close(); }
+    catch (e) { toast(t('Sync error') + ': ' + e.message); }
+  };
+}
+window.addEventListener('focus', () => { if (C.user && LS.get('ap.dirty', false)) schedulePush(); });
+
 /* ---------- start ---------- */
 if (!S.set.nm2) { S.set.numberMode = 'favs'; S.set.nm2 = true; saveSet(); }
 applyTvMode(); window.addEventListener('ap-tv', applyTvMode); $('#cList small').textContent = S.set.tv ? t('Press ◀ on the remote') : t('Tap or swipe up');
@@ -846,4 +976,5 @@ applyLook(); tick(); setInterval(tick, 15000);
 { const h = location.hash.slice(1); history.replaceState({ d: 0 }, '', '#' + (['live', 'movies', 'series', 'search'].includes(h) ? h : 'home')); }
 route(); if (S.sources.length) selectSource(S.srcId || S.sources[0].id);
 setTimeout(() => checkUpdate(false), 4000);
+cloudBoot().catch(e => console.warn('cloud', e));
 })();

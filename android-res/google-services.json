@@ -1,0 +1,28 @@
+{
+  "project_info": {
+    "project_number": "835085103047",
+    "firebase_url": "https://iptv-364a1-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "iptv-364a1",
+    "storage_bucket": "iptv-364a1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:835085103047:android:25012360e3603c583ef3e2",
+        "android_client_info": { "package_name": "com.antunes.player" }
+      },
+      "oauth_client": [
+        { "client_id": "835085103047-cvni3p0d8c1hag649ifq8t9n38ts3kt1.apps.googleusercontent.com", "client_type": 3 }
+      ],
+      "api_key": [ { "current_key": "AIzaSyAANTo-ceh1SDXu6b6oRG-ujR4_JiiL4GA" } ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            { "client_id": "835085103047-cvni3p0d8c1hag649ifq8t9n38ts3kt1.apps.googleusercontent.com", "client_type": 3 }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

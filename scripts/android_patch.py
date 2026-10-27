@@ -91,3 +91,12 @@ if 'android-res/debug.keystore' not in gs:
     }""", 1)
     open(g, 'w', encoding='utf-8').write(gs)
 print('fixed signing key wired into gradle')
+
+# Google sign-in (Firebase): config file + Google provider of @capacitor-firebase/authentication
+shutil.copy('android-res/google-services.json', 'android/app/google-services.json')
+v = 'android/variables.gradle'
+if os.path.exists(v):
+    t = open(v, encoding='utf-8').read()
+    if 'rgcfaIncludeGoogle' not in t:
+        open(v, 'a', encoding='utf-8').write('\next {\n    rgcfaIncludeGoogle = true\n}\n')
+print('google sign-in configured')

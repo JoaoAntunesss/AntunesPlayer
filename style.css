@@ -484,3 +484,6 @@ html[data-style=circuit] .po .rt{border-radius:0 0 6px 0}html[data-style=circuit
 
 .empty .btn{margin-top:6px}
 @media (max-width:720px) and (orientation:portrait){.minis{grid-template-columns:1fr 1fr}.minis .mini:last-child{grid-column:1/-1}}
+.paircode{font:700 44px/1.1 var(--fd);letter-spacing:.12em;text-align:center;margin:18px 0;padding:16px;border:1px solid var(--line,#2a3550);border-radius:14px}
+.welcome .wacts+.wacts{margin-top:10px}
+label.srow input[type=checkbox]{width:20px;height:20px;margin:0 4px 0 0;flex:none}
