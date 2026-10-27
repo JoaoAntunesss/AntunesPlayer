@@ -487,3 +487,8 @@ html[data-style=circuit] .po .rt{border-radius:0 0 6px 0}html[data-style=circuit
 .paircode{font:700 44px/1.1 var(--fd);letter-spacing:.12em;text-align:center;margin:18px 0;padding:16px;border:1px solid var(--line,#2a3550);border-radius:14px}
 .welcome .wacts+.wacts{margin-top:10px}
 label.srow input[type=checkbox]{width:20px;height:20px;margin:0 4px 0 0;flex:none}
+/* TV: the home screen fills the whole screen */
+body.tv[data-view=home] #vHome{display:flex;flex-direction:column}
+body.tv .hgrid{flex:1 0 auto;min-height:calc(100vh - 118px);grid-template-rows:1fr auto}
+body.tv .tile b{font-size:clamp(24px,3.4vw,44px)}body.tv .tile .i{width:clamp(40px,5vw,72px);height:clamp(40px,5vw,72px)}
+body.tv .mini{padding:clamp(11px,1.6vh,20px) 14px;font-size:clamp(14px,1.6vw,19px)}
