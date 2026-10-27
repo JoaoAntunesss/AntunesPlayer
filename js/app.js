@@ -841,7 +841,7 @@ async function checkUpdate(manual) {
 const FB = { apiKey: 'AIzaSyAANTo-ceh1SDXu6b6oRG-ujR4_JiiL4GA', authDomain: 'iptv-364a1.firebaseapp.com', databaseURL: 'https://iptv-364a1-default-rtdb.europe-west1.firebasedatabase.app', projectId: 'iptv-364a1', storageBucket: 'iptv-364a1.firebasestorage.app', messagingSenderId: '835085103047', appId: '1:835085103047:web:dceffba87c28fbf73ef3e2' };
 const CK = ['ap.sources', 'ap.favs', 'ap.lists', 'ap.set'], PEPPER = '|AntunesPlayer.sync.v1';
 const C = { user: null, pushT: 0, applying: false, dev: LS.get('ap.dev', '') || (() => { const d = 'd' + Math.random().toString(36).slice(2, 10); LS.set('ap.dev', d); return d; })() };
-Object.assign(PT, { 'Google account': 'Conta Google', 'Sign in with Google': 'Entrar com Google', 'Sign out': 'Sair', 'Signed in as': 'Entraste como', 'Sync now': 'Sincronizar agora', 'Synced': 'Sincronizado', 'Not synced yet': 'Ainda não sincronizado', 'Your playlists, favourites, lists and settings are saved in your Google account and appear on every device where you sign in. Playlist logins are encrypted before they leave this device.': 'As tuas listas, favoritos, listas próprias e definições ficam guardados na tua conta Google e aparecem em todos os aparelhos onde entrares. Os logins das listas são encriptados antes de saírem deste aparelho.', 'Sign in with a code (TV)': 'Entrar com código (TV)', 'Send to a TV': 'Enviar para uma TV', 'Code shown on the TV': 'Código que aparece na TV', 'Sent. Look at the TV.': 'Enviado. Olha para a TV.', 'The code has 8 letters/numbers': 'O código tem 8 letras/números', 'On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:': 'No telemóvel, abre o AntunesPlayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:', 'Waiting for your phone…': 'À espera do telemóvel…', 'The code expired. Open it again for a new one.': 'O código expirou. Abre outra vez para teres um novo.', 'Playlists in your account': 'Listas na tua conta', 'Pick the playlists to connect on this device:': 'Escolhe as listas a ligar neste aparelho:', 'Connect': 'Ligar', 'Connected': 'Ligado', 'Nothing saved in your account yet. What you add here will be saved.': 'Ainda não tens nada guardado na conta. O que adicionares aqui fica guardado.', 'Could not sign in': 'Não foi possível entrar', 'Update the app to sign in': 'Atualiza a app para poderes entrar', 'Signed out. Your data stays on this device.': 'Saíste. Os dados ficam neste aparelho.', 'Account': 'Conta', 'Your playlists are already in your Google account. Sign in to get them back.': 'As tuas listas podem estar na tua conta Google. Entra para as recuperares.', 'on this device': 'neste aparelho', 'Sync error': 'Erro de sincronização' });
+Object.assign(PT, { 'Google account': 'Conta Google', 'Sign in with Google': 'Entrar com Google', 'Sign out': 'Sair', 'Signed in as': 'Entraste como', 'Sync now': 'Sincronizar agora', 'Synced': 'Sincronizado', 'Not synced yet': 'Ainda não sincronizado', 'Your playlists, favourites, lists and settings are saved in your Google account and appear on every device where you sign in. Playlist logins are encrypted before they leave this device.': 'As tuas listas, favoritos, listas próprias e definições ficam guardados na tua conta Google e aparecem em todos os aparelhos onde entrares. Os logins das listas são encriptados antes de saírem deste aparelho.', 'Sign in with a code (TV)': 'Entrar com código (TV)', 'Send to a TV': 'Enviar para uma TV', 'Code shown on the TV': 'Código que aparece na TV', 'Sent. Look at the TV.': 'Enviado. Olha para a TV.', 'The code has 8 letters/numbers': 'O código tem 8 letras/números', 'On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:': 'No telemóvel, abre o AntunesPlayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:', 'Waiting for your phone…': 'À espera do telemóvel…', 'The code expired. Open it again for a new one.': 'O código expirou. Abre outra vez para teres um novo.', 'Playlists in your account': 'Listas na tua conta', 'Pick the playlists to connect on this device:': 'Escolhe as listas a ligar neste aparelho:', 'Connect': 'Ligar', 'Connected': 'Ligado', 'Nothing saved in your account yet. What you add here will be saved.': 'Ainda não tens nada guardado na conta. O que adicionares aqui fica guardado.', 'Could not sign in': 'Não foi possível entrar', 'Update the app to sign in': 'Atualiza a app para poderes entrar', 'Signed out. Your data stays on this device.': 'Saíste. Os dados ficam neste aparelho.', 'Account': 'Conta', 'Your playlists are already in your Google account. Sign in to get them back.': 'As tuas listas podem estar na tua conta Google. Entra para as recuperares.', 'on this device': 'neste aparelho', 'Sync error': 'Erro de sincronização', 'Opening Google…': 'A abrir o Google…' });
 let fbp;
 const fbLoad = () => fbp || (fbp = (async () => { for (const f of ['app', 'auth', 'database']) await loadScript(`js/vendor/firebase-${f}-compat.js`); if (!firebase.apps.length) firebase.initializeApp(FB); return firebase; })().catch(e => { fbp = null; throw e; }));
 // AES-GCM; the key comes from PBKDF2 so logins never sit in the database as plain text
@@ -902,13 +902,14 @@ function connectDialog(data, mode, after) {
   $('#pkGo').onclick = async () => { const pick = $$('[data-pk]', dlg).filter(c => c.checked).map(c => c.dataset.pk); dlg.close(); applyBundle(data, mode, pick); if (S.sources.length && !S.srcId) selectSource(S.sources[0].id); toast(t('Connected')); if (after) after(); else if (C.user) cloudPush().catch(() => { }); };
 }
 async function googleSignIn() {
-  const fb = await fbLoad(), P = window.Capacitor && Capacitor.Plugins;
+  const P = window.Capacitor && Capacitor.Plugins;
   if (NATIVE) {
     if (!P || !P.FirebaseAuthentication) throw new Error(t('Update the app to sign in'));
-    const r = await P.FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true }); const tok = r && r.credential && r.credential.idToken;
-    if (!tok) throw new Error('no token'); await fb.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(tok));
+    // open the Google account picker first (Firebase loads while the person picks)
+    const fbw = fbLoad(); const r = await P.FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true }); const tok = r && r.credential && r.credential.idToken;
+    if (!tok) throw new Error('no token'); const fb = await fbw; await fb.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(tok));
   } else {
-    const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+    const fb = await fbLoad(), p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
     try { await fb.auth().signInWithPopup(p); } catch (e) { if (/popup-blocked|operation-not-supported/.test(e.code || '')) await fb.auth().signInWithRedirect(p); else throw e; }
   }
 }
@@ -934,9 +935,12 @@ function accountDialog() {
     $('#aCode').onclick = pairDialog;
   }
 }
+let signing = false;
 async function signInFlow() {
-  try { await cloudBoot(true); await googleSignIn(); if (dlg.open) dlg.close(); }
-  catch (e) { const m = String(e && (e.message || e.code) || e); if (!/cancel|closed-by-user|12501/i.test(m)) toast(t('Could not sign in') + ': ' + m); }
+  if (signing) return; signing = true; toast(t('Opening Google…'));
+  try { const boot = cloudBoot(true); await googleSignIn(); await boot; if (dlg.open) dlg.close(); }
+  catch (e) { const m = String(e && (e.message || e.code) || e); if (!/cancel|closed-by-user|12501|12502/i.test(m)) toast(t('Could not sign in') + ': ' + m); }
+  finally { signing = false; }
 }
 /* TV without a keyboard: the TV shows a code, the phone (signed in) sends the encrypted data for that code */
 const PAIR_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
