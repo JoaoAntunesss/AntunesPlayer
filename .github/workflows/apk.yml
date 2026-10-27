@@ -24,14 +24,14 @@ jobs:
       - run: npx cap sync android
       - name: Fixed signing key (so new versions install over old ones)
         run: mkdir -p ~/.android && cp android-res/debug.keystore ~/.android/debug.keystore
-      - name: Build debug APK
+      - name: Build release APK (shrunk)
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk AntunesPlayer.apk
+          cp android/app/build/outputs/apk/release/app-release.apk AntunesPlayer.apk
           if gh release view latest >/dev/null 2>&1; then
             gh release upload latest AntunesPlayer.apk --clobber
             gh release edit latest --title "AntunesPlayer build ${{ github.run_number }}" --prerelease

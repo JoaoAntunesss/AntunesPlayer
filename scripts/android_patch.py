@@ -100,3 +100,22 @@ if os.path.exists(v):
     if 'rgcfaIncludeGoogle' not in t:
         open(v, 'a', encoding='utf-8').write('\next {\n    rgcfaIncludeGoogle = true\n}\n')
 print('google sign-in configured')
+
+# Lighter, faster APK: release build shrunk by R8 (unused code and resources removed), same signing key
+gs = open(g, encoding='utf-8').read()
+if 'shrinkResources true' not in gs:
+    gs, n = re.subn(r'release\s*\{\s*minifyEnabled false\s*proguardFiles getDefaultProguardFile\(\'proguard-android\.txt\'\), \'proguard-rules\.pro\'\s*\}',
+        """release {
+            minifyEnabled true
+            shrinkResources true
+            signingConfig signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }""", gs)
+    assert n == 1, 'release block not found'
+    gs = gs.replace('android {', 'android {\n    lint { checkReleaseBuilds false\n        abortOnError false }', 1)
+    open(g, 'w', encoding='utf-8').write(gs)
+with open('android/app/proguard-rules.pro', 'a', encoding='utf-8') as f:
+    f.write(open('android-res/proguard-rules.pro', encoding='utf-8').read())
+# only one copy of the TV banner is needed
+shutil.rmtree(res + '/drawable-xhdpi', ignore_errors=True)
+print('release shrinking configured')
