@@ -63,10 +63,10 @@ async function fetchText(u, force) { const r = await fetch(proxied(u, true === f
 async function loadSource(src) {
   if (src.type === 'xtream') {
     const base = src.server.replace(/\/+$/, ''), api = a => fetchJson(`${base}/player_api.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}&action=${a}`);
-    const [cats, live, vod] = await Promise.all([api('get_live_categories'), api('get_live_streams'), api('get_vod_streams').catch(() => [])]);
-    const cm = {}; (cats || []).forEach(c => cm[c.category_id] = c.category_name);
+    const [cats, live, vod, vcats] = await Promise.all([api('get_live_categories'), api('get_live_streams'), api('get_vod_streams').catch(() => []), api('get_vod_categories').catch(() => [])]);
+    const cm = {}, vm = {}; (cats || []).forEach(c => cm[c.category_id] = c.category_name); (vcats || []).forEach(c => vm[c.category_id] = c.category_name);
     const list = (live || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: cm[x.category_id] || '', tvg: x.epg_channel_id || '', num: parseInt(x.num, 10) || 0, url: `${base}/live/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.m3u8`, kind: 'live' }))
-      .concat((vod || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: 'Movies', tvg: '', num: 0, url: `${base}/movie/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.${x.container_extension || 'mp4'}`, kind: 'vod' })));
+      .concat((vod || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: vm[x.category_id] || 'Movies', tvg: '', num: 0, url: `${base}/movie/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.${x.container_extension || 'mp4'}`, kind: 'vod' })));
     return { list: finish(list), epg: src.epg || `${base}/xmltv.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}` };
   }
   const text = src.text != null ? src.text : await fetchText(src.url, true), p = parseM3U(text); return { list: finish(p.list), epg: src.epg || p.epg };
@@ -113,7 +113,7 @@ const favList = () => S.favs.map(k => S.byKey[k]).filter(Boolean);
 function baseList() {
   const g = S.group; let l;
   if (g === 'fav') l = favList(); else if (g === 'recent') l = S.recent.map(k => S.byKey[k]).filter(Boolean);
-  else if (g === 'all') l = S.channels.filter(c => c.kind === 'live'); else if (g === '_vod') l = S.channels.filter(c => c.kind === 'vod'); else if (g === '_series') l = S.channels.filter(c => c.kind === 'series');
+  else if (g === 'all') l = S.channels.filter(c => c.kind === 'live'); else if (g.startsWith('v:')) l = S.channels.filter(c => c.kind === 'vod' && (c.group || '—') === g.slice(2)); else if (g === '_vod') l = S.channels.filter(c => c.kind === 'vod'); else if (g === '_series') l = S.channels.filter(c => c.kind === 'series');
   else l = S.channels.filter(c => c.kind === 'live' && c.group === g.slice(2));
   return l;
 }
@@ -123,10 +123,11 @@ function filtered() { let l = baseList(); const q = S.q.trim().toLowerCase(); if
 /* ---------- rendering ---------- */
 function renderGroups() {
   const live = S.channels.filter(c => c.kind === 'live'), gs = {}; live.forEach(c => { const g = c.group || '—'; gs[g] = (gs[g] || 0) + 1; });
+  const vg = {}; S.channels.filter(c => c.kind === 'vod').forEach(c => { const g = c.group || '—'; vg[g] = (vg[g] || 0) + 1; });
   const vod = S.channels.filter(c => c.kind === 'vod').length, ser = S.channels.filter(c => c.kind === 'series').length;
   const item = (id, label, n) => `<button data-g="${esc(id)}" class="${S.group === id ? 'on' : ''}"><span>${label}</span><small>${n}</small></button>`;
   $('#groups').innerHTML = item('fav', '★ ' + t('Favourites'), favList().length) + item('recent', '🕒 ' + t('Recent'), S.recent.filter(k => S.byKey[k]).length) + item('all', t('All channels'), live.length) +
-    (vod ? item('_vod', '🎬 ' + t('Movies'), vod) : '') + (ser ? item('_series', '📺 ' + t('Series'), ser) : '') + Object.keys(gs).sort().map(g => item('g:' + g, esc(g), gs[g])).join('');
+    (vod ? item('_vod', '🎬 ' + t('Movies'), vod) + Object.keys(vg).sort().map(g => item('v:' + g, '🎬 ' + esc(g), vg[g])).join('') : '') + (ser ? item('_series', '📺 ' + t('Series'), ser) : '') + Object.keys(gs).sort().map(g => item('g:' + g, esc(g), gs[g])).join('');
   $$('#groups button').forEach(b => b.onclick = () => { S.group = b.dataset.g; S.shown = 250; render(); $('#list').scrollTop = 0; });
 }
 function renderList() {
