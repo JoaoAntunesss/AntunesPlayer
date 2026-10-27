@@ -21,10 +21,15 @@ act = 'android/app/src/main/java/com/antunes/player/MainActivity.java'
 os.makedirs(os.path.dirname(act), exist_ok=True)
 open(act, 'w', encoding='utf-8').write("""package com.antunes.player;
 
+import android.app.UiModeManager;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.WebViewListener;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -32,6 +37,17 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideBars();
+        UiModeManager ui = (UiModeManager) getSystemService(UI_MODE_SERVICE);
+        final boolean tv = (ui != null && ui.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION)
+            || getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+        if (tv && getBridge() != null) {
+            getBridge().addWebViewListener(new WebViewListener() {
+                @Override
+                public void onPageLoaded(WebView webView) {
+                    webView.evaluateJavascript("window.AP_IS_TV=true;window.dispatchEvent(new Event('ap-tv'));", null);
+                }
+            });
+        }
     }
 
     @Override
