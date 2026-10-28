@@ -314,11 +314,15 @@ function applyLook() { if (!THEMES.some(x => x[0] === S.set.theme)) S.set.theme 
 
 /* ---------- player extras: pause, seek, resume, tracks, aspect, PiP ---------- */
 const POS = LS.get('ap.pos', {}), DUR = LS.get('ap.dur', {}); let posT = 0;
+// Netflix-style memory: what was finished (SEEN), when each title was last watched (WTS), last episode per series (SLAST)
+const SEEN = LS.get('ap.seen', {}), WTS = LS.get('ap.wts', {}), SLAST = LS.get('ap.slast', {});
+const saveWatch = () => { LS.set('ap.seen', SEEN); LS.set('ap.wts', WTS); LS.set('ap.slast', SLAST); };
+function markSeen(c, on) { if (!c) return; if (on === false) { delete SEEN[c.key]; } else { SEEN[c.key] = Date.now(); delete POS[c.key]; LS.set('ap.pos', POS); } WTS[c.key] = Date.now(); saveWatch(); }
 const isVodNow = () => S.cur && S.cur.kind !== 'live';
 const fmtT = x => { if (!isFinite(x) || x < 0) return '0:00'; x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x % 3600 / 60), s2 = x % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0'); };
-function savePos() { if (!isVodNow() || !isFinite(v.duration) || v.duration < 60) return; const k = S.cur.key; if (v.currentTime > v.duration - 30) delete POS[k]; else { POS[k] = Math.floor(v.currentTime); DUR[k] = Math.floor(v.duration); LS.set('ap.dur', DUR); } const ks = Object.keys(POS); if (ks.length > 300) delete POS[ks[0]]; LS.set('ap.pos', POS); }
+function savePos() { if (!isVodNow() || !isFinite(v.duration) || v.duration < 60) return; const c = S.cur, k = c.key; WTS[k] = Date.now(); if (c.ser) SLAST[c.ser] = { k, t: Date.now() }; if (v.currentTime > v.duration - Math.max(30, v.duration * 0.06)) { delete POS[k]; if (!SEEN[k]) { SEEN[k] = Date.now(); if (c.ser) try { nextEpisode(); } catch (e) { } } } else { POS[k] = Math.floor(v.currentTime); DUR[k] = Math.floor(v.duration); LS.set('ap.dur', DUR); } saveWatch(); const ks = Object.keys(POS); if (ks.length > 300) delete POS[ks[0]]; LS.set('ap.pos', POS); }
 v.addEventListener('timeupdate', () => { if (!isVodNow()) return; if (!seeking) $('#seek').value = v.duration ? Math.round(v.currentTime / v.duration * 1000) : 0; $('#tCur').textContent = fmtT(v.currentTime); $('#tDur').textContent = fmtT(v.duration); if (Date.now() - posT > 5000) { posT = Date.now(); savePos(); } });
-v.addEventListener('ended', () => { const nx = nextEpisode(); if (nx) { toast(t('Next episode') + ': ' + nx.name); setTimeout(() => { if (S.cur && S.cur.ser) enterFsFor(nx); }, 1500); } });
+v.addEventListener('ended', () => { if (isVodNow()) { markSeen(S.cur); if (S.cur.ser) SLAST[S.cur.ser] = { k: S.cur.key, t: Date.now() }; saveWatch(); } const nx = nextEpisode(); if (nx) { toast(t('Next episode') + ': ' + nx.name); setTimeout(() => { if (S.cur && S.cur.ser) enterFsFor(nx); }, 1500); } });
 v.addEventListener('loadedmetadata', () => { if (isVodNow() && POS[S.cur.key] > 10 && isFinite(v.duration) && POS[S.cur.key] < v.duration - 30) { v.currentTime = POS[S.cur.key]; toast(t('Resume') + ' ' + fmtT(POS[S.cur.key])); } });
 v.addEventListener('pause', () => { $('#cPlay').innerHTML = ic('play'); screenEl.classList.add('paused'); if (fsOn) showOv(true); savePos(); }); v.addEventListener('play', () => { $('#cPlay').innerHTML = ic('pause'); screenEl.classList.remove('paused'); if (fsOn) showOv(); });
 let seeking = false; const sk = $('#seek'); sk.oninput = () => { seeking = true; if (v.duration) $('#tCur').textContent = fmtT(sk.value / 1000 * v.duration); }; sk.onchange = () => { if (v.duration) v.currentTime = sk.value / 1000 * v.duration; seeking = false; };
@@ -516,7 +520,12 @@ function tick() { const d = new Date(), tm = d.toLocaleTimeString(LOC, { hour: '
 
 /* ---------- home ---------- */
 const fmtN = n => n.toLocaleString(LANG === 'pt' ? 'pt-PT' : undefined);
-function contList() { return Object.keys(POS).reverse().map(k => S.byKey[k] || EPS[k]).filter(Boolean).slice(0, 14); }
+function contList() {
+  const items = [], seenSer = {};
+  Object.keys(POS).forEach(k => { const c = S.byKey[k] || EPS[k]; if (!c) return; if (c.ser) return; items.push({ c, t: WTS[k] || 0 }); });
+  Object.keys(SLAST).forEach(sk => { const l = SLAST[sk], ep = EPS[l.k] || S.byKey[l.k]; if (!ep || seenSer[sk]) return; seenSer[sk] = 1; if (POS[l.k]) items.push({ c: ep, t: l.t }); else if (l.next && EPS[l.next]) items.push({ c: EPS[l.next], t: l.t, next: true }); });
+  return items.sort((a, b) => b.t - a.t).slice(0, 16).map(x => (x.next ? Object.assign({ isNext: true }, x.c) : x.c));
+}
 const TRACE = '<svg class="trace" viewBox="0 0 400 300" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><g><path d="M120 58H230l26 26H400"/><path d="M120 72h70l18 18v40l22 22H400"/><path d="M300 0v40l20 20h80"/><path d="M340 300v-60l-24-24h-40l-20-20v-30"/><circle cx="256" cy="84" r="4"/><circle cx="230" cy="152" r="4"/><circle cx="256" cy="166" r="4"/></g><path class="pulse" d="M120 58H230l26 26H400"/><path class="pulse p2" d="M120 72h70l18 18v40l22 22H400"/></svg>';
 function renderHome() {
   const box = $('#vHome');
@@ -560,7 +569,7 @@ function rowHtml(c) {
 }
 function posterHtml(c) {
   const pos = POS[c.key], ini = esc((c.name || '?').charAt(0)), fav = S.favs.includes(c.key);
-  return `<div class="pc" tabindex="0" data-k="${c.key}"><div class="po">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${ini}</span>${c.rating ? `<i class="rt">${c.rating.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : ''}${fav ? `<i class="fv">${ic('starF')}</i>` : ''}${pos ? `<div class="pp"><i style="width:${Math.min(100, Math.round(pos / (DUR[c.key] || c.dur || 5400) * 100))}%"></i></div>` : ''}</div><b>${esc(c.name)}</b></div>`;
+  return `<div class="pc" tabindex="0" data-k="${c.key}"><div class="po">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${ini}</span>${c.rating ? `<i class="rt">${c.rating.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : ''}${fav ? `<i class="fv">${ic('starF')}</i>` : ''}${pos ? `<div class="pp"><i style="width:${Math.min(100, Math.round(pos / (DUR[c.key] || c.dur || 5400) * 100))}%"></i></div>` : ''}${SEEN[c.key] && !pos ? `<i class="seen">${ic('check')}</i>` : ''}${c.isNext ? `<i class="nxt">${t('Next episode')}</i>` : ''}</div><b>${esc(c.name)}</b></div>`;
 }
 function wireItems(box) {
   $$('.ch', box).forEach(r => {
@@ -576,7 +585,7 @@ function wireItems(box) {
   });
   $$('.grip', box).forEach(g => g.onpointerdown = e => dragFav(e, g.closest('.ch')));
   $$('.ch', box).forEach(r => r.oncontextmenu = e => { e.preventDefault(); const c = S.byKey[r.dataset.k]; if (c && c.kind === 'live') addToListDialog(c); });
-  $$('.pc', box).forEach(r => { r.onclick = () => openDetail(S.byKey[r.dataset.k] || EPS[r.dataset.k]); r.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); r.click(); } }; });
+  $$('.pc', box).forEach(r => { r.onclick = () => { const it = S.byKey[r.dataset.k] || EPS[r.dataset.k]; if (it && it.ser) { const sr = S.byKey[it.ser]; if (sr) openDetail(sr); enterFsFor(it); } else openDetail(it); }; r.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); r.click(); } }; });
   $$('.star', box).forEach(b => b.onclick = e => { e.stopPropagation(); toggleFav(S.byKey[b.dataset.s]); });
   $$('.rmv', box).forEach(b => b.onclick = e => { e.stopPropagation(); const UL = curUList(); if (UL) { UL.keys = UL.keys.filter(x => x !== b.dataset.rm); saveLists(); renderBrowse(); } });
   $$('.mv:not(.rmv)', box).forEach(b => b.onclick = e => { e.stopPropagation(); moveFav(b.dataset.k2, +b.dataset.mv); const f = $(`.mv[data-k2="${b.dataset.k2}"][data-mv="${b.dataset.mv}"]`); if (f) f.focus(); });
@@ -680,6 +689,17 @@ async function loadDetail(c) {
   catch (e) { if (S.detail === c) S.dinfo = { err: e.message }; }
   if (S.detail === c && S.view === 'detail') renderDetailShell();
 }
+// where to continue a series: the episode in progress, else the one after the last finished, else the first
+function serResume(c) {
+  if (!S.deps || S.detail !== c) return null; const ss = Object.keys(S.deps).sort((a, b) => a - b); if (!ss.length) return null;
+  const all = []; ss.forEach(sn => (S.deps[sn] || []).forEach((e, n) => all.push({ sn, n, ep: epObj(c, sn, e, n) })));
+  const last = SLAST[c.key]; let i = last ? all.findIndex(x => x.ep.key === last.k) : -1;
+  if (i < 0) { const w = all.map((x, j) => (SEEN[x.ep.key] || POS[x.ep.key]) ? j : -1).filter(j => j > -1).pop(); i = w == null ? -1 : w; }
+  if (i < 0) return Object.assign({ first: true }, all[0]);
+  const x = all[i]; if (POS[x.ep.key]) return Object.assign({ resume: POS[x.ep.key] }, x);
+  return all[i + 1] ? Object.assign({ next: true }, all[i + 1]) : Object.assign({ again: true }, all[0]);
+}
+function serPlayBtn(c) { const x = serResume(c); if (!x) return ''; const lab = `${t('Season')} ${x.sn} · ${t('Episode')} ${x.ep.name.split('E').pop()}`; return `<button class="btn p big" id="dSer">${ic('play')} ${x.resume ? t('Resume') + ' · ' + lab + ' · ' + fmtT(x.resume) : x.next ? t('Next episode') + ' · ' + lab : t('Watch') + ' · ' + lab}</button>`; }
 function renderDetailShell() {
   const c = S.detail; if (!c) return; const i = S.dinfo || {}, box = $('#vDetail');
   const img = i.movie_image || i.cover_big || i.cover || c.logo || '', back = (Array.isArray(i.backdrop_path) ? i.backdrop_path[0] : i.backdrop_path) || img;
@@ -691,12 +711,14 @@ function renderDetailShell() {
     <div class="dinfo"><h2>${esc(c.name)}</h2>${chips.length ? `<div class="chips">${chips.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
       ${S.dinfo == null ? `<p class="mut">${t('Loading…')}</p>` : (i.plot || i.description) ? `<p class="plot">${esc(i.plot || i.description)}</p>` : `<p class="mut">${t('No details from the provider')}</p>`}
       ${i.cast ? `<p class="cast">${esc(i.cast)}</p>` : ''}
-      <div class="dacts">${c.seriesId ? '' : `<button class="btn p big" id="dPlay">${ic('play')} ${pos ? t('Resume') + ' ' + fmtT(pos) : t('Watch')}</button>`}<button class="btn big ${fav ? 'on' : ''}" id="dFav">${ic(fav ? 'starF' : 'star')} ${fav ? t('In favourites') : t('Add favourite')}</button></div>
+      <div class="dacts">${c.seriesId ? serPlayBtn(c) : `<button class="btn p big" id="dPlay">${ic('play')} ${pos ? t('Resume') + ' ' + fmtT(pos) : t('Watch')}</button>`}${c.seriesId ? '' : `<button class="btn big" id="dSeen">${ic('check')} ${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</button>`}<button class="btn big ${fav ? 'on' : ''}" id="dFav">${ic(fav ? 'starF' : 'star')} ${fav ? t('In favourites') : t('Add favourite')}</button></div>
       ${seasons.length ? `<div class="seas">${seasons.map((s, n) => `<button data-sn="${esc(s)}" class="${n === 0 ? 'on' : ''}">${t('Season')} ${esc(s)}</button>`).join('')}</div><div class="eps" id="eps"></div>` : ''}
     </div></div>`;
   const p = $('#dPlay'); if (p) p.onclick = () => { enterFsFor(c); };
+  const ds = $('#dSeen'); if (ds) ds.onclick = () => { markSeen(c, !SEEN[c.key]); renderDetailShell(); };
+  const sp = $('#dSer'); if (sp) sp.onclick = () => { const x = serResume(c); if (x) enterFsFor(x.ep); };
   $('#dFav').onclick = () => { toggleFav(c); renderDetailShell(); };
-  if (seasons.length) { const draw = sn => { $$('.seas button').forEach(b => b.classList.toggle('on', b.dataset.sn === sn)); $('#eps').innerHTML = (S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key]; return `<button class="ep" data-i="${n}">${e.info && e.info.movie_image ? `<img loading="lazy" src="${esc(e.info.movie_image)}" alt="" onerror="this.remove()">` : `<span class="en">${esc(e.episode_num || n + 1)}</span>`}<span class="et"><b>${t('Episode')} ${esc(e.episode_num || n + 1)}</b><span>${esc(e.title || '')}</span>${ps ? `<i class="epp"></i>` : ''}</span>${ic('play')}</button>`; }).join(''); $$('#eps .ep').forEach(b => b.onclick = () => { const e = S.deps[sn][+b.dataset.i]; enterFsFor(epObj(c, sn, e, +b.dataset.i)); }); }; $$('.seas button').forEach(b => b.onclick = () => draw(b.dataset.sn)); draw(seasons[0]); }
+  if (seasons.length) { const draw = sn => { $$('.seas button').forEach(b => b.classList.toggle('on', b.dataset.sn === sn)); $('#eps').innerHTML = (S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key], dn = DUR[ep.key] || ep.dur || 2700; return `<button class="ep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}">${e.info && e.info.movie_image ? `<img loading="lazy" src="${esc(e.info.movie_image)}" alt="" onerror="this.remove()">` : `<span class="en">${esc(e.episode_num || n + 1)}</span>`}<span class="et"><b>${t('Episode')} ${esc(e.episode_num || n + 1)}</b><span>${esc(e.title || '')}</span>${ps ? `<i class="epp" style="width:${Math.max(4, Math.min(100, Math.round(ps / dn * 100)))}%"></i>` : ''}</span>${SEEN[ep.key] && !ps ? `<i class="epseen">${ic('check')}</i>` : ic('play')}</button>`; }).join(''); $$('#eps .ep').forEach(b => b.onclick = () => { const e = S.deps[sn][+b.dataset.i]; enterFsFor(epObj(c, sn, e, +b.dataset.i)); }); }; $$('.seas button').forEach(b => b.onclick = () => draw(b.dataset.sn)); const rs = serResume(c); draw(rs && seasons.includes(String(rs.sn)) ? String(rs.sn) : seasons[0]); }
 }
 function epObj(c, sn, e, n) { const x = xbase(); const url = `${x.base}/series/${x.q(x.s.user)}/${x.q(x.s.pass)}/${e.id}.${e.container_extension || 'mp4'}`; return { name: `${c.name} · S${sn}E${e.episode_num || n + 1}`, logo: c.logo, group: c.group, url, kind: 'vod', num: 0, key: hash(c.name + '|' + url), dur: e.info && +e.info.duration_secs || 0, ser: c.key, sn, n }; }
 function enterFsFor(c) { if (c.kind !== 'live' && !S.byKey[c.key]) { S.byKey[c.key] = c; EPS[c.key] = c; const ks = Object.keys(EPS); if (ks.length > 60) delete EPS[ks[0]]; LS.set('ap.eps', EPS); } play(c); enterFs(); }
@@ -726,10 +748,11 @@ function catchUrl(c, p) {
 }
 const canCatch = (c, p) => c.arch && c.sid && p.e <= Date.now() + 60000 && p.s > Date.now() - (c.archD || 1) * 86400000 && xbase();
 function playCatch(c, p) { const url = catchUrl(c, p); if (!url) return; enterFsFor({ name: `${c.name} · ${p.t}`, logo: c.logo, group: `${t('Catch-up')} · ${hm(p.s)}–${hm(p.e)}`, url, kind: 'catchup', num: 0, key: hash(url) }); }
+function rememberNext(c, nx) { EPS[nx.key] = nx; const ks = Object.keys(EPS); if (ks.length > 80) delete EPS[ks[0]]; LS.set('ap.eps', EPS); SLAST[c.ser] = Object.assign({}, SLAST[c.ser] || { k: c.key, t: Date.now() }, { next: nx.key }); saveWatch(); }
 function nextEpisode() {
   const c = S.cur, d = S.detail; if (!c || !c.ser || !d || d.key !== c.ser || !S.deps) return null;
   const ss = Object.keys(S.deps).sort((a, b) => a - b), list = S.deps[c.sn] || [];
-  if (c.n + 1 < list.length) return epObj(d, c.sn, list[c.n + 1], c.n + 1);
+  if (c.n + 1 < list.length) { const nx = epObj(d, c.sn, list[c.n + 1], c.n + 1); rememberNext(c, nx); return nx; } const si = ss.indexOf(String(c.sn)); if (si > -1 && ss[si + 1] && (S.deps[ss[si + 1]] || []).length) { const nx = epObj(d, ss[si + 1], S.deps[ss[si + 1]][0], 0); rememberNext(c, nx); return nx; }
   const ns = ss[ss.indexOf(String(c.sn)) + 1]; return ns && S.deps[ns] && S.deps[ns][0] ? epObj(d, ns, S.deps[ns][0], 0) : null;
 }
 function newListDialog(done, edit) {
@@ -1012,7 +1035,7 @@ const FB = { apiKey: 'AIzaSyAANTo-ceh1SDXu6b6oRG-ujR4_JiiL4GA', authDomain: 'ipt
 let signing = false;
 const CK = ['ap.sources', 'ap.favs', 'ap.lists', 'ap.set'], PEPPER = '|AntunesPlayer.sync.v1';
 const C = { user: null, pushT: 0, applying: false, dev: LS.get('ap.dev', '') || (() => { const d = 'd' + Math.random().toString(36).slice(2, 10); LS.set('ap.dev', d); return d; })() };
-Object.assign(PT, { 'Google account': 'Conta Google', 'Sign in with Google': 'Entrar com Google', 'Sign out': 'Sair', 'Signed in as': 'Entraste como', 'Sync now': 'Sincronizar agora', 'Synced': 'Sincronizado', 'Not synced yet': 'Ainda não sincronizado', 'Your playlists, favourites, lists and settings are saved in your Google account and appear on every device where you sign in. Playlist logins are encrypted before they leave this device.': 'As tuas listas, favoritos, listas próprias e definições ficam guardados na tua conta Google e aparecem em todos os aparelhos onde entrares. Os logins das listas são encriptados antes de saírem deste aparelho.', 'Sign in with a code (TV)': 'Entrar com código (TV)', 'Send to a TV': 'Enviar para uma TV', 'Code shown on the TV': 'Código que aparece na TV', 'Sent. Look at the TV.': 'Enviado. Olha para a TV.', 'The code has 8 letters/numbers': 'O código tem 8 letras/números', 'On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:': 'No telemóvel, abre o AntunesPlayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:', 'Waiting for your phone…': 'À espera do telemóvel…', 'The code expired. Open it again for a new one.': 'O código expirou. Abre outra vez para teres um novo.', 'Playlists in your account': 'Listas na tua conta', 'Pick the playlists to connect on this device:': 'Escolhe as listas a ligar neste aparelho:', 'Connect': 'Ligar', 'Connected': 'Ligado', 'Nothing saved in your account yet. What you add here will be saved.': 'Ainda não tens nada guardado na conta. O que adicionares aqui fica guardado.', 'Could not sign in': 'Não foi possível entrar', 'Update the app to sign in': 'Atualiza a app para poderes entrar', 'Signed out. Your data stays on this device.': 'Saíste. Os dados ficam neste aparelho.', 'Account': 'Conta', 'Your playlists are already in your Google account. Sign in to get them back.': 'As tuas listas podem estar na tua conta Google. Entra para as recuperares.', 'on this device': 'neste aparelho', 'Sync error': 'Erro de sincronização', 'Opening Google…': 'A abrir o Google…', 'Playlists you add here are saved to your account.': 'As listas que adicionares aqui ficam guardadas na conta.' });
+Object.assign(PT, { 'Google account': 'Conta Google', 'Sign in with Google': 'Entrar com Google', 'Sign out': 'Sair', 'Signed in as': 'Entraste como', 'Sync now': 'Sincronizar agora', 'Synced': 'Sincronizado', 'Not synced yet': 'Ainda não sincronizado', 'Your playlists, favourites, lists and settings are saved in your Google account and appear on every device where you sign in. Playlist logins are encrypted before they leave this device.': 'As tuas listas, favoritos, listas próprias e definições ficam guardados na tua conta Google e aparecem em todos os aparelhos onde entrares. Os logins das listas são encriptados antes de saírem deste aparelho.', 'Sign in with a code (TV)': 'Entrar com código (TV)', 'Send to a TV': 'Enviar para uma TV', 'Code shown on the TV': 'Código que aparece na TV', 'Sent. Look at the TV.': 'Enviado. Olha para a TV.', 'The code has 8 letters/numbers': 'O código tem 8 letras/números', 'On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:': 'No telemóvel, abre o AntunesPlayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:', 'Waiting for your phone…': 'À espera do telemóvel…', 'The code expired. Open it again for a new one.': 'O código expirou. Abre outra vez para teres um novo.', 'Playlists in your account': 'Listas na tua conta', 'Pick the playlists to connect on this device:': 'Escolhe as listas a ligar neste aparelho:', 'Connect': 'Ligar', 'Connected': 'Ligado', 'Nothing saved in your account yet. What you add here will be saved.': 'Ainda não tens nada guardado na conta. O que adicionares aqui fica guardado.', 'Could not sign in': 'Não foi possível entrar', 'Update the app to sign in': 'Atualiza a app para poderes entrar', 'Signed out. Your data stays on this device.': 'Saíste. Os dados ficam neste aparelho.', 'Account': 'Conta', 'Your playlists are already in your Google account. Sign in to get them back.': 'As tuas listas podem estar na tua conta Google. Entra para as recuperares.', 'on this device': 'neste aparelho', 'Sync error': 'Erro de sincronização', 'Watched': 'Visto', 'Mark as watched': 'Marcar como visto', 'Opening Google…': 'A abrir o Google…', 'Playlists you add here are saved to your account.': 'As listas que adicionares aqui ficam guardadas na conta.' });
 let fbp;
 const fbLoad = () => fbp || (fbp = (async () => { for (const f of ['app', 'auth', 'database']) await loadScript(`js/vendor/firebase-${f}-compat.js`); if (!firebase.apps.length) firebase.initializeApp(FB); return firebase; })().catch(e => { fbp = null; throw e; }));
 // AES-GCM; the key comes from PBKDF2 so logins never sit in the database as plain text
@@ -1026,7 +1049,16 @@ const userSecret = () => C.user.uid + PEPPER;
 function bundle() {
   const set = Object.assign({}, S.set); delete set.tv; delete set.tvMode;
   const sources = S.sources.map(x => { const o = Object.assign({}, x); if (o.text && o.text.length > 400000) delete o.text; return o; });
-  return { sources, favs: S.favs, lists: S.lists, set };
+  return { sources, favs: S.favs, lists: S.lists, set, watch: { pos: POS, dur: DUR, seen: SEEN, wts: WTS, slast: SLAST, eps: EPS } };
+}
+// "continue watching" and watched marks follow you between devices: newest wins per title
+function mergeWatch(w) {
+  if (!w) return; const tw = w.wts || {};
+  Object.keys(w.seen || {}).forEach(k => { if (!SEEN[k]) SEEN[k] = w.seen[k]; });
+  Object.keys(tw).forEach(k => { if (!WTS[k] || tw[k] > WTS[k]) { WTS[k] = tw[k]; if (w.pos && w.pos[k] != null) POS[k] = w.pos[k]; else if (SEEN[k]) delete POS[k]; if (w.dur && w.dur[k]) DUR[k] = w.dur[k]; } });
+  Object.keys(w.slast || {}).forEach(k => { if (!SLAST[k] || w.slast[k].t > SLAST[k].t) SLAST[k] = w.slast[k]; });
+  Object.keys(w.eps || {}).forEach(k => { if (!EPS[k]) EPS[k] = w.eps[k]; });
+  LS.set('ap.pos', POS); LS.set('ap.dur', DUR); LS.set('ap.eps', EPS); saveWatch();
 }
 const sameSrc = (a, b) => a.type === b.type && (a.type === 'xtream' ? a.server === b.server && a.user === b.user : (a.url || a.name) === (b.url || b.name));
 function applyBundle(b, mode, pick) {
@@ -1039,6 +1071,7 @@ function applyBundle(b, mode, pick) {
     const f = (b.favs || []).slice(); if (mode !== 'replace') S.favs.forEach(k => { if (!f.includes(k)) f.push(k); }); S.favs = f; LS.set('ap.favs', f);
     const L = (b.lists || []).slice(); if (mode !== 'replace') S.lists.forEach(l => { if (!L.some(x => x.id === l.id)) L.push(l); }); S.lists = L; LS.set('ap.lists', L);
     if (b.set) { const keep = { tv: S.set.tv, tvMode: S.set.tvMode }; Object.assign(S.set, b.set, keep); saveSet(); applyLook(); }
+    mergeWatch(b.watch);
   } finally { C.applying = false; }
   if (typeof refreshVis === 'function') refreshVis();
   if (!S.sources.some(x => x.id === S.srcId)) selectSource(S.sources[0] && S.sources[0].id); else render();
@@ -1141,6 +1174,7 @@ function sendToTvDialog() {
   };
 }
 window.addEventListener('focus', () => { if (C.user && LS.get('ap.dirty', false)) schedulePush(); });
+v.addEventListener('pause', () => { if (isVodNow()) schedulePush(); }); v.addEventListener('ended', () => schedulePush());
 
 /* ---------- start ---------- */
 if (!S.set.nm2) { S.set.numberMode = 'favs'; S.set.nm2 = true; saveSet(); }

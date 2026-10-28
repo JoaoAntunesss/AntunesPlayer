@@ -525,3 +525,10 @@ body.pclear .cpi.on{background:rgba(0,0,0,.3)}body.pclear .cpi:hover{background:
 body.pclear #quick{background:linear-gradient(90deg,rgba(0,0,0,.5),rgba(0,0,0,.18))}
 body.pclear #quick .ch{text-shadow:0 1px 3px rgba(0,0,0,.95)}
 html[data-style=circuit] body.pclear #chPanel{border-color:rgba(47,216,255,.14)}
+/* watched marks and "next episode" */
+.po .seen{position:absolute;right:6px;top:6px;z-index:2;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:var(--onacc)}.po .seen .i{width:16px;height:16px;stroke-width:2.6}
+.po .nxt{position:absolute;left:6px;right:6px;bottom:8px;z-index:2;font-style:normal;font-size:11.5px;font-weight:800;text-align:center;padding:4px 6px;border-radius:8px;background:rgba(0,0,0,.72);color:#fff}
+.ep.seen{opacity:.62}.ep.seen:focus-visible,.ep.seen:hover{opacity:1}
+.epseen{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--acc);color:var(--onacc)}.epseen .i{width:18px;height:18px;stroke-width:2.6}
+.epp{transition:width .3s}
+html[data-style=circuit] .po .seen,html[data-style=circuit] .epseen{border-radius:4px}
