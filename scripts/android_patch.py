@@ -34,6 +34,7 @@ import com.getcapacitor.WebViewListener;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(ExtPlayerPlugin.class);
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideBars();
@@ -119,3 +120,31 @@ with open('android/app/proguard-rules.pro', 'a', encoding='utf-8') as f:
 # only one copy of the TV banner is needed
 shutil.rmtree(res + '/drawable-xhdpi', ignore_errors=True)
 print('release shrinking configured')
+
+# "Open in another player": hands the stream to VLC / MX Player / Just Player through the Android chooser
+open('android/app/src/main/java/com/antunes/player/ExtPlayerPlugin.java', 'w', encoding='utf-8').write("""package com.antunes.player;
+
+import android.content.Intent;
+import android.net.Uri;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+@CapacitorPlugin(name = "ExtPlayer")
+public class ExtPlayerPlugin extends Plugin {
+    @PluginMethod
+    public void open(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || url.isEmpty()) { call.reject("no url"); return; }
+        Intent i = new Intent(Intent.ACTION_VIEW);
+        i.setDataAndType(Uri.parse(url), "video/*");
+        i.putExtra("title", call.getString("title", ""));
+        Intent chooser = Intent.createChooser(i, call.getString("title", "Video"));
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try { getActivity().startActivity(chooser); call.resolve(); }
+        catch (Exception e) { call.reject("no player", e); }
+    }
+}
+""")
+print('external player plugin written')

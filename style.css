@@ -492,3 +492,28 @@ body.tv[data-view=home] #vHome{display:flex;flex-direction:column}
 body.tv .hgrid{flex:1 0 auto;min-height:calc(100vh - 118px);grid-template-rows:1fr auto}
 body.tv .tile b{font-size:clamp(24px,3.4vw,44px)}body.tv .tile .i{width:clamp(40px,5vw,72px);height:clamp(40px,5vw,72px)}
 body.tv .mini{padding:clamp(11px,1.6vh,20px) 14px;font-size:clamp(14px,1.6vw,19px)}
+/* ---------- motion: menus, views and focus (respects reduced motion) ---------- */
+@keyframes dlgIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes bdIn{from{opacity:0}to{opacity:1}}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+dialog[open]{animation:dlgIn .26s cubic-bezier(.22,1,.36,1)}
+dialog[open]::backdrop{animation:bdIn .26s ease-out}
+dialog.full[open]{animation-name:bdIn}
+body[data-view] main.view{animation:viewIn .28s cubic-bezier(.22,1,.36,1)}
+.tile,.mini,.pc,.ch,.btn,.ib,.cats button{transition:transform .18s cubic-bezier(.22,1,.36,1),background-color .18s,border-color .18s,box-shadow .18s}
+body.tv .tile:focus-visible,body.tv .mini:focus-visible{transform:scale(1.04)}
+body.tv .pc:focus-visible{transform:scale(1.07)}
+body.tv .ch:focus-visible{transform:translateX(4px)}
+.ch.drag,.ch.lift{transition:none}
+.btn:active,.ib:active,.mini:active,.tile:active{transform:scale(.97)}
+#toast.on{transition:transform .3s cubic-bezier(.22,1,.36,1),opacity .2s}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+/* ---------- extras ---------- */
+.pg.rem{box-shadow:inset 3px 0 0 var(--acc)}.pg.rem b::before{content:"🔔 ";font-size:.85em}
+.sinfo{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:12px;font-variant-numeric:tabular-nums}.sinfo dt{color:var(--mut)}.sinfo dd{margin:0;text-align:right;font-weight:700}
+/* ---------- performance: skip drawing rows and posters that are off-screen ---------- */
+#list .ch,#sres .ch{content-visibility:auto;contain-intrinsic-size:auto 64px}
+#list .pc,.grid .pc{content-visibility:auto;contain-intrinsic-size:auto 260px}
+.rail{contain:layout paint}
+.gr{content-visibility:auto;contain-intrinsic-size:auto 64px}

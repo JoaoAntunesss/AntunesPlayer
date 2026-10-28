@@ -34,7 +34,7 @@ class NativeLoader {
   constructor() { this.stats = { aborted: false, loaded: 0, retry: 0, total: 0, chunkCount: 0, bwEstimate: 0, loading: { start: 0, first: 0, end: 0 }, parsing: { start: 0, end: 0 }, buffering: { start: 0, first: 0, end: 0 } }; this.dead = false; }
   destroy() { this.dead = true; } abort() { this.dead = true; this.stats.aborted = true; }
   load(ctx, cfg, cb) {
-    const st = this.stats; st.loading.start = performance.now(); const bin = ctx.responseType === 'arraybuffer', headers = {};
+    const st = this.stats; st.loading.start = performance.now(); const bin = ctx.responseType === 'arraybuffer', headers = Object.assign({}, uaHdr());
     if (ctx.rangeStart != null && ctx.rangeEnd != null) headers.Range = `bytes=${ctx.rangeStart}-${ctx.rangeEnd - 1}`;
     nativeHttp().request({ url: ctx.url, method: 'GET', headers, responseType: bin ? 'arraybuffer' : 'text', connectTimeout: 15000, readTimeout: 20000 }).then(r => {
       if (this.dead) return; if (r.status >= 400) { cb.onError({ code: r.status, text: 'HTTP ' + r.status }, ctx, r); return; }
@@ -63,7 +63,8 @@ function finish(list) {
   let n = 1; list.forEach(c => { if (c.kind !== 'live') { c.num = 0; return; } if (!c.num) { while (used.has(n)) n++; c.num = n; used.add(n); } });
   return list;
 }
-async function fetchText(u, force) { const r = await fetch(proxied(u, true === force || !!S.set.proxy), { cache: 'no-store' }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }
+const uaHdr = () => { const u = NATIVE && srcUA(); return u ? { 'User-Agent': u } : {}; };
+async function fetchText(u, force) { const r = await fetch(proxied(u, true === force || !!S.set.proxy), { cache: 'no-store', headers: uaHdr() }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }
 async function loadSource(src) {
   if (src.type === 'xtream') {
     const base = src.server.replace(/\/+$/, ''), api = a => fetchJson(`${base}/player_api.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}&action=${a}`);
@@ -77,7 +78,7 @@ async function loadSource(src) {
   }
   const text = src.text != null ? src.text : await fetchText(src.url, true), p = parseM3U(text); return { list: finish(p.list), epg: src.epg || p.epg };
 }
-async function fetchJson(u) { const r = await fetch(proxied(u, true === !!S.set.proxy), { cache: 'no-store' }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+async function fetchJson(u) { const r = await fetch(proxied(u, true === !!S.set.proxy), { cache: 'no-store', headers: uaHdr() }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
 
 /* ---------- TV guide (XMLTV) ---------- */
 const decodeXml = s => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&(amp|lt|gt|quot|apos|#39);/g, (m, k) => ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'" }[k]));
@@ -91,13 +92,22 @@ function parseXMLTV(xml) {
   }
   Object.keys(res).forEach(k => res[k].sort((x, y) => x.s - y.s)); return res;
 }
+// Parsing a big XMLTV file can freeze a TV for seconds: do it in a background worker when possible.
+let epgWorkerUrl = null;
+function parseXMLTVAsync(buf) {
+  if (!window.Worker || !window.Blob) return Promise.resolve(parseXMLTV(new TextDecoder().decode(buf)));
+  try {
+    epgWorkerUrl = epgWorkerUrl || URL.createObjectURL(new Blob([`const ${decodeXml.name}=${decodeXml.toString()};${xtime.toString()};${parseXMLTV.toString()};onmessage=e=>{try{postMessage({ok:${parseXMLTV.name}(new TextDecoder().decode(e.data))})}catch(x){postMessage({err:String(x)})}}`], { type: 'text/javascript' }));
+    return new Promise(ok => { const w = new Worker(epgWorkerUrl); const done = r => { w.terminate(); ok(r); }; w.onmessage = e => done(e.data.ok || parseXMLTV(new TextDecoder().decode(buf))); w.onerror = () => done(parseXMLTV(new TextDecoder().decode(buf))); w.postMessage(buf); });
+  } catch (e) { return Promise.resolve(parseXMLTV(new TextDecoder().decode(buf))); }
+}
 async function loadEpg(id, url) {
   if (!url) return; const cache = await idbGet('epg:' + id);
-  if (cache && Date.now() - cache.at < 6 * 3600e3) { S.epg = cache.data; render(); return; }
+  if (cache && Date.now() - cache.at < 6 * 3600e3) { S.epg = shiftEpg(cache.data); render(); return; }
   try {
     const r = await fetch(proxied(url, !!S.set.proxy), { cache: 'no-store' }); if (!r.ok) return; let buf = new Uint8Array(await r.arrayBuffer());
     if (buf[0] === 0x1f && buf[1] === 0x8b && window.DecompressionStream) { const ds = new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))); buf = new Uint8Array(await ds.arrayBuffer()); }
-    const data = parseXMLTV(new TextDecoder().decode(buf)); S.epg = data; idbSet('epg:' + id, { at: Date.now(), data }); render(); if (S.cur) showInfo(S.cur);
+    const data = await parseXMLTVAsync(buf); S.epg = shiftEpg(data); idbSet('epg:' + id, { at: Date.now(), data }); render(); if (S.cur) showInfo(S.cur);
   } catch (e) { /* guide is optional */ }
 }
 const epgFor = c => S.epg[c.tvg] || S.epg[(c.name || '').toLowerCase()] || null;
@@ -110,9 +120,12 @@ const curSrc = () => S.sources.find(x => x.id === S.srcId) || S.sources[0];
 async function selectSource(id, refresh) {
   const src = S.sources.find(x => x.id === id); if (!src) { S.channels = []; S.srcId = ''; S.acct = null; indexChannels(); render(); return; }
   S.srcId = id; LS.set('ap.src', id); S.epg = {}; S.loadErr = ''; let data = refresh ? null : await idbGet('ch:' + id); if (data && data.v !== 3) data = null;
-  if (!data) { S.loading = true; render(); try { data = await loadSource(src); data.v = 3; await idbSet('ch:' + id, data); } catch (e) { S.loading = false; S.loadErr = t('Could not load the playlist') + ': ' + e.message; render(); return; } }
+  if (!data) { S.loading = true; render(); try { data = await loadSource(src); data.v = 3; data.at = Date.now(); await idbSet('ch:' + id, data); } catch (e) { S.loading = false; S.loadErr = t('Could not load the playlist') + ': ' + e.message; render(); return; } }
   S.loading = false; S.channels = data.list; S.acct = data.acct || null; src.epgUrl = data.epg; indexChannels(); refreshVis(); S.shown = 250; render(); loadEpg(id, data.epg);
   if (!S.booted) { S.booted = true; bootLast(); }
+  if (!refresh && S.set.autoRefresh !== false && Date.now() - (data.at || 0) > 24 * 3600e3) setTimeout(async () => { // refresh the channel list quietly once a day
+    try { const nd = await loadSource(src); nd.v = 3; nd.at = Date.now(); await idbSet('ch:' + id, nd); if (S.srcId !== id) return; S.channels = nd.list; S.acct = nd.acct || S.acct; indexChannels(); refreshVis(); if (!fsOn) render(); toast(t('Playlist updated')); } catch (e) { }
+  }, 8000);
 }
 /* ---------- import / export favourites (JSON) ---------- */
 const normName = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[a-z]{2,3}\s*[:|\-]\s*/, '').replace(/\b(fhd|uhd|hd|sd|4k|hevc|h265|backup|\d{3,4}p)\b/g, '').replace(/[^a-z0-9]+/g, '');
@@ -166,6 +179,7 @@ function bootLast() {
   if (favLive().includes(c)) { S.gsel.live = 'fav'; LS.set('ap.gsel', S.gsel); }
   go('live'); enterFsFor(c);
 }
+const LNC = new WeakMap(); const lname = c => { let n = LNC.get(c); if (n === undefined) { n = (c.name || '').toLowerCase(); LNC.set(c, n); } return n; }; // lower-case names cached for fast search
 function indexChannels() { S.byNum = {}; S.byKey = {}; S.channels.forEach(c => { S.byKey[c.key] = c; if (c.kind === 'live' && c.num && !S.byNum[c.num]) S.byNum[c.num] = c; }); }
 const favList = () => S.favs.map(k => S.byKey[k]).filter(Boolean);
 function baseList() {
@@ -203,18 +217,19 @@ async function play(c, isRetry) {
   try {
     if (isHls) {
       if (!window.Hls && (NATIVE || !v.canPlayType('application/vnd.apple.mpegurl'))) await loadScript('js/hls.min.js'); // in the app, hls.js + native HTTP is more reliable than the WebView's own HLS
-      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: true, maxBufferLength: 20, manifestLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } }, playlistLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } } }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { S.dbg = (d.details || '') + (d.reason ? ' ' + d.reason : '') + (d.error && d.error.message ? ' ' + d.error.message : ''); if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried && !/manifest|level/i.test(d.details || '')) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else if (!c.useTs && /\/live\/[^/]+\/[^/]+\/[^/]+\.m3u8/i.test(c.url)) { c.useTs = true; play(c, true); } else showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, (d.details || '') + (d.response && d.response.code ? ' · HTTP ' + d.response.code : '')), true); }); }
+      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: true, maxBufferLength: 20, backBufferLength: 30, startFragPrefetch: true, manifestLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } }, playlistLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } } }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { S.dbg = (d.details || '') + (d.reason ? ' ' + d.reason : '') + (d.error && d.error.message ? ' ' + d.error.message : ''); if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried && !/manifest|level/i.test(d.details || '')) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else if (!c.useTs && /\/live\/[^/]+\/[^/]+\/[^/]+\.m3u8/i.test(c.url)) { c.useTs = true; play(c, true); } else showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, (d.details || '') + (d.response && d.response.code ? ' · HTTP ' + d.response.code : '')), true); }); }
       else v.src = url;
     } else if (isTs) {
       if (!window.mpegts) await loadScript('js/mpegts.min.js');
-      if (window.mpegts && mpegts.isSupported()) { mpg = mpegts.createPlayer({ type: 'mpegts', isLive: c.kind === 'live', url }, { enableWorker: true, liveBufferLatencyChasing: true }); mpg.attachMediaElement(v); mpg.load(); mpg.on(mpegts.Events.ERROR, (a, b) => { const was = c.useTs; c.useTs = false; showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, String(b || a || '')), true); }); }
+      if (window.mpegts && mpegts.isSupported()) { mpg = mpegts.createPlayer({ type: 'mpegts', isLive: c.kind === 'live', url }, { enableWorker: true, liveBufferLatencyChasing: true, headers: uaHdr(), autoCleanupSourceBuffer: true }); mpg.attachMediaElement(v); mpg.load(); mpg.on(mpegts.Events.ERROR, (a, b) => { const was = c.useTs; c.useTs = false; showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, String(b || a || '')), true); }); }
       else v.src = url;
     } else v.src = url;
     await v.play().catch(err => { if (err && err.name === 'NotAllowedError') { v.muted = true; $('#cMute').innerHTML = ic('mute'); v.play().catch(() => { }); toast(t('Tap for sound')); } });
   } catch (e) { showMsg(t('Could not play this'), whyHtml(c.url, false, String(e && e.message || e)), true); }
 }
-v.addEventListener('playing', () => { spin(false); $('#msg').hidden = true; }); v.addEventListener('waiting', () => { if (S.cur) spin(true); }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url, proxied(S.cur.url) !== S.cur.url, (v.error ? 'media error ' + v.error.code + (v.error.message ? ' ' + v.error.message : '') : '') + (S.dbg ? ' · ' + S.dbg : '')), true); });
-function showOsd(c) { const n = shownNum(c); $('#osdN').innerHTML = seg(n); $('#osdT').textContent = c.name; $('#osdS').textContent = c.group || ''; liveBar(c); if (fsOn) showOv(); }
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+v.addEventListener('playing', () => { spin(false); $('#msg').hidden = true; if (v.animate && !RM && v.currentTime < 3) v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out' }); }); v.addEventListener('waiting', () => { if (S.cur) spin(true); }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url, proxied(S.cur.url) !== S.cur.url, (v.error ? 'media error ' + v.error.code + (v.error.message ? ' ' + v.error.message : '') : '') + (S.dbg ? ' · ' + S.dbg : '')), true); });
+function showOsd(c) { const o = $('#osd'); if (o && o.animate && !RM) o.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.22,1,.36,1)' }); const n = shownNum(c); $('#osdN').innerHTML = seg(n); $('#osdT').textContent = c.name; $('#osdS').textContent = c.group || ''; liveBar(c); if (fsOn) showOv(); }
 function liveBar(c) { const nn = c.kind === 'live' ? nowNext(c) : null; $('#liveBar').hidden = !(nn && nn.now); if (nn && nn.now) { $('#lbNow').innerHTML = `<b>${hm(nn.now.s)}</b> ${esc(nn.now.t)}`; $('#lbPb').style.width = Math.max(0, Math.min(100, Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100))) + '%'; $('#lbNext').innerHTML = nn.next ? `<b>${hm(nn.next.s)}</b> ${esc(nn.next.t)}` : ''; } }
 function showInfo(c) {
   const box = $('#info'); if (!box || c.kind !== 'live') return;
@@ -261,13 +276,13 @@ function addDialog(tab0) {
     openDlg(`<h2>${t('Add playlist')}</h2><div class="tabs"><button data-t="url" class="${tab === 'url' ? 'on' : ''}">${t('Playlist link (M3U / M3U8)').split(' (')[0]}</button><button data-t="text" class="${tab === 'text' ? 'on' : ''}">${t('Paste or upload')}</button><button data-t="xt" class="${tab === 'xt' ? 'on' : ''}">${t('Xtream login')}</button></div>
     <label>${t('Name')}</label><input id="aName" placeholder="My TV">` +
       (tab === 'url' ? `<label>${t('Playlist link (M3U / M3U8)')}</label><input id="aUrl" type="url" placeholder="https://…/playlist.m3u8">` : tab === 'text' ? `<label>${t('Playlist text')}</label><textarea id="aText" rows="5" placeholder="#EXTM3U …"></textarea><label>${t('or choose a file')}</label><input id="aFile" type="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/vnd.apple.mpegurl">` : `<label>${t('Server (with http/https)')}</label><input id="xS" placeholder="http://server:8080"><label>${t('Username')}</label><input id="xU" autocomplete="off"><label>${t('Password')}</label><input id="xP" type="password" autocomplete="off">`) +
-      `<label>${t('TV guide link (XMLTV, optional)')}</label><input id="aEpg" type="url" placeholder="https://…/guide.xml"><div class="row"><button class="btn" id="aCancel">${t('Cancel')}</button><button class="btn p" id="aOk">${t('Add')}</button></div>`);
+      `<label>${t('TV guide link (XMLTV, optional)')}</label><input id="aEpg" type="url" placeholder="https://…/guide.xml">${NATIVE ? `<label>${t('User-Agent (optional, some providers need it)')}</label><input id="aUA" placeholder="VLC/3.0.20 LibVLC/3.0.20" autocomplete="off">` : ''}<div class="row"><button class="btn" id="aCancel">${t('Cancel')}</button><button class="btn p" id="aOk">${t('Add')}</button></div>`);
     $$('.tabs button', dlg).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); }); $('#aCancel').onclick = () => dlg.close();
     $('#aOk').onclick = async () => {
-      const name = ($('#aName').value || '').trim() || 'My TV', epg = ($('#aEpg').value || '').trim();
-      if (tab === 'url') { const u = ($('#aUrl').value || '').trim(); if (!/^https?:\/\//i.test(u)) { toast(t('Fill in the fields')); return; } addSource({ name, type: 'm3u', url: u, epg }); }
-      else if (tab === 'text') { let txt = $('#aText').value, f = $('#aFile').files[0]; if (f) txt = await f.text(); if (!txt || !/#EXTINF/i.test(txt)) { toast(t('Fill in the fields')); return; } addSource({ name, type: 'm3u', text: txt, epg }); }
-      else { const server = $('#xS').value.trim(), user = $('#xU').value.trim(), pass = $('#xP').value; if (!/^https?:\/\//i.test(server) || !user) { toast(t('Fill in the fields')); return; } addSource({ name, type: 'xtream', server, user, pass, epg }); }
+      const name = ($('#aName').value || '').trim() || 'My TV', epg = ($('#aEpg').value || '').trim(), ua = $('#aUA') ? $('#aUA').value.trim() : '';
+      if (tab === 'url') { const u = ($('#aUrl').value || '').trim(); if (!/^https?:\/\//i.test(u)) { toast(t('Fill in the fields')); return; } addSource({ name, type: 'm3u', url: u, epg, ua }); }
+      else if (tab === 'text') { let txt = $('#aText').value, f = $('#aFile').files[0]; if (f) txt = await f.text(); if (!txt || !/#EXTINF/i.test(txt)) { toast(t('Fill in the fields')); return; } addSource({ name, type: 'm3u', text: txt, epg, ua }); }
+      else { const server = $('#xS').value.trim(), user = $('#xU').value.trim(), pass = $('#xP').value; if (!/^https?:\/\//i.test(server) || !user) { toast(t('Fill in the fields')); return; } addSource({ name, type: 'xtream', server, user, pass, epg, ua }); }
     };
   };
   draw();
@@ -277,13 +292,16 @@ function settingsDialog() {
   openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
   <label>${t('When the app opens')}</label><select id="sStart"><option value="last" ${(s.startup || 'last') === 'last' ? 'selected' : ''}>${t('Last channel in full screen (favourites)')}</option><option value="home" ${s.startup === 'home' ? 'selected' : ''}>${t('Home screen')}</option></select><label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('TV mode (remote, bigger text)')}</label><select id="sTv"><option value="auto" ${(s.tvMode || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${isTvDevice() ? t('TV detected') : t('no TV detected')}</option><option value="on" ${s.tvMode === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.tvMode === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
+  <label>${t('Guide time offset (hours)')}</label><select id="sOff">${[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(h => `<option value="${h}" ${(+s.epgOff || 0) === h ? 'selected' : ''}>${h > 0 ? '+' + h : h}</option>`).join('')}</select><label>${t('Subtitle size')}</label><select id="sSub">${[80, 100, 130, 160, 200].map(z => `<option value="${z}" ${(+s.subSize || 100) === z ? 'selected' : ''}>${z}%</option>`).join('')}</select><label>${t('Update playlists automatically (daily)')}</label><select id="sAuto"><option value="1" ${s.autoRefresh !== false ? 'selected' : ''}>${t('Yes')}</option><option value="0" ${s.autoRefresh === false ? 'selected' : ''}>${t('No')}</option></select>
   <label>${t('Language')}</label><select id="sLang"><option value="en" ${LANG === 'en' ? 'selected' : ''}>English</option><option value="pt" ${LANG === 'pt' ? 'selected' : ''}>Português</option></select>
   <h2 style="margin-top:18px">${ic('lock')} ${t('Parental control')}</h2><label>${t('PIN (4 digits, empty = off)')}</label><input id="sPin" type="password" inputmode="numeric" maxlength="8" value="${esc(s.pin || '')}" autocomplete="off"><div class="row" style="justify-content:flex-start"><button class="btn" id="sCats">${t('Manage categories')}</button><button class="btn" id="sBak">${ic('stack')} ${t('Backup')}</button><button class="btn" id="sFavs">${ic('star')} ${t('Import / export favourites')}</button></div><label>${t('Helper link for blocked playlists (optional)')}</label><input id="sProxy" value="${esc(s.proxy)}" placeholder="https://your-helper.example/?url={url}"><label>${t('Also use it for streams')}</label><select id="sPS"><option value="0" ${!s.proxyStreams ? 'selected' : ''}>${t('No')}</option><option value="1" ${s.proxyStreams ? 'selected' : ''}>${t('Yes')}</option></select>
   <h2 style="margin-top:18px">${t('Playlists')}</h2>${S.sources.map(x => `<div style="display:flex;gap:6px;align-items:center;margin:6px 0"><b style="flex:1">${esc(x.name)}</b><button class="btn" data-r="${x.id}">${t('Refresh')}</button><button class="btn" data-d="${x.id}">${t('Delete')}</button></div>`).join('') || '<p class="mut">—</p>'}
   <h2 style="margin-top:18px">${t('Keyboard & remote')}</h2><div class="keys"><kbd>0–9</kbd><span>${t('jump to that channel')}</span><kbd>↑ ↓ / CH±</kbd><span>${t('next / previous channel')}</span><kbd>Enter</kbd><span>${t('channel list')}</span><kbd>F</kbd><span>${t('favourite on/off')}</span><kbd>L</kbd><span>${t('last channel')}</span><kbd>M</kbd><span>${t('mute')}</span><kbd>R</kbd><span>${t('record (needs a browser that allows it)')}</span><kbd>Z</kbd><span>${t('full screen')}</span></div>
   <div class="row" style="justify-content:space-between"><button class="btn" id="sUpd">${ic('refresh')} ${t('Check for updates')}${NATIVE ? ' · build ' + (BUILD || '—') : ''}</button><button class="btn p" id="sOk">${t('Close')}</button></div>`);
   const chg = () => { s.startup = $('#sStart').value; s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tvMode = $('#sTv').value; applyTvMode(); s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
-  $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sProxy').onchange = chg; $('#sLang').onchange = e => { LS.set('ap.lang', e.target.value); location.reload(); };
+  $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg);
+  $('#sSub').onchange = e => { s.subSize = +e.target.value; saveSet(); applySubs(); }; $('#sAuto').onchange = e => { s.autoRefresh = e.target.value === '1'; saveSet(); };
+  $('#sOff').onchange = async e => { s.epgOff = +e.target.value; saveSet(); const c = await idbGet('epg:' + S.srcId); if (c) { S.epg = shiftEpg(c.data); render(); if (S.cur) showInfo(S.cur); } }; $('#sProxy').onchange = chg; $('#sLang').onchange = e => { LS.set('ap.lang', e.target.value); location.reload(); };
   $$('[data-r]', dlg).forEach(b => b.onclick = () => { dlg.close(); selectSource(b.dataset.r, true); }); $$('[data-d]', dlg).forEach(b => b.onclick = () => { const id = b.dataset.d; S.sources = S.sources.filter(x => x.id !== id); LS.set('ap.sources', S.sources); idbDel('ch:' + id); idbDel('epg:' + id); dlg.close(); selectSource(S.sources[0] && S.sources[0].id); });
   $('#sOk').onclick = () => dlg.close(); $('#sAcc').onclick = accountDialog; $('#sCats').onclick = catsDialog; $('#sFavs').onclick = favsDialog; $('#sBak').onclick = backupDialog; $('#sUpd').onclick = () => { dlg.close(); checkUpdate(true); };
   $('#sPin').onchange = () => { const p = $('#sPin').value.trim(); const had = !!s.pin; s.pin = p; if (p && !had) { const a = new Set(s.locked || []); S.channels.forEach(c => { if (ADULT.test(c.group || '')) a.add(gkey(c)); }); s.locked = [...a]; } S.unlocked = false; saveSet(); refreshVis(); render(); };
@@ -466,8 +484,11 @@ $('#cMore').onclick = () => {
   const sp = [0.5, 0.75, 1, 1.25, 1.5, 2];
   openDlg(`<h2>${t('More')}</h2>${isVodNow() ? `<label>${t('Speed')}</label><div class="tabs">${sp.map(x => `<button data-sp="${x}" class="${v.playbackRate === x ? 'on' : ''}">${x}×</button>`).join('')}</div>` : ''}
   <label>${t('Picture size')}</label><div class="tabs">${ASP.map((x, i) => `<button data-as="${i}" class="${aspI === i ? 'on' : ''}">${t(x[1])}</button>`).join('')}</div>
-  <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<div class="row" style="justify-content:space-between"><button class="btn" id="mSet">${ic('gear')} ${t('Settings')}</button><button class="btn p" id="dx">OK</button></div>`);
-  $('#dx').onclick = () => dlg.close(); $('#mSet').onclick = settingsDialog; const ml = $('#mList'); if (ml) ml.onclick = () => addToListDialog(S.cur);
+  <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<label>${t('Sleep timer')}${sleepAt ? ' · ' + sleepLeft() + ' ' + t('min') : ''}</label><div class="tabs">${[0, 15, 30, 60, 90, 120].map(m => `<button data-sl="${m}" class="${(!sleepAt && !m) ? 'on' : ''}">${m ? m + ' ' + t('min') : t('Off ').trim()}</button>`).join('')}</div>
+  <div class="row" style="justify-content:flex-start"><button class="btn" id="mInfo">${ic('signal')} ${t('Stream info')}</button><button class="btn" id="mExt">${ic('ext')} ${NATIVE ? t('Open in another player') : t('Copy link')}</button></div>
+  <div class="row" style="justify-content:space-between"><button class="btn" id="mSet">${ic('gear')} ${t('Settings')}</button><button class="btn p" id="dx">OK</button></div>`);
+  $('#dx').onclick = () => dlg.close(); $('#mSet').onclick = settingsDialog; $('#mInfo').onclick = streamInfo; $('#mExt').onclick = () => { dlg.close(); openElsewhere(); };
+  $$('[data-sl]', dlg).forEach(b => b.onclick = () => { setSleep(+b.dataset.sl); dlg.close(); }); const ml = $('#mList'); if (ml) ml.onclick = () => addToListDialog(S.cur);
   $$('[data-sp]', dlg).forEach(b => b.onclick = () => { v.playbackRate = +b.dataset.sp; $$('[data-sp]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
   $$('[data-as]', dlg).forEach(b => b.onclick = () => { aspI = +b.dataset.as; v.style.objectFit = ASP[aspI][0]; $$('[data-as]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
   const p = $('#mPip'); if (p) p.onclick = () => { dlg.close(); try { v.requestPictureInPicture(); } catch (e) { } };
@@ -609,7 +630,7 @@ function renderList() {
 }
 function filtered() {
   const q = S.q.trim().toLowerCase(); if (!q) return baseList();
-  const k = kindOf(S.mode); return S.vis.filter(c => c.kind === k && ((c.name || '').toLowerCase().includes(q) || String(shownNum(c)) === q));
+  const k = kindOf(S.mode); return S.vis.filter(c => c.kind === k && (lname(c).includes(q) || String(shownNum(c)) === q));
 }
 const SORTS = { def: 'Default order', az: 'A–Z', new: 'Recently added', rate: 'Top rated' };
 let heroT = 0;
@@ -634,7 +655,7 @@ function vodHome(box) {
 function renderSearch() {
   const box = $('#sres'), q = S.q.trim().toLowerCase();
   if (q.length < 2) { box.innerHTML = `<div class="empty">${ic('search')}<p>${t('Type at least 2 letters')}</p></div>`; return; }
-  const res = S.vis.filter(c => (c.name || '').toLowerCase().includes(q)), sec = (k, label, f) => { const a = res.filter(c => c.kind === k); return a.length ? `<section class="hrow"><h3>${label} <small>${fmtN(a.length)}</small></h3>${k === 'live' ? `<div class="slist">${a.slice(0, 60).map(rowHtml).join('')}</div>` : `<div class="rail">${a.slice(0, 40).map(posterHtml).join('')}</div>`}</section>` : ''; };
+  const res = S.vis.filter(c => lname(c).includes(q)), sec = (k, label, f) => { const a = res.filter(c => c.kind === k); return a.length ? `<section class="hrow"><h3>${label} <small>${fmtN(a.length)}</small></h3>${k === 'live' ? `<div class="slist">${a.slice(0, 60).map(rowHtml).join('')}</div>` : `<div class="rail">${a.slice(0, 40).map(posterHtml).join('')}</div>`}</section>` : ''; };
   box.innerHTML = (sec('live', t('Live TV')) + sec('vod', t('Movies')) + sec('series', t('Series'))) || `<div class="empty"><h3>${t('Nothing found')}</h3></div>`;
   wireItems(box);
 }
@@ -745,20 +766,20 @@ function openGuide() {
   const base = S.view === 'browse' && S.mode === 'live' ? baseList() : S.channels.filter(c => c.kind === 'live'), list = base.filter(c => c.kind === 'live').slice(0, 200);
   const PX = 4, step = 30 * 60000, now = Date.now(), start = Math.floor((now - (list.some(c => c.arch) ? 3 * 3600000 : 45 * 60000)) / step) * step, end = start + 9 * 3600000, W = (end - start) / 60000 * PX;
   const ticks = []; for (let x = start; x < end; x += step) ticks.push(`<i style="left:${(x - start) / 60000 * PX}px">${hm(x)}</i>`);
-  const rows = list.map(c => { const l = epgFor(c) || [], bl = l.filter(p => p.e > start && p.s < end).map(p => { const s = Math.max(p.s, start), e = Math.min(p.e, end); const cp = p.e <= now && canCatch(c, p); return `<button class="pg ${p.s <= now && p.e > now ? 'now' : ''} ${cp ? 'cu' : ''}" ${cp ? `data-ps="${p.s}"` : ''} style="left:${(s - start) / 60000 * PX}px;width:${Math.max(24, (e - s) / 60000 * PX - 3)}px" data-k="${c.key}"><b>${esc(p.t)}</b><small>${hm(p.s)} – ${hm(p.e)}</small></button>`; }).join(''); return `<div class="gr"><button class="gc" data-k="${c.key}"><span class="n">${seg(shownNum(c))}</span><span class="lgw">${logoHtml(c)}</span><span class="nm">${esc(c.name)}</span></button><div class="gt" style="width:${W}px">${bl || `<span class="gnone">—</span>`}</div></div>`; }).join('');
+  const rows = list.map(c => { const l = epgFor(c) || [], bl = l.filter(p => p.e > start && p.s < end).map(p => { const s = Math.max(p.s, start), e = Math.min(p.e, end); const cp = p.e <= now && canCatch(c, p); return `<button class="pg ${p.s <= now && p.e > now ? 'now' : ''} ${cp ? 'cu' : ''} ${remIdx(c, p) > -1 ? 'rem' : ''}" data-st="${p.s}" ${cp ? `data-ps="${p.s}"` : ''} style="left:${(s - start) / 60000 * PX}px;width:${Math.max(24, (e - s) / 60000 * PX - 3)}px" data-k="${c.key}"><b>${esc(p.t)}</b><small>${hm(p.s)} – ${hm(p.e)}</small></button>`; }).join(''); return `<div class="gr"><button class="gc" data-k="${c.key}"><span class="n">${seg(shownNum(c))}</span><span class="lgw">${logoHtml(c)}</span><span class="nm">${esc(c.name)}</span></button><div class="gt" style="width:${W}px">${bl || `<span class="gnone">—</span>`}</div></div>`; }).join('');
   openDlg(`<div class="gh"><h2>${ic('guide')} ${t('TV guide')}</h2><button class="ib" id="dx" aria-label="${t('Close')}">${ic('back')}</button></div><div class="gscroll" id="gs"><div class="gcols"><div class="gc0"></div><div class="gaxis" style="width:${W}px">${ticks.join('')}<u style="left:${(now - start) / 60000 * PX}px"></u></div></div>${rows || `<div class="empty"><p>${t('No guide data yet')}</p></div>`}</div>`, 'full');
   $('#dx').onclick = () => dlg.close(); const gs = $('#gs'); gs.scrollLeft = Math.max(0, (now - start) / 60000 * PX - 80);
-  $$('#gs [data-k]').forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; dlg.close(); if (b.dataset.ps) { const p = (epgFor(c) || []).find(x => x.s === +b.dataset.ps); if (p) { playCatch(c, p); return; } } if (S.view === 'browse' && S.mode === 'live') play(c); else { go('live'); setTimeout(() => play(c), 30); } });
+  $$('#gs [data-k]').forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; if (b.dataset.st && +b.dataset.st > Date.now()) { const p = (epgFor(c) || []).find(x => x.s === +b.dataset.st); if (p) { progDialog(c, p); return; } } dlg.close(); if (b.dataset.ps) { const p = (epgFor(c) || []).find(x => x.s === +b.dataset.ps); if (p) { playCatch(c, p); return; } } if (S.view === 'browse' && S.mode === 'live') play(c); else { go('live'); setTimeout(() => play(c), 30); } });
   if (!Object.keys(S.epg).length) toast(t('No guide data yet'));
 }
 
 /* ---------- playlists dialog ---------- */
 function listsDialog() {
-  openDlg(`<h2>${t('Playlists')}</h2><div class="srcs">${S.sources.map(x => `<div class="srow ${x.id === S.srcId ? 'on' : ''}"><span class="sic">${ic(x.type === 'xtream' ? 'user' : 'stack')}</span><div><b>${esc(x.name)}</b><small>${x.type === 'xtream' ? 'Xtream' : 'M3U'}${x.id === S.srcId ? ' · ' + t('Active') : ''}</small></div>${x.id === S.srcId ? '' : `<button class="btn" data-u="${x.id}">${t('Use')}</button>`}<button class="ib" data-r="${x.id}" aria-label="${t('Refresh')}">${ic('refresh')}</button><button class="btn" data-d="${x.id}">${t('Delete')}</button></div>`).join('')}</div>
+  openDlg(`<h2>${t('Playlists')}</h2><div class="srcs">${S.sources.map(x => `<div class="srow ${x.id === S.srcId ? 'on' : ''}"><span class="sic">${ic(x.type === 'xtream' ? 'user' : 'stack')}</span><div><b>${esc(x.name)}</b><small>${x.type === 'xtream' ? 'Xtream' : 'M3U'}${x.id === S.srcId ? ' · ' + t('Active') : ''}</small></div>${x.id === S.srcId ? '' : `<button class="btn" data-u="${x.id}">${t('Use')}</button>`}<button class="ib" data-r="${x.id}" aria-label="${t('Refresh')}">${ic('refresh')}</button><button class="ib" data-e="${x.id}" aria-label="${t('Edit')}">${ic('edit')}</button><button class="btn" data-d="${x.id}">${t('Delete')}</button></div>`).join('')}</div>
   <div class="row"><button class="btn" id="lX">${ic('user')} ${t('Xtream login')}</button><button class="btn" id="lU">${ic('plus')} ${t('Add a playlist')}</button><button class="btn p" id="dx">OK</button></div>`);
   $('#dx').onclick = () => dlg.close(); $('#lX').onclick = () => addDialog('xt'); $('#lU').onclick = () => addDialog('url');
   $$('[data-u]', dlg).forEach(b => b.onclick = () => { dlg.close(); selectSource(b.dataset.u); });
-  $$('[data-r]', dlg).forEach(b => b.onclick = () => { dlg.close(); selectSource(b.dataset.r, true); });
+  $$('[data-r]', dlg).forEach(b => b.onclick = () => { dlg.close(); selectSource(b.dataset.r, true); }); $$('[data-e]', dlg).forEach(b => b.onclick = () => editSourceDialog(b.dataset.e));
   $$('[data-d]', dlg).forEach(b => b.onclick = () => { const id = b.dataset.d; S.sources = S.sources.filter(x => x.id !== id); LS.set('ap.sources', S.sources); idbDel('ch:' + id); idbDel('epg:' + id); if (id === S.srcId) selectSource(S.sources[0] && S.sources[0].id); listsDialog(); render(); });
 }
 
@@ -835,6 +856,86 @@ async function checkUpdate(manual) {
     openDlg(`<h2>${ic('refresh')} ${t('New version available')}</h2><p>${t('Build')} ${n} · ${t('you have')} ${BUILD || '—'}</p><p class="mut">${t('The download opens in the browser. Then open the file to install it over this version; your lists and favourites stay.')}</p><div class="row"><button class="btn" id="dx">${t('Later')}</button><button class="btn p" id="uGo">${ic('plus')} ${t('Download')}</button></div>`);
     $('#dx').onclick = () => dlg.close(); $('#uGo').onclick = () => { dlg.close(); openExternal(a.browser_download_url); };
   } catch (e) { if (manual) toast(t('Could not check for updates') + ': ' + e.message); }
+}
+
+/* ---------- extras found in other IPTV players: sleep timer, reminders, stream info, external player, guide offset, subtitles size, User-Agent ---------- */
+Object.assign(IC, {
+  moon: '<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>',
+  bell: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
+  ext: '<path d="M14 4.5h5.5V10M19.5 4.5 11 13"/><path d="M17.5 13.5v5a1.5 1.5 0 0 1-1.5 1.5H6a1.5 1.5 0 0 1-1.5-1.5V8A1.5 1.5 0 0 1 6 6.5h5"/>',
+  signal: '<path d="M5 19v-3M9.5 19v-6M14 19v-9M18.5 19V6"/>'
+});
+Object.assign(PT, { 'Sleep timer': 'Temporizador', 'Sleep timer off': 'Temporizador desligado', 'min': 'min', 'Off ': 'Desligado', 'Playback stops in 30 s': 'A reprodução para daqui a 30 s', 'Keep watching': 'Continuar a ver', 'Stopped by the sleep timer': 'Parado pelo temporizador', 'Remind me': 'Lembrar-me', 'Cancel reminder': 'Cancelar lembrete', 'Reminder set': 'Lembrete guardado', 'Starting now': 'Vai começar', 'Watch now': 'Ver agora', 'Dismiss': 'Ignorar', 'Watch channel now': 'Ver o canal agora', 'Reminders': 'Lembretes', 'Stream info': 'Info do sinal', 'Resolution': 'Resolução', 'Engine': 'Leitor', 'Bitrate': 'Débito', 'Connection': 'Ligação', 'Buffer': 'Buffer', 'Dropped frames': 'Imagens perdidas', 'Quality': 'Qualidade', 'Auto': 'Auto', 'Open in another player': 'Abrir noutro leitor', 'Copy link': 'Copiar link', 'Link copied': 'Link copiado', 'No other video player installed': 'Não há outro leitor de vídeo instalado', 'Guide time offset (hours)': 'Acerto de horas do guia (horas)', 'Subtitle size': 'Tamanho das legendas', 'Update playlists automatically (daily)': 'Atualizar listas automaticamente (todos os dias)', 'User-Agent (optional, some providers need it)': 'User-Agent (opcional, alguns fornecedores pedem)', 'Edit': 'Editar', 'Edit playlist': 'Editar lista', 'Saved': 'Guardado', 'Name': 'Nome', 'TV guide link (XMLTV, optional)': 'Link do guia de TV (XMLTV, opcional)', 'Playlist updated': 'Lista atualizada' });
+
+/* sleep timer */
+let sleepT = 0, sleepAt = 0, sleepWarnT = 0;
+function setSleep(min) {
+  clearTimeout(sleepT); clearTimeout(sleepWarnT); sleepAt = 0;
+  if (!min) { toast(t('Sleep timer off')); return; }
+  sleepAt = Date.now() + min * 60000; toast(t('Sleep timer') + ': ' + min + ' ' + t('min'));
+  sleepWarnT = setTimeout(() => {
+    openDlg(`<h2>${ic('moon')} ${t('Sleep timer')}</h2><p>${t('Playback stops in 30 s')}</p><div class="row"><button class="btn p" id="slK">${t('Keep watching')}</button></div>`);
+    $('#slK').onclick = () => { dlg.close(); setSleep(30); };
+  }, Math.max(0, min * 60000 - 30000));
+  sleepT = setTimeout(() => { sleepAt = 0; if (dlg.open) dlg.close(); stopPlayback(); if (fsOn) back(); toast(t('Stopped by the sleep timer')); }, min * 60000);
+}
+const sleepLeft = () => sleepAt ? Math.max(1, Math.round((sleepAt - Date.now()) / 60000)) : 0;
+
+/* programme reminders (while the app is open) */
+const REM = LS.get('ap.rem', []).filter(r => r.s > Date.now() - 600e3);
+const saveRem = () => LS.set('ap.rem', REM);
+const remIdx = (c, p) => REM.findIndex(r => r.k === c.key && r.s === p.s);
+function progDialog(c, p) {
+  const has = remIdx(c, p) > -1, d = new Date(p.s);
+  openDlg(`<h2>${ic('bell')} ${esc(p.t)}</h2><p class="mut">${esc(c.name)} · ${d.toLocaleDateString(LOC, { weekday: 'short', day: 'numeric', month: 'short' })} ${hm(p.s)} – ${hm(p.e)}</p>${p.d ? `<p>${esc(p.d)}</p>` : ''}<div class="row"><button class="btn" id="pgW">${ic('play')} ${t('Watch channel now')}</button><button class="btn p" id="pgR">${ic('bell')} ${has ? t('Cancel reminder') : t('Remind me')}</button></div>`);
+  $('#pgW').onclick = () => { dlg.close(); if (S.view === 'browse' && S.mode === 'live') play(c); else { go('live'); setTimeout(() => play(c), 30); } };
+  $('#pgR').onclick = () => { const i = remIdx(c, p); if (i > -1) REM.splice(i, 1); else { REM.push({ k: c.key, s: p.s, t: p.t, n: c.name }); toast(t('Reminder set') + ' · ' + hm(p.s)); } saveRem(); dlg.close(); };
+}
+function checkReminders() {
+  const n = Date.now(); const due = REM.filter(r => !r.done && r.s - n <= 60e3 && r.s - n > -600e3); if (!due.length || dlg.open) return;
+  const r = due[0]; r.done = true; saveRem(); const c = S.byKey[r.k];
+  openDlg(`<h2>${ic('bell')} ${t('Starting now')}</h2><p><b>${esc(r.t)}</b><br><span class="mut">${esc(r.n)} · ${hm(r.s)}</span></p><div class="row"><button class="btn" id="dx">${t('Dismiss')}</button>${c ? `<button class="btn p" id="rmW">${ic('play')} ${t('Watch now')}</button>` : ''}</div>`);
+  $('#dx').onclick = () => dlg.close(); const w = $('#rmW'); if (w) w.onclick = () => { dlg.close(); if (S.view === 'browse' && S.mode === 'live') play(c); else { go('live'); setTimeout(() => { play(c); enterFs(); }, 30); } };
+  setTimeout(() => { for (let i = REM.length - 1; i >= 0; i--) if (REM[i].done && REM[i].s < Date.now() - 600e3) REM.splice(i, 1); saveRem(); }, 1000);
+}
+setInterval(checkReminders, 15000);
+
+/* stream info */
+let infoT = 0;
+function streamInfo() {
+  const row = (k, val) => `<dt>${t(k)}</dt><dd>${val}</dd>`;
+  const draw = () => {
+    if (!dlg.open || !$('#siBox', dlg)) { clearInterval(infoT); return; }
+    const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null, lv = hls && hls.levels && hls.levels[hls.currentLevel];
+    let buf = 0; try { for (let i = 0; i < v.buffered.length; i++) if (v.buffered.start(i) <= v.currentTime && v.buffered.end(i) >= v.currentTime) buf = v.buffered.end(i) - v.currentTime; } catch (e) { }
+    $('#siBox', dlg).innerHTML = row('Resolution', v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : '—') + row('Engine', hls ? 'hls.js' : mpg ? 'mpegts.js' : 'HTML5') + (lv && lv.bitrate ? row('Bitrate', (lv.bitrate / 1e6).toFixed(1) + ' Mbps' + (lv.videoCodec ? ' · ' + esc(lv.videoCodec.split('.')[0]) : '')) : '') + (hls && hls.bandwidthEstimate ? row('Connection', (hls.bandwidthEstimate / 1e6).toFixed(1) + ' Mbps') : '') + row('Buffer', buf.toFixed(1) + ' s') + (q ? row('Dropped frames', q.droppedVideoFrames + ' / ' + q.totalVideoFrames) : '');
+  };
+  const levels = hls && hls.levels && hls.levels.length > 1 ? hls.levels : null;
+  openDlg(`<h2>${ic('signal')} ${t('Stream info')}</h2><p class="mut">${esc(S.cur ? S.cur.name : '')}</p><dl class="sinfo" id="siBox"></dl>${levels ? `<label>${t('Quality')}</label><div class="tabs"><button data-lv="-1" class="${hls.autoLevelEnabled ? 'on' : ''}">${t('Auto')}</button>${levels.map((l, i) => `<button data-lv="${i}" class="${!hls.autoLevelEnabled && hls.currentLevel === i ? 'on' : ''}">${l.height ? l.height + 'p' : Math.round(l.bitrate / 1000) + 'k'}</button>`).join('')}</div>` : ''}<div class="row"><button class="btn p" id="dx">OK</button></div>`);
+  $('#dx').onclick = () => dlg.close();
+  $$('[data-lv]', dlg).forEach(b => b.onclick = () => { hls.currentLevel = +b.dataset.lv; $$('[data-lv]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
+  draw(); clearInterval(infoT); infoT = setInterval(draw, 1000);
+}
+
+/* open the current stream in another app (VLC, MX Player, Just Player…) */
+async function openElsewhere() {
+  const c = S.cur; if (!c) return; const url = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, P = window.Capacitor && Capacitor.Plugins;
+  if (NATIVE && P && P.ExtPlayer) { try { await P.ExtPlayer.open({ url, title: c.name || '' }); v.pause(); } catch (e) { toast(t('No other video player installed')); } return; }
+  try { await navigator.clipboard.writeText(url); toast(t('Link copied')); } catch (e) { prompt(t('Copy link'), url); }
+}
+
+/* guide offset, subtitle size */
+function shiftEpg(data) { const h = +S.set.epgOff || 0; if (!h) return data; const o = {}, d = h * 3600e3; Object.keys(data).forEach(k => { o[k] = data[k].map(p => ({ s: p.s + d, e: p.e + d, t: p.t, d: p.d })); }); return o; }
+function applySubs() { let st = $('#subStyle'); if (!st) { st = document.createElement('style'); st.id = 'subStyle'; document.head.appendChild(st); } const z = +S.set.subSize || 100; st.textContent = `#v::cue{font-size:${z}%;background:rgba(0,0,0,.6)}`; }
+applySubs();
+
+/* per-playlist User-Agent (Android app; browsers do not allow changing it) */
+const srcUA = () => { const s = curSrc(); return s && s.ua ? s.ua : ''; };
+function editSourceDialog(id) {
+  const s = S.sources.find(x => x.id === id); if (!s) return;
+  openDlg(`<h2>${ic('edit')} ${t('Edit playlist')}</h2><label>${t('Name')}</label><input id="eN" value="${esc(s.name)}"><label>${t('TV guide link (XMLTV, optional)')}</label><input id="eE" type="url" value="${esc(s.epg || '')}"><label>${t('User-Agent (optional, some providers need it)')}</label><input id="eU" value="${esc(s.ua || '')}" placeholder="VLC/3.0.20 LibVLC/3.0.20" autocomplete="off"><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="eOk">${t('Save')}</button></div>`);
+  $('#dx').onclick = listsDialog;
+  $('#eOk').onclick = () => { s.name = $('#eN').value.trim() || s.name; s.epg = $('#eE').value.trim(); s.ua = $('#eU').value.trim(); LS.set('ap.sources', S.sources); toast(t('Saved')); listsDialog(); if (s.id === S.srcId) selectSource(s.id, true); };
 }
 
 /* ---------- Google account: playlists (encrypted), favourites, lists and settings follow you to every device ---------- */
