@@ -395,6 +395,7 @@ function route() {
   else if (h === 'flix') view = 'flix';
   if (!(view === 'browse' && S.mode === 'live') && S.cur && !fsOn) stopPlayback();
   S.fx = view === 'flix' || (S.fx && (view === 'detail' || view === 'search' || (view === 'browse' && S.mode !== 'live'))); document.body.classList.toggle('fx', !!S.fx);
+  if (view === 'flix' && S.view !== 'flix' && S.view !== 'detail') fxIntro();
   S.view = view; document.body.dataset.view = view; document.body.dataset.mode = view === 'browse' ? S.mode : '';
   render();
   if (view === 'search') setTimeout(() => $('#q').focus(), 50);
@@ -688,7 +689,7 @@ function render() {
 }
 
 /* ---------- detail page (movies & series) ---------- */
-async function openDetail(c) { if (!c) return; S.detail = c; S.dinfo = null; S.deps = null; $('#vDetail').innerHTML = ''; go('detail'); loadDetail(c); }
+async function openDetail(c) { if (!c) return; S.fxSn = ''; S.fxTabD = ''; S.detail = c; S.dinfo = null; S.deps = null; $('#vDetail').innerHTML = ''; go('detail'); loadDetail(c); }
 function xbase() { const s = curSrc(); return s && s.type === 'xtream' ? { s, base: s.server.replace(/\/+$/, ''), q: encodeURIComponent } : null; }
 async function loadDetail(c) {
   const x = xbase(); if (!x || (!c.vodId && !c.seriesId)) { S.dinfo = {}; renderDetailShell(); return; }
@@ -709,7 +710,7 @@ function serResume(c) {
 }
 function serPlayBtn(c) { const x = serResume(c); if (!x) return ''; const lab = epLabel(x.ep); return `<button class="btn p big" id="dSer">${ic('play')} ${x.resume ? t('Resume') + ' ' + lab : t('Watch') + ' ' + lab}</button>`; }
 function renderDetailShell() {
-  const c = S.detail; if (!c) return; const i = S.dinfo || {}, box = $('#vDetail');
+  const c = S.detail; if (!c) return; if (S.fx) { renderFxDetail(c); return; } const i = S.dinfo || {}, box = $('#vDetail');
   const img = i.movie_image || i.cover_big || i.cover || c.logo || '', back = (Array.isArray(i.backdrop_path) ? i.backdrop_path[0] : i.backdrop_path) || img;
   const year = (i.releasedate || i.releaseDate || i.release_date || '').slice(0, 4), rating = parseFloat(i.rating) || 0;
   const chips = [year, i.genre, i.duration, rating ? '★ ' + rating.toFixed(1) : ''].filter(Boolean), fav = S.favs.includes(c.key), pos = POS[c.key];
@@ -1057,7 +1058,7 @@ function renderFlix() {
     const mine = favList().filter(c => c.kind === 'vod' || c.kind === 'series');
     body = mine.length ? `<div class="fxgrid">${mine.map(posterHtml).join('')}</div>` : `<div class="empty"><p>${t('Your list is empty. Add films and series with the star.')}</p></div>`;
   } else {
-    const rows = [[t('Continue watching'), contFor(kinds)], [t('My list'), favList().filter(c => kinds.includes(c.kind))]];
+    const cw = contFor(kinds), rows = [[t('My list'), favList().filter(c => kinds.includes(c.kind))]];
     const t10 = byRating.slice(0, 10);
     const rest = [[t('New on AntunesFlix'), recent.slice(0, 24), { sort: 'new', m: kinds.length > 1 ? 'vod' : kinds[0] }]];
     if (kinds.includes('vod')) rest.push([t('Top rated films'), withArt.filter(c => c.kind === 'vod' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'vod', sort: 'top' }]);
@@ -1067,11 +1068,11 @@ function renderFlix() {
     const cats = []; for (let i = 0; i < Math.max(cv.length, cs.length) && cats.length < 120; i++) { if (cv[i]) cats.push(cv[i]); if (cs[i]) cats.push(cs[i]); }
     cats.forEach(([m, g]) => rest.push([g.label, all.filter(c => c.kind === m && (c.group || '—') === g.id.slice(2)).slice(0, 24), { m, g: g.id }, g.n]));
     const rowHtmlF = r => `<section class="hrow vrow"><div class="rh"><h3>${esc(r[0])}${r[3] ? ` <small>${fmtN(r[3])}</small>` : ''}</h3>${r[2] ? `<button class="seeall" data-m="${r[2].m}" ${r[2].g ? `data-g="${esc(r[2].g)}"` : ''} ${r[2].sort ? `data-sort="${r[2].sort}"` : ''}>${t('See all')}</button>` : ''}</div><div class="rail">${r[1].map(posterHtml).join('')}</div></section>`;
-    body = rows.filter(r => r[1].length).map(rowHtmlF).join('') + (t10.length >= 5 ? top10Html(t10) : '') + rest.filter(r => r[1].length).map(rowHtmlF).join('');
+    body = (cw.length ? `<section class="hrow vrow cwrow"><div class="rh"><h3>${t('Continue watching')}</h3></div><div class="rail">${cw.map(cwHtml).join('')}</div></section>` : '') + rows.filter(r => r[1].length).map(rowHtmlF).join('') + (t10.length >= 5 ? top10Html(t10) : '') + rest.filter(r => r[1].length).map(rowHtmlF).join('');
   }
   box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span><button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>` +
-    (tab !== 'mylist' && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${t('Play')}</button><button class="btn" data-hd="${c.key}">${ic('info')} ${t('More info')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
-  wireItems(box); $('#fxS', box).onclick = () => { S.q = ''; $('#q').value = ''; go('search'); }; $('#fxH', box).onclick = () => go('home');
+    (tab !== 'mylist' && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
+  wireItems(box); wireCw(box); $('#fxS', box).onclick = () => { S.q = ''; $('#q').value = ''; go('search'); }; $('#fxH', box).onclick = () => go('home');
   $$('[data-ft]', box).forEach(b => b.onclick = () => { S.flixTab = b.dataset.ft; renderFlix(); box.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`[data-ft="${S.flixTab}"]`, box); if (f) f.focus(); }, 20); });
   $$('.seeall', box).forEach(b => b.onclick = () => { const m = b.dataset.m; go(m === 'vod' ? 'movies' : 'series'); setTimeout(() => { if (b.dataset.g) { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } else if (b.dataset.sort) { S.sort[S.mode] = b.dataset.sort === 'top' ? 'rate' : 'new'; S.group = GDEF[S.mode] + '!'; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; }, 0); });
   const slides = $$('.hs', box), dots = $$('.hdots button', box); let hi = 0; clearInterval(flixHeroT);
@@ -1079,6 +1080,7 @@ function renderFlix() {
   dots.forEach(d => d.onclick = () => { show(+d.dataset.hi); clearInterval(flixHeroT); });
   $$('[data-hp]', box).forEach(b => b.onclick = e => { e.stopPropagation(); const c = S.byKey[b.dataset.hp]; if (c.seriesId) { S.autoResume = true; openDetail(c); } else enterFsFor(c); });
   $$('[data-hd]', box).forEach(b => b.onclick = e => { e.stopPropagation(); openDetail(S.byKey[b.dataset.hd]); });
+  $$('[data-hl]', box).forEach(b => b.onclick = e => { e.stopPropagation(); const c = S.byKey[b.dataset.hl]; toggleFav(c); b.innerHTML = `${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}`; });
   slides.forEach(x => { x.onclick = () => openDetail(S.byKey[x.dataset.k]); x.addEventListener('focusin', () => clearInterval(flixHeroT)); });
   let sx = null; const hero = $('#fxhero', box); if (hero) { hero.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true }); hero.addEventListener('touchend', e => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 50) { show(hi + (dx < 0 ? 1 : -1)); clearInterval(flixHeroT); } }); }
   if (slides.length > 1 && !RM) flixHeroT = setInterval(() => { if (S.view === 'flix' && document.visibilityState === 'visible') show(hi + 1); else clearInterval(flixHeroT); }, 8000);
@@ -1101,6 +1103,65 @@ function nextUpTick() {
   } else { const e = $('#nuGo em', box); if (e) e.textContent = secs; }
 }
 v.addEventListener('timeupdate', nextUpTick);
+
+/* ---------- AntunesFlix, round 2: intro, Netflix-style continue cards, title page ---------- */
+Object.assign(PT, { 'Details and more': 'Detalhes e mais', 'Remove from row': 'Remover da faixa', 'left': 'restantes', 'Cast': 'Com', 'Director': 'Realizador', 'Episodes': 'Episódios', 'More like this': 'Títulos semelhantes', 'Trailer': 'Trailer', 'Watch series': 'Ver série', 'Rate': 'Classificar', 'Continue': 'Continuar' });
+// intro: our own red "A" monogram with light streaks (shown when AntunesFlix opens)
+let fxIntroShown = false;
+function fxIntro() {
+  if (fxIntroShown || RM) return; fxIntroShown = true;
+  const o = document.createElement('div'); o.id = 'fxIntro'; o.setAttribute('aria-hidden', 'true');
+  o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">Antunes<span>Flix</span></div>`;
+  document.body.appendChild(o); const end = () => { o.classList.add('out'); setTimeout(() => o.remove(), 450); };
+  o.onclick = end; setTimeout(end, 2300);
+}
+const fmtLeft = s => { s = Math.max(0, Math.round(s / 60)); const h = Math.floor(s / 60), m = s % 60; return (h ? h + ' h ' : '') + m + ' min ' + t('left'); };
+function cwHtml(c) {
+  const pos = c.cont ? c.cpos : POS[c.key], dur = (c.cont ? c.cdur : DUR[c.key]) || c.dur || 5400, pct = pos ? Math.min(100, Math.round(pos / dur * 100)) : 0;
+  return `<div class="pc cw" tabindex="0" data-k="${c.key}"${c.cont ? ` data-cont="${esc(c.ser)}"` : ''}><div class="po">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${esc((c.name || '?').charAt(0))}</span><span class="cwplay">${ic('play')}</span>${c.clabel ? `<i class="cwlab">${esc(c.clabel)}</i>` : ''}</div><div class="cwbar"><i style="width:${pct}%"></i></div><div class="cwacts"><button class="cwb" data-cwi="${c.key}" aria-label="${t('Details')}">${ic('info')}</button><span></span><button class="cwb" data-cwm="${c.key}" aria-label="${t('More')}">${ic('dots')}</button></div></div>`;
+}
+function cwSheet(c) {
+  const isSer = !!c.cont, k = c.key;
+  openDlg(`<div class="shh"><h2>${esc(c.name)}</h2><button class="ib" id="dx" aria-label="${t('Close')}">${ic('close')}</button></div><div class="shl"><button id="shD">${ic('info')} ${t('Details and more')}</button>${isSer ? '' : `<button id="shS">${ic('check')} ${SEEN[k] ? t('Watched') : t('Mark as watched')}</button>`}<button id="shF">${ic(S.favs.includes(isSer ? c.ser : k) ? 'check' : 'plus')} ${t('My list')}</button><button id="shR">${ic('close')} ${t('Remove from row')}</button></div>`, 'sheet');
+  $('#dx').onclick = () => dlg.close();
+  $('#shD').onclick = () => { dlg.close(); openDetail(S.byKey[isSer ? c.ser : k] || c); };
+  const ss = $('#shS'); if (ss) ss.onclick = () => { markSeen(S.byKey[k] || c, !SEEN[k]); dlg.close(); render(); };
+  $('#shF').onclick = () => { dlg.close(); toggleFav(S.byKey[isSer ? c.ser : k] || c); render(); };
+  $('#shR').onclick = () => { if (isSer) { const l = SLAST[c.ser]; if (l) delete POS[l.k]; delete SLAST[c.ser]; } else delete POS[k]; LS.set('ap.pos', POS); saveWatch(); dlg.close(); render(); };
+}
+function wireCw(box) {
+  $$('[data-cwi]', box).forEach(b => b.onclick = e => { e.stopPropagation(); const card = b.closest('.pc'), sk = card.dataset.cont; openDetail(S.byKey[sk || b.dataset.cwi] || EPS[b.dataset.cwi]); });
+  $$('[data-cwm]', box).forEach(b => b.onclick = e => { e.stopPropagation(); const k = b.dataset.cwm, it = contList().find(x => x.key === k); if (it) cwSheet(it); });
+}
+// title page like Netflix (used inside AntunesFlix)
+function renderFxDetail(c) {
+  const i = S.dinfo || {}, box = $('#vDetail'), back = (Array.isArray(i.backdrop_path) ? i.backdrop_path[0] : i.backdrop_path) || i.movie_image || i.cover_big || i.cover || c.logo || '';
+  const year = (i.releasedate || i.releaseDate || i.release_date || '').slice(0, 4), rating = parseFloat(i.rating) || 0, fav = S.favs.includes(c.key);
+  const pos = POS[c.key], dur = DUR[c.key] || +i.duration_secs || 0, seasons = S.deps ? Object.keys(S.deps).sort((a, b) => a - b) : [];
+  const x = c.seriesId ? serResume(c) : null, sn = S.fxSn && seasons.includes(S.fxSn) ? S.fxSn : x && seasons.includes(String(x.sn)) ? String(x.sn) : seasons[0];
+  const main = c.seriesId ? (x ? `<button class="nfbig" id="dSer">${ic('play')} ${x.resume ? t('Continue') + ' ' + epLabel(x.ep) : x.first ? t('Watch series') : t('Watch') + ' ' + epLabel(x.ep)}</button>` : '') : `<button class="nfbig" id="dPlay">${ic('play')} ${pos ? t('Continue') : t('Watch')}</button>`;
+  const prog = !c.seriesId && pos && dur ? `<div class="nfprog"><div><i style="width:${Math.min(100, Math.round(pos / dur * 100))}%"></i></div><small>${fmtLeft(dur - pos)}</small></div>` : x && x.resume ? `<div class="nfprog"><div><i style="width:${Math.min(100, Math.round(x.resume / (DUR[x.ep.key] || x.ep.dur || 2700) * 100))}%"></i></div><small>${epLabel(x.ep)} · ${fmtLeft((DUR[x.ep.key] || x.ep.dur || 2700) - x.resume)}</small></div>` : '';
+  const similar = S.vis.filter(o => o.kind === c.kind && o.key !== c.key && o.group === c.group && o.logo).slice(0, 18);
+  const tab = c.seriesId && seasons.length ? (S.fxTabD || 'eps') : 'sim', trailer = i.youtube_trailer || i.trailer || '';
+  box.innerHTML = `<div class="nfd"><div class="nfhero" style="${back ? `background-image:url('${esc(back).replace(/'/g, '%27')}')` : ''}"><button class="nfcircle" id="nfP" aria-label="${t('Play')}">${ic('play')}</button></div><div class="nfbody">
+    <h2>${esc(c.name)}</h2><div class="nfmeta">${[year, i.duration || (dur ? Math.round(dur / 60) + ' min' : ''), seasons.length ? seasons.length + ' ' + (seasons.length > 1 ? t('Seasons') : t('Season')) : '', rating ? '★ ' + rating.toFixed(1) : ''].filter(Boolean).map(s => `<span>${esc(s)}</span>`).join('')}</div>
+    ${main}${prog}
+    ${S.dinfo == null ? `<p class="mut">${t('Loading…')}</p>` : (i.plot || i.description) ? `<p class="nfplot">${esc(i.plot || i.description)}</p>` : ''}
+    ${i.cast ? `<p class="nfsmall"><b>${t('Cast')}:</b> ${esc(i.cast)}</p>` : ''}${i.director ? `<p class="nfsmall"><b>${t('Director')}:</b> ${esc(i.director)}</p>` : ''}${i.genre ? `<p class="nfsmall">${esc(i.genre)}</p>` : ''}
+    <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}${trailer ? `<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>` : ''}</div>
+    <div class="nftabs">${c.seriesId && seasons.length ? `<button data-dt="eps" class="${tab === 'eps' ? 'on' : ''}">${t('Episodes')}</button>` : ''}<button data-dt="sim" class="${tab === 'sim' ? 'on' : ''}">${t('More like this')}</button></div>
+    ${tab === 'eps' ? `${seasons.length > 1 ? `<select class="nfsel" id="nfSn">${seasons.map(s => `<option value="${esc(s)}" ${s === sn ? 'selected' : ''}>${t('Season')} ${esc(s)}</option>`).join('')}</select>` : ''}<div class="nfeps">${(S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key], dn = DUR[ep.key] || ep.dur || 2700, img = e.info && e.info.movie_image; return `<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round(ps / dn * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>`; }).join('')}</div>` : `<div class="fxgrid nfsim">${similar.map(posterHtml).join('') || `<p class="mut">—</p>`}</div>`}
+  </div></div>`;
+  const play = () => { if (c.seriesId) { const r = serResume(c); if (r) enterFsFor(r.ep); } else enterFsFor(c); };
+  $('#nfP').onclick = play; const p = $('#dPlay') || $('#dSer'); if (p) p.onclick = play;
+  $('#dFav').onclick = () => { toggleFav(c); renderFxDetail(c); };
+  const ds = $('#dSeen'); if (ds) ds.onclick = () => { markSeen(c, !SEEN[c.key]); renderFxDetail(c); };
+  const tr = $('#dTr'); if (tr) tr.onclick = () => openExternal(/^https?:/.test(trailer) ? trailer : 'https://www.youtube.com/watch?v=' + encodeURIComponent(trailer));
+  $$('[data-dt]', box).forEach(b => b.onclick = () => { S.fxTabD = b.dataset.dt; renderFxDetail(c); });
+  const sel = $('#nfSn'); if (sel) sel.onchange = () => { S.fxSn = sel.value; renderFxDetail(c); };
+  $$('.nfep', box).forEach(b => b.onclick = () => { const e = S.deps[sn][+b.dataset.i]; enterFsFor(epObj(c, sn, e, +b.dataset.i)); });
+  wireItems(box);
+}
 
 /* ---------- Google account: playlists (encrypted), favourites, lists and settings follow you to every device ---------- */
 const FB = { apiKey: 'AIzaSyAANTo-ceh1SDXu6b6oRG-ujR4_JiiL4GA', authDomain: 'iptv-364a1.firebaseapp.com', databaseURL: 'https://iptv-364a1-default-rtdb.europe-west1.firebasedatabase.app', projectId: 'iptv-364a1', storageBucket: 'iptv-364a1.firebasestorage.app', messagingSenderId: '835085103047', appId: '1:835085103047:web:dceffba87c28fbf73ef3e2' };
