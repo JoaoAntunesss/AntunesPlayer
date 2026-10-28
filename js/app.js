@@ -131,7 +131,9 @@ async function selectSource(id, refresh) {
 const normName = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[a-z]{2,3}\s*[:|\-]\s*/, '').replace(/\b(fhd|uhd|hd|sd|4k|hevc|h265|backup|\d{3,4}p)\b/g, '').replace(/[^a-z0-9]+/g, '');
 function importFavs(text) {
   let d; try { d = JSON.parse(text); } catch (e) { toast(t('This file is not valid JSON')); return; }
-  if (!Array.isArray(d)) d = d.favorites || d.favourites || d.favoritos || d.channels || d.canais || d.list || [];
+  // accepts arrays, {favorites:[...]} and the {"0":"name","1":"name",…,"size":n} format some other apps export
+  const toList = v => { if (Array.isArray(v)) return v; if (!v || typeof v !== 'object') return []; const inner = v.favorites || v.favourites || v.favoritos || v.channels || v.canais || v.list || v.items; if (inner) return toList(inner); const ks = Object.keys(v).filter(k => /^\d+$/.test(k)).sort((x, y) => x - y); return ks.map(k => v[k]); };
+  d = toList(d);
   const live = S.channels.filter(c => c.kind === 'live'), byUrl = {}, bySid = {}, byName = {}, byNorm = {}, byNum = S.byNum;
   live.forEach(c => { byUrl[c.url] = c; if (c.sid != null) bySid[String(c.sid)] = c; byName[(c.name || '').toLowerCase().trim()] = byName[(c.name || '').toLowerCase().trim()] || c; const n = normName(c.name); if (n) byNorm[n] = byNorm[n] || c; });
   const found = [], missing = [];
@@ -154,7 +156,7 @@ function backupDialog() {
 }
 function favsDialog() {
   openDlg(`<h2>${ic('star')} ${t('Favourites')}</h2><p class="mut">${t('Import a JSON file with channel names (or Xtream stream_id / links). They are added to your favourites in the file order.')}</p>
-  <label>${t('JSON file')}</label><input id="fFile" type="file" accept=".json,application/json,text/plain"><label>${t('or paste the JSON')}</label><textarea id="fText" rows="4" placeholder='["RTP 1 HD", "SIC HD", {"name": "TVI"}]'></textarea>
+  <label>${t('JSON file')}</label><input id="fFile" type="file"><label>${t('or paste the JSON')}</label><textarea id="fText" rows="4" placeholder='["RTP 1 HD", "SIC HD", {"name": "TVI"}]'></textarea>
   <div class="row" style="justify-content:space-between"><span><button class="btn" id="fExp">${t('Export')}</button> <button class="btn" id="fCopy">${t('Copy JSON')}</button></span><span><button class="btn" id="dx">${t('Cancel')}</button> <button class="btn p" id="fImp">${t('Import')}</button></span></div>`);
   $('#dx').onclick = () => dlg.close();
   $('#fImp').onclick = async () => { const f = $('#fFile').files[0], txt = f ? await f.text() : $('#fText').value; if (!txt.trim()) { toast(t('Fill in the fields')); return; } importFavs(txt); };
