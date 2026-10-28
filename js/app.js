@@ -290,6 +290,35 @@ function addDialog(tab0) {
   };
   draw();
 }
+/* settings split into tabs (built from the same controls, so every option keeps working) */
+Object.assign(PT, { 'General': 'Geral', 'Look': 'Aspeto', 'Player': 'Leitor', 'About': 'Sobre' });
+const SET_TABS = [['general', 'General', 'home'], ['look', 'Look', 'sun'], ['player', 'Player', 'play'], ['lists', 'Playlists', 'stack'], ['account', 'Account', 'user'], ['about', 'About', 'info']];
+const SET_MAP = { sAcc: 'account', sPin: 'account', sStart: 'general', sNum: 'general', sTv: 'general', sLang: 'general', sStyle: 'look', sTheme: 'look', cAcc: 'look', cFx: 'look', sDig: 'look', sBg: 'look', cRst: 'look', sPan: 'look', sSub: 'player', sOff: 'player', sAuto: 'lists', sProxy: 'lists', sPS: 'lists', sSA: 'player', sOK: 'player', sOU: 'player', sCats: 'account', sBak: 'lists', sFavs: 'lists', sUpd: 'about' };
+function tabOfNode(n) {
+  if (!n || n.nodeType !== 1) return null; const ids = [n.id, ...$$('[id]', n).map(x => x.id)].filter(Boolean);
+  for (const id of ids) if (SET_MAP[id]) return SET_MAP[id];
+  if (n.matches('[data-sl2]') || $('[data-sl2]', n)) return 'player'; if ($('[data-r]', n) || $('[data-d]', n)) return 'lists'; if (n.classList.contains('keys')) return 'about';
+  return null;
+}
+function tabifySettings() {
+  const kids = [...dlg.children], title = kids.shift(), panes = {}, nav = document.createElement('div'); nav.className = 'stabs'; nav.setAttribute('role', 'tablist');
+  SET_TABS.forEach(([k, l, i]) => { const p = document.createElement('div'); p.className = 'spane'; p.dataset.pane = k; panes[k] = p; nav.insertAdjacentHTML('beforeend', `<button data-st="${k}" role="tab">${ic(i)}<span>${t(l)}</span></button>`); });
+  const last = kids[kids.length - 1], upd = last && $('#sUpd', last); if (upd) panes.about.appendChild(upd);
+  let cur = 'general', pending = [];
+  kids.slice(0, -1).forEach(n => {
+    let tb = tabOfNode(n);
+    if (!tb && n.tagName === 'LABEL') tb = tabOfNode(n.nextElementSibling);
+    if (!tb && n.tagName === 'H2') { let x = n.nextElementSibling; while (x && !tb) { tb = tabOfNode(x) || (x.tagName === 'LABEL' && tabOfNode(x.nextElementSibling)); x = x.nextElementSibling; } }
+    if (n.tagName === 'H2' || n.tagName === 'LABEL') { pending.push(n); if (tb) { pending.forEach(p => panes[tb].appendChild(p)); pending = []; cur = tb; } return; }
+    tb = tb || cur; pending.forEach(p => panes[tb].appendChild(p)); pending = []; panes[tb].appendChild(n); cur = tb;
+  });
+  pending.forEach(p => panes[cur].appendChild(p));
+  { const bk = $('#sBak', panes.account), fv = $('#sFavs', panes.account); if (bk || fv) { const r = document.createElement('div'); r.className = 'row'; r.style.justifyContent = 'flex-start'; [bk, fv].forEach(x => x && r.appendChild(x)); panes.lists.insertBefore(r, panes.lists.firstChild); } }
+  dlg.innerHTML = ''; dlg.appendChild(title); dlg.appendChild(nav); const body = document.createElement('div'); body.className = 'sbody'; Object.values(panes).forEach(p => { if (p.children.length) body.appendChild(p); else $(`[data-st="${p.dataset.pane}"]`, nav).remove(); }); dlg.appendChild(body); if (last) dlg.appendChild(last);
+  dlg.classList.add('settings');
+  const show = k => { $$('.spane', dlg).forEach(p => p.hidden = p.dataset.pane !== k); $$('[data-st]', nav).forEach(b => b.classList.toggle('on', b.dataset.st === k)); S.setTab = k; body.scrollTop = 0; };
+  $$('[data-st]', nav).forEach(b => b.onclick = () => show(b.dataset.st)); show(S.setTab && panes[S.setTab] && panes[S.setTab].children.length ? S.setTab : 'general');
+}
 function settingsDialog() {
   const s = S.set;
   openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
@@ -304,6 +333,7 @@ function settingsDialog() {
   <h2 style="margin-top:18px">${t('Playlists')}</h2>${S.sources.map(x => `<div style="display:flex;gap:6px;align-items:center;margin:6px 0"><b style="flex:1">${esc(x.name)}</b><button class="btn" data-r="${x.id}">${t('Refresh')}</button><button class="btn" data-d="${x.id}">${t('Delete')}</button></div>`).join('') || '<p class="mut">—</p>'}
   <h2 style="margin-top:18px">${t('Keyboard & remote')}</h2><div class="keys"><kbd>0–9</kbd><span>${t('jump to that channel')}</span><kbd>↑ ↓ / CH±</kbd><span>${t('next / previous channel')}</span><kbd>Enter</kbd><span>${t('channel list')}</span><kbd>F</kbd><span>${t('favourite on/off')}</span><kbd>L</kbd><span>${t('last channel')}</span><kbd>M</kbd><span>${t('mute')}</span><kbd>R</kbd><span>${t('record (needs a browser that allows it)')}</span><kbd>Z</kbd><span>${t('full screen')}</span></div>
   <div class="row" style="justify-content:space-between"><button class="btn" id="sUpd">${ic('refresh')} ${t('Check for updates')}${NATIVE ? ' · build ' + (BUILD || '—') : ''}</button><button class="btn p" id="sOk">${t('Close')}</button></div>`);
+  tabifySettings();
   const chg = () => { s.startup = $('#sStart').value; s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tvMode = $('#sTv').value; applyTvMode(); s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
   $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg);
   $$('[data-sl2]', dlg).forEach(x => x.onchange = () => { s.subLangs = [...new Set($$('[data-sl2]', dlg).map(y => y.value).filter(Boolean))].join(','); saveSet(); S.subList = null; }); $('#sSA').onchange = e => { s.subAuto = e.target.value === '1'; saveSet(); }; $('#sOK').onchange = e => { s.osKey = e.target.value.trim(); saveSet(); }; $$('#sOU,#sOP', dlg).forEach(x => x.onchange = () => { LS.set('ap.osu', { u: $('#sOU').value.trim(), p: $('#sOP').value }); LS.set('ap.ost', null); });

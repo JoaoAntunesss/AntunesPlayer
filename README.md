@@ -1,16 +1,21 @@
 # AntunesPlayer
 
-A fast, no-install **IPTV player** for the browser, phone and TV. Bring your own playlist — AntunesPlayer comes with **no channels**.
+An **IPTV player** for Android phones, **Google TV** and the browser — with **AntunesFlix** inside: films and series organised like a streaming service. Bring your own Xtream login or M3U playlist; AntunesPlayer comes with **no channels**.
 
-- **Number zapping** — press `1`, `2`, `1 2` on the keyboard or remote and it jumps to that channel (or `CH+/CH−`, `↑/↓` in full screen).
-- **Favourites** — star channels (`F`). Number keys can follow either the playlist's channel numbers or *your favourites in order* (so `1` is always your first favourite).
-- **Last channel** (`L` / Backspace), **recent channels**, search, groups, logos.
-- **TV guide** (XMLTV, plain or `.gz`) — now/next on every row and the next programmes under the player.
-- **Playlists**: M3U/M3U8 link, pasted/uploaded file, or **Xtream** login (live + movies).
-- **Movies** group (VOD) with download, plus a **record** button (browser capture; works only when the stream allows it).
-- HLS (`hls.js`) and MPEG-TS (`mpegts.js`) playback, bundled — works offline once loaded.
-- Installable **PWA**, 5 colour themes, big **TV mode** with remote-friendly focus, English and Português.
-- Everything stays on your device (localStorage + IndexedDB). No accounts, no tracking.
+<p align="center"><img src="docs/antunesflix-home.jpg" width="24%" alt="AntunesFlix"> <img src="docs/antunesflix-rows.jpg" width="24%" alt="Continue watching and Top 10"> <img src="docs/ap-home-red.jpg" width="24%" alt="Home in red"> <img src="docs/ap-live-list.jpg" width="24%" alt="Live TV list"></p>
+
+**Download:** [latest APK](https://github.com/JoaoAntunesss/AntunesPlayer/releases/latest) (Android / Google TV) · **Web:** [joaoantunesss.github.io/AntunesPlayer](https://joaoantunesss.github.io/AntunesPlayer/) · TVs can open [/tv](https://joaoantunesss.github.io/AntunesPlayer/tv/) to download it.
+
+## What it does
+- **AntunesFlix** — billboard, Top 10, a row per genre, My list, Continue watching across films and series, next-episode countdown, watched marks, resume “T1:E3”, Netflix-style title page, its own intro animation.
+- **Live TV** — guide grid with catch-up and reminders, number zapping, favourites in your own order (import from other apps), own channel lists, see-through channel list on the remote's ◀, sleep timer, stream info and quality, open in VLC/MX Player.
+- **Your account** — sign in with Google: playlists (logins encrypted on the device), favourites, progress and settings follow you; a TV signs in with a short code from the phone.
+- **Subtitles** — found online (OpenSubtitles) in your languages and switched on by themselves.
+- **Yours to shape** — app colour, AntunesFlix colour, digits and background; settings in tabs; Portuguese and English; parental PIN; in-app updates.
+
+<p align="center"><img src="docs/antunesflix-intro.jpg" width="49%" alt="AntunesFlix intro"> <img src="docs/ap-colours-settings.jpg" width="40%" alt="Colour settings"></p>
+
+## Earlier versions
 
 ## v3 — player, catch-up, parental control, Google TV
 

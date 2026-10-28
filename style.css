@@ -654,3 +654,15 @@ html[data-bg=black]{--bg:#000;--panel:#050505}html[data-bg=black] body{backgroun
 .sw.on{outline:3px solid #fff;outline-offset:2px}
 .swc{position:relative;width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px dashed rgba(255,255,255,.5);display:grid;place-items:center;font-weight:800}
 .swc input{position:absolute;inset:-8px;width:60px;height:60px;opacity:0;cursor:pointer}
+/* settings tabs */
+dialog.settings{width:min(720px,96vw);height:min(86vh,820px);display:flex;flex-direction:column;padding:20px 22px 16px}
+dialog.settings[open]{display:flex}
+dialog.settings>h2{margin:0 0 12px}
+.stabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 2px 12px;border-bottom:1px solid var(--line);flex:none}
+.stabs button{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:99px;background:var(--surf);border:1px solid var(--line);color:var(--mut);font-weight:700;white-space:nowrap}
+.stabs button .i{width:18px;height:18px}
+.stabs button.on{background:var(--acc);border-color:var(--acc);color:var(--onacc)}
+.sbody{flex:1;overflow:auto;padding:6px 4px 10px}
+.spane>h2:first-child{margin-top:8px!important}
+dialog.settings>.row:last-child{flex:none;border-top:1px solid var(--line);padding-top:12px;margin-top:0}
+@media (max-width:720px){dialog.settings{height:92vh;padding:16px 14px 12px}.stabs button span{font-size:13px}}
