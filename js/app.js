@@ -197,7 +197,7 @@ const favLive = () => favList().filter(c => c.kind === 'live');
 
 /* ---------- player ---------- */
 const v = $('#v'); let hls = null, mpg = null, osdT, numBuf = '', numT, retried = false, rec = null;
-function destroyPlayer() { if (hls) { try { hls.destroy(); } catch (e) { } hls = null; } if (mpg) { try { mpg.destroy(); } catch (e) { } mpg = null; } v.removeAttribute('src'); try { v.load(); } catch (e) { } }
+function destroyPlayer() { $$('#v track[data-os]').forEach(x => x.remove()); if (hls) { try { hls.destroy(); } catch (e) { } hls = null; } if (mpg) { try { mpg.destroy(); } catch (e) { } mpg = null; } v.removeAttribute('src'); try { v.load(); } catch (e) { } }
 const spin = on => { $('#spin').hidden = !on; };
 function showMsg(title, text, retry) { spin(false); const m = $('#msg'); m.innerHTML = `<b>${esc(title)}</b><p>${text}</p>${retry ? `<div><button class="btn p" id="mRetry">${t('Retry')}</button></div>` : ''}`; m.hidden = false; const b = $('#mRetry'); if (b) b.onclick = () => play(S.cur, true);
   if (retry && S.cur) { const c = S.cur, u = proxied(c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url); probe(u).then(r => { if (S.cur === c && !m.hidden) { const p = m.querySelector('p'); if (p) { const cf = /probe 40[13] .*error code: ?10\d\d/.test(r); if (cf) p.innerHTML = LANG === 'pt' ? 'A Cloudflare (o ajudante) não consegue abrir este servidor, porque ele usa um endereço IP. Na versão web isto não tem solução. Usa a app Android.' : 'Cloudflare (the helper) cannot open this server because it uses a raw IP address. The web version cannot fix this. Use the Android app.'; p.insertAdjacentHTML('beforeend', `<br><small style="opacity:.7;word-break:break-all">${esc(r)}</small>`); } } }); } }
@@ -225,6 +225,7 @@ async function play(c, isRetry) {
       else v.src = url;
     } else v.src = url;
     await v.play().catch(err => { if (err && err.name === 'NotAllowedError') { v.muted = true; $('#cMute').innerHTML = ic('mute'); v.play().catch(() => { }); toast(t('Tap for sound')); } });
+    if (c.kind !== 'live' && c.kind !== 'catchup') autoSubs(c);
   } catch (e) { showMsg(t('Could not play this'), whyHtml(c.url, false, String(e && e.message || e)), true); }
 }
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -292,6 +293,7 @@ function settingsDialog() {
   openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
   <label>${t('When the app opens')}</label><select id="sStart"><option value="last" ${(s.startup || 'last') === 'last' ? 'selected' : ''}>${t('Last channel in full screen (favourites)')}</option><option value="home" ${s.startup === 'home' ? 'selected' : ''}>${t('Home screen')}</option></select><label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('TV mode (remote, bigger text)')}</label><select id="sTv"><option value="auto" ${(s.tvMode || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${isTvDevice() ? t('TV detected') : t('no TV detected')}</option><option value="on" ${s.tvMode === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.tvMode === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
+  <h2 style="margin-top:18px">${ic('cc')} ${t('Online subtitles')}</h2><label>${t('Subtitle languages (in order)')}</label><div class="row" style="justify-content:flex-start;gap:8px">${[0, 1, 2].map(i => `<select data-sl2="${i}" style="flex:1;min-width:120px"><option value="">—</option>${SUBL.map(x => `<option value="${x[0]}" ${subLangs()[i] === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`).join('')}</div><label>${t('Turn on subtitles automatically')}</label><select id="sSA"><option value="1" ${s.subAuto !== false ? 'selected' : ''}>${t('Yes')}</option><option value="0" ${s.subAuto === false ? 'selected' : ''}>${t('No')}</option></select><label>${t('OpenSubtitles API key')}</label><input id="sOK" value="${esc(s.osKey || '')}" autocomplete="off" placeholder="opensubtitles.com → API consumers"><label>${t('OpenSubtitles account (optional: 20 a day instead of 5)')}</label><div class="row" style="justify-content:flex-start;gap:8px"><input id="sOU" placeholder="${t('Username')}" value="${esc((LS.get('ap.osu', null) || {}).u || '')}" autocomplete="off" style="flex:1"><input id="sOP" type="password" placeholder="${t('Password')}" value="${esc((LS.get('ap.osu', null) || {}).p || '')}" autocomplete="off" style="flex:1"></div>
   <label>${t('Channel list over the video')}</label><select id="sPan"><option value="clear" ${s.panelBg !== 'dim' ? 'selected' : ''}>${t('See-through')}</option><option value="dim" ${s.panelBg === 'dim' ? 'selected' : ''}>${t('Dark')}</option></select>
   <label>${t('Guide time offset (hours)')}</label><select id="sOff">${[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(h => `<option value="${h}" ${(+s.epgOff || 0) === h ? 'selected' : ''}>${h > 0 ? '+' + h : h}</option>`).join('')}</select><label>${t('Subtitle size')}</label><select id="sSub">${[80, 100, 130, 160, 200].map(z => `<option value="${z}" ${(+s.subSize || 100) === z ? 'selected' : ''}>${z}%</option>`).join('')}</select><label>${t('Update playlists automatically (daily)')}</label><select id="sAuto"><option value="1" ${s.autoRefresh !== false ? 'selected' : ''}>${t('Yes')}</option><option value="0" ${s.autoRefresh === false ? 'selected' : ''}>${t('No')}</option></select>
   <label>${t('Language')}</label><select id="sLang"><option value="en" ${LANG === 'en' ? 'selected' : ''}>English</option><option value="pt" ${LANG === 'pt' ? 'selected' : ''}>Português</option></select>
@@ -301,6 +303,7 @@ function settingsDialog() {
   <div class="row" style="justify-content:space-between"><button class="btn" id="sUpd">${ic('refresh')} ${t('Check for updates')}${NATIVE ? ' · build ' + (BUILD || '—') : ''}</button><button class="btn p" id="sOk">${t('Close')}</button></div>`);
   const chg = () => { s.startup = $('#sStart').value; s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tvMode = $('#sTv').value; applyTvMode(); s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
   $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg);
+  $$('[data-sl2]', dlg).forEach(x => x.onchange = () => { s.subLangs = [...new Set($$('[data-sl2]', dlg).map(y => y.value).filter(Boolean))].join(','); saveSet(); S.subList = null; }); $('#sSA').onchange = e => { s.subAuto = e.target.value === '1'; saveSet(); }; $('#sOK').onchange = e => { s.osKey = e.target.value.trim(); saveSet(); }; $$('#sOU,#sOP', dlg).forEach(x => x.onchange = () => { LS.set('ap.osu', { u: $('#sOU').value.trim(), p: $('#sOP').value }); LS.set('ap.ost', null); });
   $('#sPan').onchange = e => { s.panelBg = e.target.value; saveSet(); applyLook(); }; $('#sSub').onchange = e => { s.subSize = +e.target.value; saveSet(); applySubs(); }; $('#sAuto').onchange = e => { s.autoRefresh = e.target.value === '1'; saveSet(); };
   $('#sOff').onchange = async e => { s.epgOff = +e.target.value; saveSet(); const c = await idbGet('epg:' + S.srcId); if (c) { S.epg = shiftEpg(c.data); render(); if (S.cur) showInfo(S.cur); } }; $('#sProxy').onchange = chg; $('#sLang').onchange = e => { LS.set('ap.lang', e.target.value); location.reload(); };
   $$('[data-r]', dlg).forEach(b => b.onclick = () => { dlg.close(); selectSource(b.dataset.r, true); }); $$('[data-d]', dlg).forEach(b => b.onclick = () => { const id = b.dataset.d; S.sources = S.sources.filter(x => x.id !== id); LS.set('ap.sources', S.sources); idbDel('ch:' + id); idbDel('epg:' + id); dlg.close(); selectSource(S.sources[0] && S.sources[0].id); });
@@ -324,16 +327,18 @@ const togglePlay = () => { if (v.paused) v.play().catch(() => { }); else v.pause
 $('#cPlay').onclick = togglePlay; $('#cBack').onclick = () => seekBy(-10); $('#cFwd').onclick = () => seekBy(10);
 const ASP = [['contain', 'Fit'], ['cover', 'Fill'], ['fill', 'Stretch']]; let aspI = 0;
 $('#cAsp').onclick = () => { aspI = (aspI + 1) % ASP.length; v.style.objectFit = ASP[aspI][0]; toast(t(ASP[aspI][1])); };
-$('#cTrk').onclick = () => {
+const openTracks = () => {
   const au = [], su = []; let cur = { a: -1, s: -1 };
   if (hls) { (hls.audioTracks || []).forEach((x, i) => au.push({ i, n: x.name || x.lang || 'Audio ' + (i + 1) })); (hls.subtitleTracks || []).forEach((x, i) => su.push({ i, n: x.name || x.lang || 'Sub ' + (i + 1) })); cur = { a: hls.audioTrack, s: hls.subtitleTrack }; }
   else { if (v.audioTracks && v.audioTracks.length > 1) [...v.audioTracks].forEach((x, i) => { au.push({ i, n: x.label || x.language || 'Audio ' + (i + 1) }); if (x.enabled) cur.a = i; }); [...v.textTracks].filter(x => x.kind === 'subtitles' || x.kind === 'captions').forEach((x, i) => { su.push({ i, n: x.label || x.language || 'Sub ' + (i + 1) }); if (x.mode === 'showing') cur.s = i; }); }
-  if (au.length < 2 && !su.length) { toast(t('No extra audio or subtitles')); return; }
+  const vodNow = S.cur && S.cur.kind !== 'live' && S.cur.kind !== 'catchup';
+  if (au.length < 2 && !su.length && !vodNow) { toast(t('No extra audio or subtitles')); return; }
   const btn = (kind, i, n, on) => `<button data-k="${kind}" data-i="${i}" class="${on ? 'on' : ''}"><span>${esc(n)}</span></button>`;
-  openDlg(`<h2>${t('Audio')} / ${t('Subtitles')}</h2>` + (au.length > 1 ? `<label>${t('Audio')}</label><div class="catlist">${au.map(x => btn('a', x.i, x.n, x.i === cur.a)).join('')}</div>` : '') + (su.length ? `<label>${t('Subtitles')}</label><div class="catlist">${btn('s', -1, t('Off'), cur.s === -1)}${su.map(x => btn('s', x.i, x.n, x.i === cur.s)).join('')}</div>` : '') + `<div class="row"><button class="btn" id="dx">OK</button></div>`);
-  $('#dx').onclick = () => dlg.close();
-  $$('.catlist button', dlg).forEach(b => b.onclick = () => { const i = +b.dataset.i; if (b.dataset.k === 'a') { if (hls) hls.audioTrack = i; else [...v.audioTracks].forEach((x, n) => x.enabled = n === i); } else { if (hls) hls.subtitleTrack = i; else [...v.textTracks].filter(x => x.kind === 'subtitles' || x.kind === 'captions').forEach((x, n) => x.mode = n === i ? 'showing' : 'disabled'); } dlg.close(); });
+  openDlg(`<h2>${t('Audio')} / ${t('Subtitles')}</h2>` + (au.length > 1 ? `<label>${t('Audio')}</label><div class="catlist">${au.map(x => btn('a', x.i, x.n, x.i === cur.a)).join('')}</div>` : '') + (su.length ? `<label>${t('Subtitles')}</label><div class="catlist">${btn('s', -1, t('Off'), cur.s === -1)}${su.map(x => btn('s', x.i, x.n, x.i === cur.s)).join('')}</div>` : '') + (vodNow ? onlineSubsHtml(S.cur) : '') + `<div class="row"><button class="btn" id="dx">OK</button></div>`);
+  $('#dx').onclick = () => dlg.close(); if (vodNow) wireOnlineSubs(S.cur, openTracks);
+  $$('.catlist button[data-k]', dlg).forEach(b => b.onclick = () => { const i = +b.dataset.i; if (b.dataset.k === 'a') { if (hls) hls.audioTrack = i; else [...v.audioTracks].forEach((x, n) => x.enabled = n === i); } else { if (hls) hls.subtitleTrack = i; else [...v.textTracks].filter(x => x.kind === 'subtitles' || x.kind === 'captions').forEach((x, n) => x.mode = n === i ? 'showing' : 'disabled'); } dlg.close(); });
 };
+$('#cTrk').onclick = openTracks;
 /* ---------- icons ---------- */
 const IC = {
   back: '<path d="M15 5l-7 7 7 7"/>', tv: '<rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M8 2.5l4 3.5 4-3.5"/>',
@@ -937,6 +942,68 @@ function editSourceDialog(id) {
   openDlg(`<h2>${ic('edit')} ${t('Edit playlist')}</h2><label>${t('Name')}</label><input id="eN" value="${esc(s.name)}"><label>${t('TV guide link (XMLTV, optional)')}</label><input id="eE" type="url" value="${esc(s.epg || '')}"><label>${t('User-Agent (optional, some providers need it)')}</label><input id="eU" value="${esc(s.ua || '')}" placeholder="VLC/3.0.20 LibVLC/3.0.20" autocomplete="off"><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="eOk">${t('Save')}</button></div>`);
   $('#dx').onclick = listsDialog;
   $('#eOk').onclick = () => { s.name = $('#eN').value.trim() || s.name; s.epg = $('#eE').value.trim(); s.ua = $('#eU').value.trim(); LS.set('ap.sources', S.sources); toast(t('Saved')); listsDialog(); if (s.id === S.srcId) selectSource(s.id, true); };
+}
+
+/* ---------- online subtitles (OpenSubtitles.com): search by film/episode, pick a language, switch on by itself ---------- */
+Object.assign(PT, { 'Online subtitles': 'Legendas online', 'Search online': 'Procurar online', 'Searching subtitles…': 'A procurar legendas…', 'No subtitles found online': 'Não foram encontradas legendas online', 'Subtitles': 'Legendas', 'Subtitle languages (in order)': 'Idiomas das legendas (por ordem)', 'Turn on subtitles automatically': 'Ligar legendas automaticamente', 'OpenSubtitles API key': 'Chave da API do OpenSubtitles', 'OpenSubtitles account (optional: 20 a day instead of 5)': 'Conta OpenSubtitles (opcional: 20 por dia em vez de 5)', 'Username': 'Utilizador', 'Password': 'Palavra-passe', 'Daily download limit reached': 'Limite diário de downloads atingido', 'Add the OpenSubtitles key in Settings': 'Põe a chave do OpenSubtitles nas Definições', 'Could not get subtitles': 'Não foi possível obter as legendas', 'left today': 'restantes hoje', 'downloads': 'downloads' });
+const SUBL = [['pt-pt', 'Português (PT)'], ['pt-br', 'Português (BR)'], ['en', 'English'], ['es', 'Español'], ['fr', 'Français'], ['it', 'Italiano'], ['de', 'Deutsch'], ['nl', 'Nederlands'], ['ro', 'Română'], ['pl', 'Polski'], ['tr', 'Türkçe'], ['ar', 'العربية']];
+const subLangs = () => (S.set.subLangs || (LANG === 'pt' ? 'pt-pt,pt-br,en' : 'en')).split(',').filter(Boolean);
+const OSK = () => (S.set.osKey || '').trim();
+let osBase = 'https://api.opensubtitles.com/api/v1';
+async function osFetch(path, opt) {
+  const tok = LS.get('ap.ost', null), h = { 'Api-Key': OSK(), 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': 'AntunesPlayer v1.0', 'X-User-Agent': 'AntunesPlayer v1.0' };
+  if (tok && tok.exp > Date.now()) { h.Authorization = 'Bearer ' + tok.t; if (tok.b) osBase = 'https://' + tok.b + '/api/v1'; }
+  const r = await fetch(osBase + path, Object.assign({ headers: h }, opt || {})); const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.message || j.errors && j.errors[0] || 'HTTP ' + r.status); e.status = r.status; e.j = j; throw e; } return j;
+}
+async function osLogin() {
+  const a = LS.get('ap.osu', null); if (!a || !a.u || !a.p) return; const tok = LS.get('ap.ost', null); if (tok && tok.exp > Date.now()) return;
+  try { const j = await osFetch('/login', { method: 'POST', body: JSON.stringify({ username: a.u, password: a.p }) }); LS.set('ap.ost', { t: j.token, b: j.base_url, exp: Date.now() + 20 * 3600e3 }); } catch (e) { }
+}
+const cleanTitle = n => String(n || '').replace(/\s*·\s*S\d+E\d+.*$/, '').replace(/^[A-Z]{2,3}\s*[:|\-]\s*/, '').replace(/\[[^\]]*\]|\([^)]*\)/g, ' ').replace(/\b(19|20)\d\d\b/g, ' ').replace(/\b(4k|uhd|fhd|hd|sd|multi|legendado|dublado|pt|vo)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+async function subsTarget(c) {
+  // what to search for: TMDB id when the provider gives it, otherwise the title (+ year)
+  const o = { name: cleanTitle(c.name), year: '', tmdb: '', sn: 0, ep: 0, type: 'movie' };
+  if (c.ser) { const s = S.byKey[c.ser]; o.name = cleanTitle(s ? s.name : c.name); o.sn = +c.sn || 0; o.ep = +(/E(\d+)/.exec(c.name) || [])[1] || 0; o.type = 'episode'; const i = S.detail && S.detail.key === c.ser ? S.dinfo || {} : {}; o.tmdb = i.tmdb || i.tmdb_id || ''; o.year = (i.releaseDate || i.releasedate || '').slice(0, 4); return o; }
+  let i = S.detail === c ? S.dinfo || {} : null;
+  if (!i && c.vodId) { try { const x = xbase(); const d = await fetchJson(`${x.base}/player_api.php?username=${x.q(x.s.user)}&password=${x.q(x.s.pass)}&action=get_vod_info&vod_id=${x.q(c.vodId)}`); i = d.info || {}; } catch (e) { i = {}; } }
+  i = i || {}; o.tmdb = i.tmdb_id || i.tmdb || ''; o.year = (i.releasedate || i.release_date || '').slice(0, 4) || ((/\b(19|20)\d\d\b/.exec(c.name) || [])[0] || ''); return o;
+}
+async function subsSearch(c) {
+  const o = await subsTarget(c), L = subLangs(), q = new URLSearchParams({ languages: L.join(','), order_by: 'download_count' });
+  if (o.type === 'episode') { if (o.tmdb) q.set('parent_tmdb_id', o.tmdb); else q.set('query', o.name); if (o.sn) q.set('season_number', o.sn); if (o.ep) q.set('episode_number', o.ep); q.set('type', 'episode'); }
+  else { if (o.tmdb) q.set('tmdb_id', o.tmdb); else { q.set('query', o.name); if (o.year) q.set('year', o.year); } q.set('type', 'movie'); }
+  const j = await osFetch('/subtitles?' + q.toString()), rank = l => { const i = L.indexOf(String(l).toLowerCase()); return i < 0 ? 99 : i; };
+  return (j.data || []).map(d => { const a = d.attributes || {}, f = (a.files || [])[0] || {}; return { id: f.file_id, lang: String(a.language || '').toLowerCase(), rel: a.release || f.file_name || '', dl: a.download_count || 0, hi: !!a.hearing_impaired }; })
+    .filter(x => x.id).sort((a, b) => rank(a.lang) - rank(b.lang) || (a.hi - b.hi) || b.dl - a.dl).slice(0, 30);
+}
+const langName = l => (SUBL.find(x => x[0] === l) || [0, l.toUpperCase()])[1];
+async function subsLoad(r, c) {
+  let vtt = await idbGet('sub:' + r.id);
+  if (!vtt) {
+    await osLogin(); const j = await osFetch('/download', { method: 'POST', body: JSON.stringify({ file_id: r.id, sub_format: 'webvtt' }) });
+    const tx = await (await fetch(j.link)).text(); vtt = /^\uFEFF?WEBVTT/.test(tx) ? tx : 'WEBVTT\n\n' + tx.replace(/\r/g, '').replace(/(\d\d:\d\d:\d\d),(\d\d\d)/g, '$1.$2');
+    idbSet('sub:' + r.id, vtt); if (j.remaining != null) S.subLeft = j.remaining;
+  }
+  if (S.cur !== c) return false;
+  $$('#v track[data-os]').forEach(x => x.remove());
+  const tr = document.createElement('track'); tr.kind = 'subtitles'; tr.label = langName(r.lang) + ' · online'; tr.srclang = r.lang.slice(0, 2); tr.dataset.os = r.id; tr.src = URL.createObjectURL(new Blob([vtt], { type: 'text/vtt' })); v.appendChild(tr);
+  const show = () => [...v.textTracks].forEach(x => { x.mode = x.label === tr.label ? 'showing' : 'disabled'; }); show(); tr.addEventListener('load', show); setTimeout(show, 300);
+  return true;
+}
+function subsErr(e) { if (e && (e.status === 406 || /limit|quota/i.test(e.message || ''))) toast(t('Daily download limit reached')); else toast(t('Could not get subtitles') + (e && e.message ? ': ' + e.message : '')); }
+async function autoSubs(c) {
+  if (!c || c.kind === 'live' || c.kind === 'catchup' || S.set.subAuto === false || !OSK()) return;
+  try { const list = await subsSearch(c); if (S.cur !== c) return; S.subList = { k: c.key, list }; if (!list.length) return; const ok = await subsLoad(list[0], c); if (ok) toast(t('Subtitles') + ': ' + langName(list[0].lang)); } catch (e) { if (S.cur === c) subsErr(e); }
+}
+function onlineSubsHtml(c) {
+  if (!c || c.kind === 'live') return '';
+  const L = S.subList && S.subList.k === c.key ? S.subList.list : null;
+  return `<label>${t('Online subtitles')}${S.subLeft != null ? ` <small class="mut">· ${S.subLeft} ${t('left today')}</small>` : ''}</label>` + (L ? (L.length ? `<div class="catlist">${L.map((r, i) => `<button data-os="${i}"><span>${esc(langName(r.lang))}${r.hi ? ' · CC' : ''} <small class="mut">${esc(r.rel).slice(0, 60)} · ${r.dl} ${t('downloads')}</small></span></button>`).join('')}</div>` : `<p class="mut">${t('No subtitles found online')}</p>`) : `<div class="row" style="justify-content:flex-start"><button class="btn" id="osGo">${ic('search')} ${t('Search online')}</button></div>`);
+}
+function wireOnlineSubs(c, reopen) {
+  const g = $('#osGo', dlg); if (g) g.onclick = async () => { if (!OSK()) { toast(t('Add the OpenSubtitles key in Settings')); return; } g.disabled = true; g.textContent = t('Searching subtitles…'); try { S.subList = { k: c.key, list: await subsSearch(c) }; } catch (e) { subsErr(e); } reopen(); };
+  $$('[data-os]', dlg).forEach(b => b.onclick = async () => { const r = S.subList.list[+b.dataset.os]; dlg.close(); try { if (await subsLoad(r, c)) toast(t('Subtitles') + ': ' + langName(r.lang)); } catch (e) { subsErr(e); } });
 }
 
 /* ---------- Google account: playlists (encrypted), favourites, lists and settings follow you to every device ---------- */
