@@ -394,6 +394,7 @@ function route() {
   else if (h === 'search') view = 'search';
   else if (h === 'flix') view = 'flix';
   if (!(view === 'browse' && S.mode === 'live') && S.cur && !fsOn) stopPlayback();
+  S.fx = view === 'flix' || (S.fx && (view === 'detail' || view === 'search' || (view === 'browse' && S.mode !== 'live'))); document.body.classList.toggle('fx', !!S.fx);
   S.view = view; document.body.dataset.view = view; document.body.dataset.mode = view === 'browse' ? S.mode : '';
   render();
   if (view === 'search') setTimeout(() => $('#q').focus(), 50);
@@ -561,7 +562,7 @@ function renderHome() {
   </div>
   ${cont.length ? `<section class="hrow"><h3>${t('Continue watching')}</h3><div class="rail">${cont.map(posterHtml).join('')}</div></section>` : ''}
   ${rec.length ? `<section class="hrow"><h3>${t('Recent channels')}</h3><div class="rail chrail">${rec.map(c => `<button class="chc" data-k="${c.key}">${logoHtml(c)}<b>${seg(shownNum(c))}</b><span>${esc(c.name)}</span></button>`).join('')}</div></section>` : ''}`;
-  $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); go(x.dataset.go2); });
+  $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
   $('#hRef').onclick = () => selectSource(S.srcId, true);
   wireItems(box);
   $$('.chc', box).forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; if (c) { S.gsel.live = 'recent'; go('live'); play(c); } });
@@ -1062,15 +1063,15 @@ function renderFlix() {
     if (kinds.includes('vod')) rest.push([t('Top rated films'), withArt.filter(c => c.kind === 'vod' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'vod', sort: 'top' }]);
     if (kinds.includes('series')) rest.push([t('Top rated series'), withArt.filter(c => c.kind === 'series' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'series', sort: 'top' }]);
     // genres / categories from both, taking turns
-    const cv = kinds.includes('vod') ? catItems('vod').filter(x => x.id.indexOf('g:') === 0 && x.icon !== 'lock').map(g => ['vod', g]) : [], cs = kinds.includes('series') ? catItems('series').filter(x => x.id.indexOf('g:') === 0 && x.icon !== 'lock').map(g => ['series', g]) : [];
-    const cats = []; for (let i = 0; i < Math.max(cv.length, cs.length) && cats.length < 24; i++) { if (cv[i]) cats.push(cv[i]); if (cs[i]) cats.push(cs[i]); }
+    const cv = kinds.includes('vod') ? catItems('vod').filter(x => x.id.indexOf('v:') === 0 && x.icon !== 'lock').map(g => ['vod', g]) : [], cs = kinds.includes('series') ? catItems('series').filter(x => x.id.indexOf('s:') === 0 && x.icon !== 'lock').map(g => ['series', g]) : [];
+    const cats = []; for (let i = 0; i < Math.max(cv.length, cs.length) && cats.length < 120; i++) { if (cv[i]) cats.push(cv[i]); if (cs[i]) cats.push(cs[i]); }
     cats.forEach(([m, g]) => rest.push([g.label, all.filter(c => c.kind === m && (c.group || '—') === g.id.slice(2)).slice(0, 24), { m, g: g.id }, g.n]));
     const rowHtmlF = r => `<section class="hrow vrow"><div class="rh"><h3>${esc(r[0])}${r[3] ? ` <small>${fmtN(r[3])}</small>` : ''}</h3>${r[2] ? `<button class="seeall" data-m="${r[2].m}" ${r[2].g ? `data-g="${esc(r[2].g)}"` : ''} ${r[2].sort ? `data-sort="${r[2].sort}"` : ''}>${t('See all')}</button>` : ''}</div><div class="rail">${r[1].map(posterHtml).join('')}</div></section>`;
     body = rows.filter(r => r[1].length).map(rowHtmlF).join('') + (t10.length >= 5 ? top10Html(t10) : '') + rest.filter(r => r[1].length).map(rowHtmlF).join('');
   }
-  box.innerHTML = `<div class="fxbar"><b class="fxlogo">Antunes<span>Flix</span></b><nav class="fxtabs">${tabs.map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}</nav></div>` +
+  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span><button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>` +
     (tab !== 'mylist' && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${t('Play')}</button><button class="btn" data-hd="${c.key}">${ic('info')} ${t('More info')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
-  wireItems(box);
+  wireItems(box); $('#fxS', box).onclick = () => { S.q = ''; $('#q').value = ''; go('search'); }; $('#fxH', box).onclick = () => go('home');
   $$('[data-ft]', box).forEach(b => b.onclick = () => { S.flixTab = b.dataset.ft; renderFlix(); box.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`[data-ft="${S.flixTab}"]`, box); if (f) f.focus(); }, 20); });
   $$('.seeall', box).forEach(b => b.onclick = () => { const m = b.dataset.m; go(m === 'vod' ? 'movies' : 'series'); setTimeout(() => { if (b.dataset.g) { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } else if (b.dataset.sort) { S.sort[S.mode] = b.dataset.sort === 'top' ? 'rate' : 'new'; S.group = GDEF[S.mode] + '!'; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; }, 0); });
   const slides = $$('.hs', box), dots = $$('.hdots button', box); let hi = 0; clearInterval(flixHeroT);

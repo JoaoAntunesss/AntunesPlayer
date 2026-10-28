@@ -534,7 +534,7 @@ html[data-style=circuit] body.pclear #chPanel{border-color:rgba(47,216,255,.14)}
 html[data-style=circuit] .po .seen,html[data-style=circuit] .epseen{border-radius:4px}
 /* ---------- AntunesFlix ---------- */
 body[data-view=flix] #vFlix{display:block;overflow:auto;padding:0 0 30px 22px}
-.fxbar{display:flex;align-items:center;gap:22px;padding:8px 22px 12px 0;flex-wrap:wrap}body[data-view=flix] #qWrap{display:none}
+
 .fxlogo{font:900 26px/1 var(--fd);letter-spacing:.02em;text-transform:uppercase;color:#fff}.fxlogo span,.fxr{color:#e50914}
 .fxtabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.fxtabs button{padding:8px 14px;border-radius:99px;font-weight:700;color:var(--mut);white-space:nowrap;background:transparent!important;border:1px solid transparent!important;clip-path:none!important;box-shadow:none!important}.fxtabs button.on{background:rgba(255,255,255,.12)!important}.fxtabs button.on{color:#fff;background:rgba(255,255,255,.12)}.fxtabs button:focus-visible{outline:3px solid var(--acc)}
 .fxhero{margin-top:0}.fxkind{display:inline-block;font-weight:800;letter-spacing:.18em;text-transform:uppercase;font-size:11.5px;color:#e50914;margin-bottom:6px}
@@ -550,3 +550,54 @@ html[data-style=circuit] .t-flix{--c:#ff3b47}
 #nextUp small{color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:11px}#nextUp b{display:block;margin:4px 0 12px;font:700 18px var(--fd)}
 .nuacts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.nub{position:relative;overflow:hidden}.nub em{font-style:normal;font-variant-numeric:tabular-nums}.nubar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:currentColor;opacity:.5;transform-origin:left;transform:scaleX(0)}
 @media (max-width:720px){body[data-view=flix] #vFlix{padding:0 0 110px 12px}.t-flix{grid-column:1/-1}.t-flix b{font-size:28px}.fxchips{right:14px;top:14px}.fxchips span{padding:6px 10px;font-size:12px}.t10n{font-size:110px}.t10 .pc{width:110px!important}#nextUp{right:12px;left:12px;bottom:90px;max-width:none}}
+
+/* ---------- Netflix look inside AntunesFlix (red, black, white buttons) ---------- */
+body.fx{--acc:#e50914;--onacc:#fff;--vfd:#e50914;--bg:#141414;--surf:rgba(255,255,255,.06);--surf2:rgba(255,255,255,.12);--line:rgba(255,255,255,.1);--mut:#b3b3b3;--text:#fff}
+html[data-style] body.fx{background:#141414}
+body.fx .trace,body.fx .bgfx{display:none}
+body[data-view=flix] #top{display:none}
+body[data-view=flix] #vFlix{padding:0 0 30px}
+.fxbar{display:flex;align-items:center;gap:6px;padding:14px 16px 6px 20px}
+.fxlogo{font:900 30px/1 var(--fd);letter-spacing:.01em;text-transform:uppercase;color:#e50914;background:none;border:0;padding:0}.fxlogo span{color:#e50914}
+.fxbar .fxic{background:none;border:0;color:#fff;width:44px;height:44px}.fxbar .fxic .i{width:26px;height:26px}
+.fxtabs{display:flex;gap:10px;padding:4px 20px 14px;overflow-x:auto;scrollbar-width:none}
+.fxtabs button{padding:7px 16px;border-radius:99px!important;font-weight:700;font-size:15px;color:#fff;white-space:nowrap;background:transparent!important;border:1px solid rgba(255,255,255,.55)!important;clip-path:none!important;box-shadow:none!important}
+.fxtabs button.on{background:rgba(255,255,255,.18)!important;border-color:#fff!important}.fxtabs .fxx{padding:7px 12px}
+.fxtabs button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+/* billboard */
+body.fx .fxhero{margin:0 20px 8px;border-radius:10px!important;box-shadow:0 20px 50px -20px #000!important;background:#000}
+body.fx .fxhero .hs{grid-template-columns:auto minmax(0,1fr)}
+body.fx .fxhero .hs::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.85),rgba(0,0,0,.25) 60%,transparent),linear-gradient(transparent 55%,rgba(0,0,0,.8));z-index:0}
+body.fx .fxhero .hpo,body.fx .fxhero .hi{z-index:1}
+body.fx .hi h3{font-weight:900;letter-spacing:-.01em;text-shadow:0 2px 12px rgba(0,0,0,.7)}
+body.fx .fxkind{color:#e50914}
+body.fx .hacts .btn{border-radius:6px!important;clip-path:none!important;font-weight:800;border:0!important;box-shadow:none!important}
+body.fx .hacts .btn.p{background:#fff!important;color:#000!important}
+body.fx .hacts .btn:not(.p){background:rgba(109,109,110,.7)!important;color:#fff!important}
+body.fx .hdots button{background:rgba(255,255,255,.35)}body.fx .hdots button.on{background:#e50914}
+/* rows */
+body.fx .vrow{margin-top:18px}body.fx .vrow .rh{padding-left:20px}body.fx .vrow .rail{padding-left:20px}
+body.fx .rh h3{font:800 19px var(--fd);color:#e5e5e5}body.fx .rh small{display:none}
+body.fx .seeall{color:#b3b3b3;font-weight:700}
+body.fx .po{border-radius:6px!important;clip-path:none!important;border:0!important}
+body.fx .po .rt{display:none}
+body.fx .pp i{background:#e50914!important;filter:none!important}
+body.fx .pc:focus-visible .po,body.fx .pc:hover .po{outline:3px solid #fff;outline-offset:2px}
+body.fx .t10n{color:#141414;-webkit-text-stroke:3px #595959}
+body.fx .po .nxt{background:rgba(0,0,0,.78)}
+body.fx .fxgrid{padding:6px 20px 0}
+.vrow{content-visibility:auto;contain-intrinsic-size:auto 280px}
+/* detail page in red */
+body.fx .btn.p{background:#e50914;color:#fff;border-color:#e50914}
+body.fx #dSer,body.fx #dPlay{background:#fff!important;color:#000!important;border-color:#fff!important;border-radius:6px!important;clip-path:none!important}
+body.fx .seas button.on{background:#e50914;color:#fff;border-color:#e50914}
+body.fx .epseen,body.fx .po .seen{background:#e50914;color:#fff}
+body.fx .et b{color:#e50914}
+/* bottom bar in red */
+body.fx #bnav button.on{color:#e50914;background:rgba(229,9,20,.14)}
+@media (max-width:720px){body.fx .fxhero{margin:0 16px 6px}.fxtabs{padding:2px 16px 12px}.fxbar{padding:12px 10px 4px 16px}body.fx .vrow .rh,body.fx .vrow .rail{padding-left:16px}}
+body.fx #vDetail{background:#141414}
+body.fx .dacts .btn,body.fx .seas button,body.fx .ep{border-radius:6px!important;clip-path:none!important;box-shadow:none!important}
+body.fx .dacts .btn:not(#dSer):not(#dPlay){background:rgba(109,109,110,.45);border-color:transparent;color:#fff}
+body.fx .chips span{border-radius:4px;background:rgba(255,255,255,.1);border-color:transparent}
+body.fx .ib{border-radius:50%!important;clip-path:none!important}
