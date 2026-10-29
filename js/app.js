@@ -168,10 +168,12 @@ function isTvDevice() {
   return !!window.AP_IS_TV || /Tizen|Web0S|webOS|SmartTV|SMART-TV|HbbTV|NetCast|AFT[A-Z]|Android TV|GoogleTV|CrKey|BRAVIA|AndroidTV|PhilipsTV|VIDAA|Hisense/i.test(navigator.userAgent)
     || (NATIVE && (navigator.maxTouchPoints === 0 || matchMedia('(pointer: none)').matches));
 }
+function liteOn() { const m = S.set.lite || 'auto'; if (m === 'on') return true; if (m === 'off') return false; return !!S.set.tv || (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency || 8) <= 4; }
+function applyLite() { const on = liteOn(); document.documentElement.classList.toggle('lite', on); return on; }
 function applyTvMode() {
   if (!S.set.tvMode) S.set.tvMode = ('tv' in S.set && S.set.tv && !isTvDevice()) ? 'on' : 'auto';
   const on = S.set.tvMode === 'on' || (S.set.tvMode === 'auto' && isTvDevice());
-  S.set.tv = on; saveSet(); document.body.classList.toggle('tv', on); if (on) lastInput = 'key';
+  S.set.tv = on; saveSet(); document.body.classList.toggle('tv', on); if (on) lastInput = 'key'; applyLite();
   $('#cList small').textContent = on ? t('Press ◀ on the remote') : t('Tap or swipe up');
   if (on && S.view && !fsOn) setTimeout(tvFocus, 50);
 }
@@ -226,7 +228,7 @@ async function play(c, isRetry) {
   try {
     if (isHls) {
       if (!window.Hls && (NATIVE || !v.canPlayType('application/vnd.apple.mpegurl'))) await loadScript('js/hls.min.js'); // in the app, hls.js + native HTTP is more reliable than the WebView's own HLS
-      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: true, maxBufferLength: 20, backBufferLength: 30, startFragPrefetch: true, manifestLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } }, playlistLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } } }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { S.dbg = (d.details || '') + (d.reason ? ' ' + d.reason : '') + (d.error && d.error.message ? ' ' + d.error.message : ''); if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried && !/manifest|level/i.test(d.details || '')) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else if (!c.useTs && /\/live\/[^/]+\/[^/]+\/[^/]+\.m3u8/i.test(c.url)) { c.useTs = true; play(c, true); } else showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, (d.details || '') + (d.response && d.response.code ? ' · HTTP ' + d.response.code : '')), true); }); }
+      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: !document.documentElement.classList.contains('lite'), maxBufferLength: 20, backBufferLength: 30, startFragPrefetch: true, manifestLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } }, playlistLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } } }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { S.dbg = (d.details || '') + (d.reason ? ' ' + d.reason : '') + (d.error && d.error.message ? ' ' + d.error.message : ''); if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried && !/manifest|level/i.test(d.details || '')) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else if (!c.useTs && /\/live\/[^/]+\/[^/]+\/[^/]+\.m3u8/i.test(c.url)) { c.useTs = true; play(c, true); } else showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, (d.details || '') + (d.response && d.response.code ? ' · HTTP ' + d.response.code : '')), true); }); }
       else v.src = url;
     } else if (isTs) {
       if (!window.mpegts) await loadScript('js/mpegts.min.js');
@@ -298,7 +300,7 @@ function addDialog(tab0) {
   draw();
 }
 /* settings split into tabs (built from the same controls, so every option keeps working) */
-Object.assign(PT, { 'General': 'Geral', 'Look': 'Aspeto', 'Player': 'Leitor', 'About': 'Sobre' });
+Object.assign(PT, { 'Light mode (smoother on weak TVs)': 'Modo leve (mais fluido em TVs fracas)', 'on': 'ligado', 'off': 'desligado', 'General': 'Geral', 'Look': 'Aspeto', 'Player': 'Leitor', 'About': 'Sobre' });
 const SET_TABS = [['general', 'General', 'home'], ['look', 'Look', 'sun'], ['player', 'Player', 'play'], ['lists', 'Playlists', 'stack'], ['account', 'Account', 'user'], ['about', 'About', 'info']];
 const SET_MAP = { sAcc: 'account', sPin: 'account', sStart: 'general', sNum: 'general', sTv: 'general', sLang: 'general', sStyle: 'look', sTheme: 'look', cAcc: 'look', cFx: 'look', sDig: 'look', sBg: 'look', cRst: 'look', sPan: 'look', sSub: 'player', sOff: 'player', sAuto: 'lists', sProxy: 'lists', sPS: 'lists', sSA: 'player', sOK: 'player', sOU: 'player', sCats: 'account', sBak: 'lists', sFavs: 'lists', sUpd: 'about' };
 function tabOfNode(n) {
@@ -331,6 +333,7 @@ function settingsDialog() {
   openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
   <label>${t('When the app opens')}</label><select id="sStart"><option value="last" ${(s.startup || 'last') === 'last' ? 'selected' : ''}>${t('Last channel in full screen (favourites)')}</option><option value="home" ${s.startup === 'home' ? 'selected' : ''}>${t('Home screen')}</option></select><label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('TV mode (remote, bigger text)')}</label><select id="sTv"><option value="auto" ${(s.tvMode || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${isTvDevice() ? t('TV detected') : t('no TV detected')}</option><option value="on" ${s.tvMode === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.tvMode === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
+  <label>${t('Light mode (smoother on weak TVs)')}</label><select id="sLite"><option value="auto" ${(s.lite || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${liteOn() ? t('on') : t('off')}</option><option value="on" ${s.lite === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.lite === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
   <h2 style="margin-top:18px">${ic('cc')} ${t('Online subtitles')}</h2><label>${t('Subtitle languages (in order)')}</label><div class="row" style="justify-content:flex-start;gap:8px">${[0, 1, 2].map(i => `<select data-sl2="${i}" style="flex:1;min-width:120px"><option value="">—</option>${SUBL.map(x => `<option value="${x[0]}" ${subLangs()[i] === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`).join('')}</div><label>${t('Turn on subtitles automatically')}</label><select id="sSA"><option value="1" ${s.subAuto !== false ? 'selected' : ''}>${t('Yes')}</option><option value="0" ${s.subAuto === false ? 'selected' : ''}>${t('No')}</option></select><label>${t('OpenSubtitles API key')}</label><input id="sOK" value="${esc(s.osKey || '')}" autocomplete="off" placeholder="${t('Built in (optional: your own key)')}"><label>${t('OpenSubtitles account (optional: 20 a day instead of 5)')}</label><div class="row" style="justify-content:flex-start;gap:8px"><input id="sOU" placeholder="${t('Username')}" value="${esc((LS.get('ap.osu', null) || {}).u || '')}" autocomplete="off" style="flex:1"><input id="sOP" type="password" placeholder="${t('Password')}" value="${esc((LS.get('ap.osu', null) || {}).p || '')}" autocomplete="off" style="flex:1"></div>
   <h2 style="margin-top:18px">${t('Colours')}</h2><label>${t('App colour (Live TV, menus, effects)')}</label>${colorPicker('cAcc', s.accent, getComputedStyle(document.documentElement).getPropertyValue('--acc').trim())}<label>${t('AntunesFlix colour')}</label>${colorPicker('cFx', s.fxColor, '#e50914')}<label>${t('Numbers (clock and channels)')}</label><select id="sDig"><option value="" ${!s.digits ? 'selected' : ''}>${t('Theme default')}</option><option value="accent" ${s.digits === 'accent' ? 'selected' : ''}>${t('Same as the app colour')}</option></select><label>${t('Background')}</label><select id="sBg">${[['circuit', 'Circuit lines'], ['plain', 'Plain'], ['black', 'Black']].map(x => `<option value="${x[0]}" ${(s.bgStyle || 'circuit') === x[0] ? 'selected' : ''}>${t(x[1])}</option>`).join('')}</select><div class="row" style="justify-content:flex-start"><button class="btn" id="cRst">${t('Reset colours')}</button></div>
   <label>${t('Channel list over the video')}</label><select id="sPan"><option value="clear" ${s.panelBg !== 'dim' ? 'selected' : ''}>${t('See-through')}</option><option value="dim" ${s.panelBg === 'dim' ? 'selected' : ''}>${t('Dark')}</option></select>
@@ -342,7 +345,7 @@ function settingsDialog() {
   <div class="row" style="justify-content:space-between"><button class="btn" id="sUpd">${ic('refresh')} ${t('Check for updates')}${NATIVE ? ' · build ' + (BUILD || '—') : ''}</button><button class="btn p" id="sOk">${t('Close')}</button></div>`);
   tabifySettings();
   const chg = () => { s.startup = $('#sStart').value; s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tvMode = $('#sTv').value; applyTvMode(); s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
-  $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg);
+  $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sLite').onchange = e => { s.lite = e.target.value; saveSet(); applyLite(); };
   $$('[data-sl2]', dlg).forEach(x => x.onchange = () => { s.subLangs = [...new Set($$('[data-sl2]', dlg).map(y => y.value).filter(Boolean))].join(','); saveSet(); S.subList = null; }); $('#sSA').onchange = e => { s.subAuto = e.target.value === '1'; saveSet(); }; $('#sOK').onchange = e => { s.osKey = e.target.value.trim(); saveSet(); }; $$('#sOU,#sOP', dlg).forEach(x => x.onchange = () => { LS.set('ap.osu', { u: $('#sOU').value.trim(), p: $('#sOP').value }); LS.set('ap.ost', null); });
   wireColorPicker('cAcc', c => { s.accent = c; saveSet(); applyLook(); }); wireColorPicker('cFx', c => { s.fxColor = c; saveSet(); applyLook(); });
   $('#sDig').onchange = e => { s.digits = e.target.value; saveSet(); applyLook(); }; $('#sBg').onchange = e => { s.bgStyle = e.target.value; saveSet(); applyLook(); };
@@ -493,7 +496,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   // typing with the remote: ▲ ▼ leave the field (◀ ▶ still move the cursor)
-  if (el === tvTyping && (k === 'ArrowUp' || k === 'ArrowDown')) { e.preventDefault(); e.stopImmediatePropagation(); spatial(k, dlg.open ? dlg : undefined); }
+  if (lastInput === 'key' && (k === 'ArrowUp' || k === 'ArrowDown')) { e.preventDefault(); e.stopImmediatePropagation(); spatial(k, dlg.open ? dlg : undefined); }
 }, true);
 const panelOpen = () => !$('#chPanel').hidden || !$('#chStrip').hidden;
 v.addEventListener('click', e => {
@@ -640,14 +643,14 @@ function renderHome() {
 }
 
 /* ---------- lists ---------- */
-const logoHtml = c => c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'lg',textContent:${esc(JSON.stringify((c.name || '?').charAt(0)))}}))">` : `<span class="lg">${esc((c.name || '?').charAt(0))}</span>`;
+const logoHtml = c => c.logo ? `<img loading="lazy" decoding="async" src="${esc(c.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'lg',textContent:${esc(JSON.stringify((c.name || '?').charAt(0)))}}))">` : `<span class="lg">${esc((c.name || '?').charAt(0))}</span>`;
 function rowHtml(c) {
   const nn = nowNext(c), fav = S.favs.includes(c.key), n = shownNum(c), pr = nn && nn.now ? Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100) : 0;
   return `<div class="ch ${S.cur && S.cur.key === c.key ? 'on' : ''}" tabindex="0" data-k="${c.key}"><span class="n">${seg(n)}</span><span class="lgw">${logoHtml(c)}</span><div class="t"><b>${esc(c.name)}</b><span>${nn && nn.now ? esc(nn.now.t) : esc(c.group || '')}</span>${nn && nn.now ? `<div class="pb"><i style="width:${pr}%"></i></div>` : ''}</div><span class="ctl2">${favEditing() ? `<button class="mv" data-mv="-1" data-k2="${c.key}" aria-label="Move up">${ic('up')}</button><button class="mv" data-mv="1" data-k2="${c.key}" aria-label="Move down">${ic('down')}</button>${S.group.startsWith('u:') ? `<button class="mv rmv" data-rm="${c.key}" aria-label="${t('Remove from list')}">${ic('close')}</button>` : ''}<span class="grip" data-g2="${c.key}" aria-hidden="true">${ic('grip')}</span>` : `<button class="star ${fav ? 'on' : ''}" data-s="${c.key}" aria-label="${t('Favourite')}">${ic(fav ? 'starF' : 'star')}</button>`}</span></div>`;
 }
 function posterHtml(c) {
   const pos = c.cont ? c.cpos : POS[c.key], ini = esc((c.name || '?').charAt(0)), fav = S.favs.includes(c.key);
-  return `<div class="pc" tabindex="0" data-k="${c.key}"${c.cont ? ` data-cont="${esc(c.ser)}"` : ''}><div class="po">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${ini}</span>${c.rating ? `<i class="rt">${c.rating.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : ''}${fav ? `<i class="fv">${ic('starF')}</i>` : ''}${pos ? `<div class="pp"><i style="width:${Math.min(100, Math.round(pos / ((c.cont ? c.cdur : DUR[c.key]) || c.dur || 5400) * 100))}%"></i></div>` : ''}${SEEN[c.key] && !pos && !c.cont ? `<i class="seen">${ic('check')}</i>` : ''}${c.cont && c.clabel ? `<i class="nxt ${pos ? 'up' : ''}">${esc(c.clabel)}</i>` : ''}</div><b>${esc(c.name)}</b></div>`;
+  return `<div class="pc" tabindex="0" data-k="${c.key}"${c.cont ? ` data-cont="${esc(c.ser)}"` : ''}><div class="po">${c.logo ? `<img loading="lazy" decoding="async" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${ini}</span>${c.rating ? `<i class="rt">${c.rating.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : ''}${fav ? `<i class="fv">${ic('starF')}</i>` : ''}${pos ? `<div class="pp"><i style="width:${Math.min(100, Math.round(pos / ((c.cont ? c.cdur : DUR[c.key]) || c.dur || 5400) * 100))}%"></i></div>` : ''}${SEEN[c.key] && !pos && !c.cont ? `<i class="seen">${ic('check')}</i>` : ''}${c.cont && c.clabel ? `<i class="nxt ${pos ? 'up' : ''}">${esc(c.clabel)}</i>` : ''}</div><b>${esc(c.name)}</b></div>`;
 }
 function wireItems(box) {
   $$('.ch', box).forEach(r => {
@@ -798,7 +801,7 @@ function renderDetailShell() {
   const ds = $('#dSeen'); if (ds) ds.onclick = () => { markSeen(c, !SEEN[c.key]); renderDetailShell(); };
   const sp = $('#dSer'); if (sp) sp.onclick = () => { const x = serResume(c); if (x) enterFsFor(x.ep); };
   $('#dFav').onclick = () => { toggleFav(c); renderDetailShell(); };
-  if (seasons.length) { const draw = sn => { $$('.seas button').forEach(b => b.classList.toggle('on', b.dataset.sn === sn)); $('#eps').innerHTML = (S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key], dn = DUR[ep.key] || ep.dur || 2700; return `<button class="ep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}">${e.info && e.info.movie_image ? `<img loading="lazy" src="${esc(e.info.movie_image)}" alt="" onerror="this.remove()">` : `<span class="en">${esc(e.episode_num || n + 1)}</span>`}<span class="et"><b>${t('Episode')} ${esc(e.episode_num || n + 1)}</b><span>${esc(e.title || '')}</span>${ps ? `<i class="epp" style="width:${Math.max(4, Math.min(100, Math.round(ps / dn * 100)))}%"></i>` : ''}</span>${SEEN[ep.key] && !ps ? `<i class="epseen">${ic('check')}</i>` : ic('play')}</button>`; }).join(''); $$('#eps .ep').forEach(b => b.onclick = () => { const e = S.deps[sn][+b.dataset.i]; enterFsFor(epObj(c, sn, e, +b.dataset.i)); }); }; $$('.seas button').forEach(b => b.onclick = () => draw(b.dataset.sn)); const rs = serResume(c); draw(rs && seasons.includes(String(rs.sn)) ? String(rs.sn) : seasons[0]); }
+  if (seasons.length) { const draw = sn => { $$('.seas button').forEach(b => b.classList.toggle('on', b.dataset.sn === sn)); $('#eps').innerHTML = (S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key], dn = DUR[ep.key] || ep.dur || 2700; return `<button class="ep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}">${e.info && e.info.movie_image ? `<img loading="lazy" decoding="async" src="${esc(e.info.movie_image)}" alt="" onerror="this.remove()">` : `<span class="en">${esc(e.episode_num || n + 1)}</span>`}<span class="et"><b>${t('Episode')} ${esc(e.episode_num || n + 1)}</b><span>${esc(e.title || '')}</span>${ps ? `<i class="epp" style="width:${Math.max(4, Math.min(100, Math.round(ps / dn * 100)))}%"></i>` : ''}</span>${SEEN[ep.key] && !ps ? `<i class="epseen">${ic('check')}</i>` : ic('play')}</button>`; }).join(''); $$('#eps .ep').forEach(b => b.onclick = () => { const e = S.deps[sn][+b.dataset.i]; enterFsFor(epObj(c, sn, e, +b.dataset.i)); }); }; $$('.seas button').forEach(b => b.onclick = () => draw(b.dataset.sn)); const rs = serResume(c); draw(rs && seasons.includes(String(rs.sn)) ? String(rs.sn) : seasons[0]); }
 }
 function epObj(c, sn, e, n) { const x = xbase(); const url = `${x.base}/series/${x.q(x.s.user)}/${x.q(x.s.pass)}/${e.id}.${e.container_extension || 'mp4'}`; return { name: `${c.name} · S${sn}E${e.episode_num || n + 1}`, logo: c.logo, group: c.group, url, kind: 'vod', num: 0, key: hash(c.name + '|' + url), dur: e.info && +e.info.duration_secs || 0, ser: c.key, sn, n }; }
 function enterFsFor(c) { if (c.kind !== 'live' && !S.byKey[c.key]) { S.byKey[c.key] = c; EPS[c.key] = c; const ks = Object.keys(EPS); if (ks.length > 60) delete EPS[ks[0]]; LS.set('ap.eps', EPS); } play(c); enterFs(); }
@@ -904,10 +907,11 @@ $('#cList b').textContent = t('More channels'); $('#cList small').textContent = 
 document.body.appendChild($('#num')); $('#slot').appendChild(screenEl);
 
 /* ---------- remote / keyboard ---------- */
+function scrollerOf(el) { for (let x = el.parentElement; x && x !== document.body; x = x.parentElement) { if (x.scrollHeight > x.clientHeight + 2) { const o = getComputedStyle(x).overflowY; if (o === 'auto' || o === 'scroll') return x; } } return null; }
 function spatial(k, scope) {
   const cur = document.activeElement, els = $$('button, [tabindex="0"], input, select', scope || document).filter(el => { if (el.disabled || el.closest('[hidden]')) return false; if (!scope && dlg.contains(el)) return false; if (fsOn ? !screenEl.contains(el) : screenEl.contains(el) && el.id !== 'pExpand') return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
   if (!cur || cur === document.body || !els.includes(cur)) { const vis = el => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight; }; const f = (!scope && !fsOn && els.find(el => el.closest('.view') && vis(el))) || els.find(vis) || els[0]; if (f) { f.focus(); return true; } return false; }
-  const a = cur.getBoundingClientRect(); let best = null, bs = 1e9;
+  const a = cur.getBoundingClientRect(); let best = null, bs = 1e9, bestIn = null, bsIn = 1e9; const box = scrollerOf(cur);
   for (const el of els) { if (el === cur) continue; const b = el.getBoundingClientRect(); let main, cross;
     // cross = gap between the boxes sideways (0 when they line up, so a wide field under a small tab is the obvious next stop); centre distance only breaks ties
     const gapX = Math.max(0, b.left - a.right, a.left - b.right), gapY = Math.max(0, b.top - a.bottom, a.top - b.bottom), cx = Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2) * .05, cy = Math.abs((b.top + b.bottom) / 2 - (a.top + a.bottom) / 2) * .05;
@@ -915,7 +919,9 @@ function spatial(k, scope) {
     else if (k === 'ArrowLeft') { if (b.right > a.left + 4) continue; main = a.left - b.right; cross = gapY * 4 + cy; }
     else if (k === 'ArrowDown') { if (b.top < a.bottom - 4) continue; main = b.top - a.bottom; cross = gapX * 4 + cx; }
     else { if (b.bottom > a.top + 4) continue; main = a.top - b.bottom; cross = gapX * 4 + cx; }
-    const sc = main + cross; if (sc < bs) { bs = sc; best = el; } }
+    const sc = main + cross; if (sc < bs) { bs = sc; best = el; } if (box && sc < bsIn && box.contains(el)) { bsIn = sc; bestIn = el; } }
+  // things further down a scrolling area (settings, lists) come before the fixed buttons under it, e.g. Close
+  if (bestIn) best = bestIn;
   if (best) { best.focus({ preventScroll: true }); best.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return true; } return false;
 }
 document.addEventListener('keydown', e => {
@@ -1212,7 +1218,7 @@ Object.assign(PT, { 'Details and more': 'Detalhes e mais', 'Remove from row': 'R
 // intro: our own red "A" monogram with light streaks (shown when AntunesFlix opens)
 let fxIntroShown = false;
 function fxIntro() {
-  if (fxIntroShown || RM) return; fxIntroShown = true;
+  if (fxIntroShown || RM || document.documentElement.classList.contains('lite')) return; fxIntroShown = true;
   const o = document.createElement('div'); o.id = 'fxIntro'; o.setAttribute('aria-hidden', 'true');
   o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">Antunes<span>Flix</span></div>`;
   document.body.appendChild(o); const end = () => { o.classList.add('out'); setTimeout(() => o.remove(), 450); };
@@ -1221,7 +1227,7 @@ function fxIntro() {
 const fmtLeft = s => { s = Math.max(0, Math.round(s / 60)); const h = Math.floor(s / 60), m = s % 60; return (h ? h + ' h ' : '') + m + ' min ' + t('left'); };
 function cwHtml(c) {
   const pos = c.cont ? c.cpos : POS[c.key], dur = (c.cont ? c.cdur : DUR[c.key]) || c.dur || 5400, pct = pos ? Math.min(100, Math.round(pos / dur * 100)) : 0;
-  return `<div class="pc cw" tabindex="0" data-k="${c.key}"${c.cont ? ` data-cont="${esc(c.ser)}"` : ''}><div class="po">${c.logo ? `<img loading="lazy" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${esc((c.name || '?').charAt(0))}</span><span class="cwplay">${ic('play')}</span>${c.clabel ? `<i class="cwlab">${esc(c.clabel)}</i>` : ''}</div><div class="cwbar"><i style="width:${pct}%"></i></div><div class="cwacts"><button class="cwb" data-cwi="${c.key}" aria-label="${t('Details')}">${ic('info')}</button><span></span><button class="cwb" data-cwm="${c.key}" aria-label="${t('More')}">${ic('dots')}</button></div></div>`;
+  return `<div class="pc cw" tabindex="0" data-k="${c.key}"${c.cont ? ` data-cont="${esc(c.ser)}"` : ''}><div class="po">${c.logo ? `<img loading="lazy" decoding="async" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${esc((c.name || '?').charAt(0))}</span><span class="cwplay">${ic('play')}</span>${c.clabel ? `<i class="cwlab">${esc(c.clabel)}</i>` : ''}</div><div class="cwbar"><i style="width:${pct}%"></i></div><div class="cwacts"><button class="cwb" data-cwi="${c.key}" aria-label="${t('Details')}">${ic('info')}</button><span></span><button class="cwb" data-cwm="${c.key}" aria-label="${t('More')}">${ic('dots')}</button></div></div>`;
 }
 function cwSheet(c) {
   const isSer = !!c.cont, k = c.key;
@@ -1253,7 +1259,7 @@ function renderFxDetail(c) {
     ${i.cast ? `<p class="nfsmall"><b>${t('Cast')}:</b> ${esc(i.cast)}</p>` : ''}${i.director ? `<p class="nfsmall"><b>${t('Director')}:</b> ${esc(i.director)}</p>` : ''}${i.genre ? `<p class="nfsmall">${esc(i.genre)}</p>` : ''}
     <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}${trailer ? `<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>` : ''}</div>
     <div class="nftabs">${c.seriesId && seasons.length ? `<button data-dt="eps" class="${tab === 'eps' ? 'on' : ''}">${t('Episodes')}</button>` : ''}<button data-dt="sim" class="${tab === 'sim' ? 'on' : ''}">${t('More like this')}</button></div>
-    ${tab === 'eps' ? `${seasons.length > 1 ? `<select class="nfsel" id="nfSn">${seasons.map(s => `<option value="${esc(s)}" ${s === sn ? 'selected' : ''}>${t('Season')} ${esc(s)}</option>`).join('')}</select>` : ''}<div class="nfeps">${(S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key], dn = DUR[ep.key] || ep.dur || 2700, img = e.info && e.info.movie_image; return `<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round(ps / dn * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>`; }).join('')}</div>` : `<div class="fxgrid nfsim">${similar.map(posterHtml).join('') || `<p class="mut">—</p>`}</div>`}
+    ${tab === 'eps' ? `${seasons.length > 1 ? `<select class="nfsel" id="nfSn">${seasons.map(s => `<option value="${esc(s)}" ${s === sn ? 'selected' : ''}>${t('Season')} ${esc(s)}</option>`).join('')}</select>` : ''}<div class="nfeps">${(S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key], dn = DUR[ep.key] || ep.dur || 2700, img = e.info && e.info.movie_image; return `<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round(ps / dn * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>`; }).join('')}</div>` : `<div class="fxgrid nfsim">${similar.map(posterHtml).join('') || `<p class="mut">—</p>`}</div>`}
   </div></div>`;
   const play = () => { if (c.seriesId) { const r = serResume(c); if (r) enterFsFor(r.ep); } else enterFsFor(c); };
   $('#nfP').onclick = play; const p = $('#dPlay') || $('#dSer'); if (p) p.onclick = play;
@@ -1436,6 +1442,11 @@ S.last = LS.get('ap.last', ''); window.__player = { S, play, byNumber, numKey, z
 applyLook(); tick(); setInterval(tick, 15000);
 { const h = location.hash.slice(1); history.replaceState({ d: 0 }, '', '#' + (['live', 'movies', 'series', 'search', 'flix'].includes(h) ? h : 'home')); }
 route(); if (S.sources.length) selectSource(S.srcId || S.sources[0].id);
+if (!LS.get('ap.lang', '') && !S.sources.length) {
+  openDlg(`<h2>Português ou English?</h2><p class="mut">Escolha a língua da app · Choose the app language</p><div class="row" style="justify-content:center;gap:12px;margin-top:14px"><button class="btn p" data-lg="pt" style="min-width:150px">🇵🇹 Português</button><button class="btn p" data-lg="en" style="min-width:150px">🇬🇧 English</button></div>`);
+  $$('[data-lg]', dlg).forEach(b => b.onclick = () => { LS.set('ap.lang', b.dataset.lg); dlg.close(); if (b.dataset.lg !== LANG) location.reload(); });
+  setTimeout(() => { const f = $(`[data-lg="${LANG}"]`, dlg); if (f) f.focus(); }, 60);
+}
 setTimeout(() => checkUpdate(false), 4000);
 cloudBoot().catch(e => console.warn('cloud', e));
 })();

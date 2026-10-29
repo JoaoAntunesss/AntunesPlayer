@@ -669,3 +669,11 @@ dialog.settings>h2{margin:0 0 12px}
 .spane>h2:first-child{margin-top:8px!important}
 dialog.settings>.row:last-child{flex:none;border-top:1px solid var(--line);padding-top:12px;margin-top:0}
 @media (max-width:720px){dialog.settings{height:92vh;padding:16px 14px 12px}.stabs button span{font-size:13px}}
+/* ---------- light mode for weak TVs / boxes: no blur over the video, no glowing animations, quicker transitions ---------- */
+html.lite *,html.lite *::before,html.lite *::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+html.lite .trace,html.lite .trace .pulse{display:none!important;animation:none!important}
+html.lite .hbg,html.lite .dbg{filter:brightness(.4)!important;inset:0!important}
+html.lite .po .fv,html.lite[data-style=circuit] .tile>.i{filter:none!important}
+html.lite #chPanel{background:rgba(6,12,20,.93)}html.lite #bnav{background:rgba(12,18,30,.97)}html.lite dialog::backdrop{background:rgba(3,6,14,.82)}
+html.lite .view{animation:none!important}html.lite dialog{animation-duration:.12s!important}
+html.lite *{transition-duration:.08s!important}
