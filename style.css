@@ -560,6 +560,9 @@ body[data-view=flix] #vFlix{padding:0 0 30px}
 .fxbar{display:flex;align-items:center;gap:6px;padding:14px 16px 6px 20px}
 .fxlogo{font:900 30px/1 var(--fd);letter-spacing:.01em;text-transform:uppercase;color:var(--fx);background:none;border:0;padding:0}.fxlogo span{color:var(--fx)}
 .fxbar .fxic{background:none;border:0;color:#fff;width:44px;height:44px}.fxbar .fxic .i{width:26px;height:26px}
+.fxbar .fxsurp{height:38px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;font-weight:700;gap:6px;margin-right:4px}.fxbar .fxsurp .i{width:18px;height:18px}.fxbar .fxsurp:hover,.fxbar .fxsurp:focus-visible{background:rgba(255,255,255,.18)}
+.fxmore{height:1px}
+@media (max-width:420px){.fxbar .fxsurp span{display:none}.fxbar .fxsurp{width:40px;padding:0;justify-content:center}}
 .fxtabs{display:flex;gap:10px;padding:4px 20px 14px;overflow-x:auto;scrollbar-width:none}
 .fxtabs button{padding:7px 16px;border-radius:99px!important;font-weight:700;font-size:15px;color:#fff;white-space:nowrap;background:transparent!important;border:1px solid rgba(255,255,255,.55)!important;clip-path:none!important;box-shadow:none!important}
 .fxtabs button.on{background:rgba(255,255,255,.18)!important;border-color:#fff!important}.fxtabs .fxx{padding:7px 12px}

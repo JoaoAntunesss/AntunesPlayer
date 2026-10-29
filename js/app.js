@@ -181,7 +181,8 @@ function bootLast() {
   if (favLive().includes(c)) { S.gsel.live = 'fav'; LS.set('ap.gsel', S.gsel); }
   go('live'); enterFsFor(c);
 }
-const LNC = new WeakMap(); const lname = c => { let n = LNC.get(c); if (n === undefined) { n = (c.name || '').toLowerCase(); LNC.set(c, n); } return n; }; // lower-case names cached for fast search
+const fold = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); // 'Notícias' and 'noticias' match
+const LNC = new WeakMap(); const lname = c => { let n = LNC.get(c); if (n === undefined) { n = fold(c.name); LNC.set(c, n); } return n; }; // folded names cached for fast search
 function indexChannels() { S.byNum = {}; S.byKey = {}; S.channels.forEach(c => { S.byKey[c.key] = c; if (c.kind === 'live' && c.num && !S.byNum[c.num]) S.byNum[c.num] = c; }); }
 const favList = () => S.favs.map(k => S.byKey[k]).filter(Boolean);
 function baseList() {
@@ -401,7 +402,7 @@ const IC = {
   plus: '<path d="M12 5v14M5 12h14"/>', grip: '<circle cx="9" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="6" r="1.4" fill="currentColor"/><circle cx="9" cy="12" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="9" cy="18" r="1.4" fill="currentColor"/><circle cx="15" cy="18" r="1.4" fill="currentColor"/>', edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', check: '<path d="M5 12.5l4.5 4.5L19 7"/>', sort: '<path d="M7 4v16M3.5 16.5L7 20l3.5-3.5M13 6h8M13 11h6M13 16h4"/>', lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/>', archive: '<path d="M4 12a8 8 0 108-8 8.2 8.2 0 00-5.7 2.3L4 8.5"/><path d="M4 4v4.5h4.5M12 8v4.5l3 1.8"/>', sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.2"/>', dots: '<circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/>',
   left: '<path d="M14.5 6l-6 6 6 6"/>', right: '<path d="M9.5 6l6 6-6 6"/>', close: '<path d="M6 6l12 12M18 6L6 18"/>', home: '<path d="M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z"/>',
-  skp: '<path d="M6.5 5v14"/><path d="M18.5 5.5v13l-9.5-6.5z" fill="currentColor"/>', skn: '<path d="M17.5 5v14"/><path d="M5.5 5.5v13l9.5-6.5z" fill="currentColor"/>',
+  skp: '<path d="M6.5 5v14"/><path d="M18.5 5.5v13l-9.5-6.5z" fill="currentColor"/>', skn: '<path d="M17.5 5v14"/><path d="M5.5 5.5v13l9.5-6.5z" fill="currentColor"/>', shuffle: '<path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 3.8c1.1 1.6 2.3 2.6 4.3 2.6H21"/><path d="M3 17h3.5c1.4 0 2.4-.5 3.2-1.3M14 8.3c.8-.8 1.8-1.3 3.5-1.3H21"/><path d="m18 4 3 3-3 3M18 14l3 3-3 3"/>',
   rew10: '<path d="M4.5 12a7.5 7.5 0 107.5-7.5H8"/><path d="M10.5 1.8L7.6 4.6l2.9 2.8"/><text x="12" y="15.6" font-size="7" font-family="sans-serif" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">10</text>',
   fwd10: '<path d="M19.5 12A7.5 7.5 0 1112 4.5h4"/><path d="M13.5 1.8l2.9 2.8-2.9 2.8"/><text x="12" y="15.6" font-size="7" font-family="sans-serif" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">10</text>', stack: '<path d="M4 6h13M4 11h13M4 16h7"/><path d="M15.5 14v6.5l5-3.2z" fill="currentColor" stroke="none"/>', clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'
 };
@@ -439,7 +440,9 @@ function route() {
 }
 window.addEventListener('popstate', route);
 function tvFocus() { if (fsOn || dlg.open) return; const ae = document.activeElement; if (ae && ae !== document.body && ae.closest('.view') && ae.offsetParent) return; const v2 = $(`#v${S.view[0].toUpperCase() + S.view.slice(1)}`); const f = $('#list .ch.on', v2) || $('#list .ch', v2) || $('.hacts .btn', v2) || $('#list .pc', v2) || $('.tile', v2) || $('#dPlay', v2) || $('#dFav', v2) || $('button, [tabindex="0"]', v2); if (f) { f.focus({ preventScroll: true }); f.scrollIntoView({ block: 'nearest' }); } }
-function back() { if (dlg.open) { dlg.close(); return true; } if (fsOn && closeQuick()) return true; if (fsOn && screenEl.classList.contains('show') && screenEl.contains(document.activeElement)) { hideOv(); return true; } if (S.view === 'browse' && S.mode !== 'live' && S.group !== GDEF[S.mode]) { S.group = GDEF[S.mode]; S.gsel[S.mode] = S.group; S.q = ''; $('#q').value = ''; renderBrowse(); $('#list').scrollTop = 0; return true; } if ((location.hash || '#home') !== '#home') { if (history.state && history.state.d > 0) history.back(); else go('home', true); return true; } return false; }
+// exit = the on-screen back arrow: always leaves the player. The 'hide the controls first' step is only for remotes/keyboards,
+// on a phone the tap focuses the arrow itself, so it used to hide the controls instead of going back.
+function back(exit) { if (dlg.open) { dlg.close(); return true; } if (fsOn && closeQuick() && !exit) return true; if (fsOn && !exit && !isTouch() && screenEl.classList.contains('show') && screenEl.contains(document.activeElement)) { hideOv(); return true; } if (S.view === 'browse' && S.mode !== 'live' && S.group !== GDEF[S.mode]) { S.group = GDEF[S.mode]; S.gsel[S.mode] = S.group; S.q = ''; $('#q').value = ''; renderBrowse(); $('#list').scrollTop = 0; return true; } if ((location.hash || '#home') !== '#home') { if (history.state && history.state.d > 0) history.back(); else go('home', true); return true; } return false; }
 
 /* ---------- full screen player ---------- */
 function enterFs() {
@@ -688,7 +691,7 @@ function renderList() {
   const sb = $('#sortB', box); if (sb) sb.onclick = () => { const ks = Object.keys(SORTS); S.sort[S.mode] = ks[(ks.indexOf(so) + 1) % ks.length]; renderList(); $('#sortB').focus(); };
 }
 function filtered() {
-  const q = S.q.trim().toLowerCase(); if (!q) return baseList();
+  const q = fold(S.q.trim()); if (!q) return baseList();
   const k = kindOf(S.mode); return S.vis.filter(c => c.kind === k && (lname(c).includes(q) || String(shownNum(c)) === q));
 }
 const SORTS = { def: 'Default order', az: 'A–Z', new: 'Recently added', rate: 'Top rated' };
@@ -697,7 +700,8 @@ function vodHome(box) {
   const k = kindOf(S.mode), all = S.vis.filter(c => c.kind === k);
   let top = all.filter(c => c.rating > 0 && c.logo).sort((a, b) => b.rating - a.rating).slice(0, 10); if (top.length < 4) top = all.filter(c => c.logo).sort((a, b) => (b.added || 0) - (a.added || 0)).slice(0, 10);
   const rows = [[t('Continue watching'), contList().filter(c => c.kind === k || (k === 'series' && c.ser)), ''], [t('Favourites'), favList().filter(c => c.kind === k), 'fav'], [t('Recently added'), all.slice().sort((a, b) => (b.added || 0) - (a.added || 0)).slice(0, 24), 'new']];
-  catItems(S.mode).filter(x => !['fav', GDEF[S.mode]].includes(x.id) && x.icon !== 'lock').slice(0, 16).forEach(g => rows.push([g.label, all.filter(c => (c.group || '—') === g.id.slice(2)).slice(0, 24), g.id, g.n]));
+  const byG = groupBy(all, c => c.group || '—');
+  catItems(S.mode).filter(x => !['fav', GDEF[S.mode]].includes(x.id) && x.icon !== 'lock').slice(0, 16).forEach(g => rows.push([g.label, (byG.get(g.id.slice(2)) || []).slice(0, 24), g.id, g.n]));
   box.innerHTML = (top.length ? `<div class="hero" id="hero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"><span class="hn">${i + 1}</span></div><div class="hi"><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${t('Watch')}</button><button class="btn" data-hd="${c.key}">${ic('info')} ${t('Details')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') +
     rows.filter(r => r[1].length).map(r => `<section class="hrow vrow"><div class="rh"><h3>${esc(r[0])} <small>${fmtN(r[3] || r[1].length)}</small></h3>${r[2] && r[2] !== 'new' ? `<button class="seeall" data-g="${esc(r[2])}">${t('See all')}</button>` : r[2] === 'new' ? `<button class="seeall" data-sort="new">${t('See all')}</button>` : ''}</div><div class="rail">${r[1].map(posterHtml).join('')}</div></section>`).join('') || `<div class="empty"><h3>${t('Nothing found')}</h3></div>`;
   wireItems(box);
@@ -712,7 +716,7 @@ function vodHome(box) {
   $$('.seeall', box).forEach(b => b.onclick = () => { if (b.dataset.sort) { S.sort[S.mode] = 'new'; S.group = GDEF[S.mode] + '!'; } else { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; });
 }
 function renderSearch() {
-  const box = $('#sres'), q = S.q.trim().toLowerCase();
+  const box = $('#sres'), q = fold(S.q.trim());
   if (q.length < 2) { box.innerHTML = `<div class="empty">${ic('search')}<p>${t('Type at least 2 letters')}</p></div>`; return; }
   const res = S.vis.filter(c => lname(c).includes(q)), sec = (k, label, f) => { const a = res.filter(c => c.kind === k); return a.length ? `<section class="hrow"><h3>${label} <small>${fmtN(a.length)}</small></h3>${k === 'live' ? `<div class="slist">${a.slice(0, 60).map(rowHtml).join('')}</div>` : `<div class="rail">${a.slice(0, 40).map(posterHtml).join('')}</div>`}</section>` : ''; };
   box.innerHTML = (sec('live', t('Live TV')) + sec('vod', t('Movies')) + sec('series', t('Series'))) || `<div class="empty"><h3>${t('Nothing found')}</h3></div>`;
@@ -863,7 +867,7 @@ $('#bBack').onclick = () => back(); $('#bSearch').onclick = () => { S.q = ''; $(
 let qT; $('#q').oninput = e => { S.q = e.target.value; S.shown = 250; clearTimeout(qT); qT = setTimeout(() => S.view === 'search' ? renderSearch() : renderList(), 150); };
 $('#cFav').onclick = () => toggleFav(S.cur); $('#cPrev').onclick = () => zap(-1); $('#cNext').onclick = () => zap(1); $('#cRec').onclick = toggleRec;
 $('#cMute').onclick = () => { v.muted = !v.muted; $('#cMute').innerHTML = ic(v.muted ? 'mute' : 'vol'); };
-$('#pExpand').onclick = e => { e.stopPropagation(); enterFs(); }; $('#cExit').onclick = () => back();
+$('#pExpand').onclick = e => { e.stopPropagation(); enterFs(); }; $('#cExit').onclick = e => { e.stopPropagation(); if (document.activeElement) document.activeElement.blur(); back(true); };
 $('#ovBot').addEventListener('click', () => showOv()); $('#ovTop').addEventListener('click', () => showOv());
 $('#cList b').textContent = t('More channels'); $('#cList small').textContent = S.set.tv ? t('Press ◀ on the remote') : t('Tap or swipe up'); $('#cList').onclick = () => isTouch() ? openStrip() : openPanel();
 document.body.appendChild($('#num')); $('#slot').appendChild(screenEl);
@@ -1082,6 +1086,30 @@ let flixHeroT = 0;
 const FLIX_KINDS = { all: ['vod', 'series'], series: ['series'], movies: ['vod'] };
 function contFor(kinds) { return contList().filter(c => kinds.includes(c.kind) || (kinds.includes('series') && (c.ser || c.cont))); }
 function top10Html(list) { return `<section class="hrow vrow top10"><div class="rh"><h3>${t('Top 10 today')}</h3></div><div class="rail">${list.map((c, i) => `<div class="t10" ><span class="t10n">${i + 1}</span>${posterHtml(c)}</div>`).join('')}</div></section>`; }
+const groupBy = (arr, f) => { const m = new Map(); for (const c of arr) { const k = f(c); let a = m.get(k); if (!a) m.set(k, a = []); a.push(c); } return m; };
+let lazyRest = [], lazyHtml = null, lazyIO = null;
+function lazyRows(box) {
+  if (lazyIO) lazyIO.disconnect(); const sent = $('#fxMore', box); if (!sent) return;
+  const more = () => { const div = document.createElement('div'); div.innerHTML = lazyRest.splice(0, 8).map(lazyHtml).join(''); sent.before(div); wireItems(div); wireSeeAll(div); if (!lazyRest.length) { lazyIO.disconnect(); sent.remove(); } };
+  if (!('IntersectionObserver' in window)) { while (lazyRest.length) more(); return; }
+  const sc = /(auto|scroll)/.test(getComputedStyle(box).overflowY) ? box : null; lazyIO = new IntersectionObserver(es => { if (es[0].isIntersecting) more(); }, { root: sc, rootMargin: '900px 0px' }); lazyIO.observe(sent);
+}
+function wireSeeAll(root) {
+  $$('.seeall', root).forEach(b => b.onclick = () => { const m = b.dataset.m; go(m === 'vod' ? 'movies' : 'series'); setTimeout(() => { if (b.dataset.g) { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } else if (b.dataset.sort) { S.sort[S.mode] = b.dataset.sort === 'top' ? 'rate' : 'new'; S.group = GDEF[S.mode] + '!'; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; }, 0); });
+}
+// "Because you watched X": more from the same genre as the last thing watched, best rated first, nothing already seen
+function becauseRow(kinds, all) {
+  const last = contFor(kinds)[0]; if (!last) return null;
+  const base = (last.ser && S.byKey[last.ser]) || last; if (!base.group) return null;
+  const list = all.filter(c => c.kind === base.kind && c.group === base.group && c.key !== base.key && c.logo && !SEEN[c.key] && !POS[c.key]).sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 24);
+  return list.length >= 4 ? [t('Because you watched') + ' ' + base.name, list] : null;
+}
+// "Surprise me": a random well-rated title you have not seen yet; opens its page
+function surprise(pool) {
+  const fresh = pool.filter(c => !SEEN[c.key] && !POS[c.key]), good = fresh.filter(c => c.rating >= 6.5), from = good.length >= 10 ? good : fresh.length ? fresh : pool;
+  const c = from[Math.floor(Math.random() * from.length)]; if (c) openDetail(c);
+}
+Object.assign(PT, { 'Surprise me': 'Surpreende-me', 'Because you watched': 'Porque viste' });
 function renderFlix() {
   const box = $('#vFlix'), tab = S.flixTab, kinds = FLIX_KINDS[tab] || FLIX_KINDS.all;
   const all = S.vis.filter(c => kinds.includes(c.kind)), withArt = all.filter(c => c.logo);
@@ -1096,21 +1124,27 @@ function renderFlix() {
   } else {
     const cw = contFor(kinds), rows = [[t('My list'), favList().filter(c => kinds.includes(c.kind))]];
     const t10 = byRating.slice(0, 10);
+    const byw = becauseRow(kinds, all); if (byw) rows.push(byw);
     const rest = [[t('New on AntunesFlix'), recent.slice(0, 24), { sort: 'new', m: kinds.length > 1 ? 'vod' : kinds[0] }]];
     if (kinds.includes('vod')) rest.push([t('Top rated films'), withArt.filter(c => c.kind === 'vod' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'vod', sort: 'top' }]);
     if (kinds.includes('series')) rest.push([t('Top rated series'), withArt.filter(c => c.kind === 'series' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'series', sort: 'top' }]);
     // genres / categories from both, taking turns
     const cv = kinds.includes('vod') ? catItems('vod').filter(x => x.id.indexOf('v:') === 0 && x.icon !== 'lock').map(g => ['vod', g]) : [], cs = kinds.includes('series') ? catItems('series').filter(x => x.id.indexOf('s:') === 0 && x.icon !== 'lock').map(g => ['series', g]) : [];
     const cats = []; for (let i = 0; i < Math.max(cv.length, cs.length) && cats.length < 120; i++) { if (cv[i]) cats.push(cv[i]); if (cs[i]) cats.push(cs[i]); }
-    cats.forEach(([m, g]) => rest.push([g.label, all.filter(c => c.kind === m && (c.group || '—') === g.id.slice(2)).slice(0, 24), { m, g: g.id }, g.n]));
+    const byG = groupBy(all, c => c.kind + '|' + (c.group || '—'));
+    cats.forEach(([m, g]) => rest.push([g.label, (byG.get(m + '|' + g.id.slice(2)) || []).slice(0, 24), { m, g: g.id }, g.n]));
     const rowHtmlF = r => `<section class="hrow vrow"><div class="rh"><h3>${esc(r[0])}${r[3] ? ` <small>${fmtN(r[3])}</small>` : ''}</h3>${r[2] ? `<button class="seeall" data-m="${r[2].m}" ${r[2].g ? `data-g="${esc(r[2].g)}"` : ''} ${r[2].sort ? `data-sort="${r[2].sort}"` : ''}>${t('See all')}</button>` : ''}</div><div class="rail">${r[1].map(posterHtml).join('')}</div></section>`;
-    body = (cw.length ? `<section class="hrow vrow cwrow"><div class="rh"><h3>${t('Continue watching')}</h3></div><div class="rail">${cw.map(cwHtml).join('')}</div></section>` : '') + rows.filter(r => r[1].length).map(rowHtmlF).join('') + (t10.length >= 5 ? top10Html(t10) : '') + rest.filter(r => r[1].length).map(rowHtmlF).join('');
+    body = (cw.length ? `<section class="hrow vrow cwrow"><div class="rh"><h3>${t('Continue watching')}</h3></div><div class="rail">${cw.map(cwHtml).join('')}</div></section>` : '') + rows.filter(r => r[1].length).map(rowHtmlF).join('') + (t10.length >= 5 ? top10Html(t10) : '');
+    // only the first rows go in now; the others are added as you scroll (a big catalogue has 100+ genre rows)
+    lazyRest = rest.filter(r => r[1].length); lazyHtml = rowHtmlF; body += lazyRest.splice(0, 8).map(rowHtmlF).join('') + (lazyRest.length ? '<div class="fxmore" id="fxMore"></div>' : '');
   }
-  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span><button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>` +
+  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>` +
     (tab !== 'mylist' && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
-  wireItems(box); wireCw(box); $('#fxS', box).onclick = () => { S.q = ''; $('#q').value = ''; go('search'); }; $('#fxH', box).onclick = () => go('home');
+  wireItems(box); wireCw(box); $('#fxS', box).onclick = () => { S.q = ''; $('#q').value = ''; go('search'); };
+  const fr = $('#fxR', box); if (fr) fr.onclick = () => surprise(withArt);
+  lazyRows(box); $('#fxH', box).onclick = () => go('home');
   $$('[data-ft]', box).forEach(b => b.onclick = () => { S.flixTab = b.dataset.ft; renderFlix(); box.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`[data-ft="${S.flixTab}"]`, box); if (f) f.focus(); }, 20); });
-  $$('.seeall', box).forEach(b => b.onclick = () => { const m = b.dataset.m; go(m === 'vod' ? 'movies' : 'series'); setTimeout(() => { if (b.dataset.g) { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } else if (b.dataset.sort) { S.sort[S.mode] = b.dataset.sort === 'top' ? 'rate' : 'new'; S.group = GDEF[S.mode] + '!'; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; }, 0); });
+  wireSeeAll(box);
   const slides = $$('.hs', box), dots = $$('.hdots button', box); let hi = 0; clearInterval(flixHeroT);
   const show = n => { hi = (n + slides.length) % slides.length; slides.forEach((x, i) => x.classList.toggle('on', i === hi)); dots.forEach((x, i) => x.classList.toggle('on', i === hi)); };
   dots.forEach(d => d.onclick = () => { show(+d.dataset.hi); clearInterval(flixHeroT); });
