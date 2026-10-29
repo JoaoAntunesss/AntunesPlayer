@@ -466,6 +466,23 @@ let lastTap = 0, tapX = 0, tch = null, lastInput = 'touch', bri = 1;
 const isTouch = () => lastInput === 'touch';
 document.addEventListener('keydown', () => { lastInput = 'key'; }, true);
 document.addEventListener('pointerdown', e => { lastInput = e.pointerType === 'mouse' ? 'mouse' : 'touch'; }, true);
+/* Remote: moving onto a text field (search, category filters) must not pop up the TV keyboard.
+   Reached with the arrows, a field is read-only (no keyboard) and the arrows carry on past it; OK opens the keyboard to type. */
+const isTxt = el => !!el && el.tagName === 'INPUT' && !/^(range|checkbox|radio|color|file|button|submit)$/i.test(el.type || 'text');
+let tvTyping = null, tvRefocus = false;
+document.addEventListener('focusin', e => { const el = e.target; if (!isTxt(el) || el === tvTyping || lastInput !== 'key' || el.readOnly || el.inputMode === 'numeric') return; el.readOnly = true; el.dataset.tvro = '1'; }, true);
+document.addEventListener('focusout', e => { const el = e.target; if (el === tvTyping && !tvRefocus) tvTyping = null; if (el.dataset && el.dataset.tvro) { el.readOnly = false; delete el.dataset.tvro; } }, true);
+document.addEventListener('pointerdown', e => { const el = e.target; if (isTxt(el) && el.dataset.tvro) { el.readOnly = false; delete el.dataset.tvro; tvTyping = el; } }, true);
+document.addEventListener('keydown', e => {
+  const el = e.target; if (!isTxt(el)) return; const k = e.key;
+  if (el.dataset.tvro) {
+    if (k === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); el.readOnly = false; delete el.dataset.tvro; tvTyping = el; tvRefocus = true; el.blur(); el.focus(); tvRefocus = false; }
+    else if (k.startsWith('Arrow')) { e.preventDefault(); e.stopImmediatePropagation(); spatial(k, dlg.open ? dlg : undefined); }
+    return;
+  }
+  // typing with the remote: ▲ ▼ leave the field (◀ ▶ still move the cursor)
+  if (el === tvTyping && (k === 'ArrowUp' || k === 'ArrowDown')) { e.preventDefault(); e.stopImmediatePropagation(); spatial(k, dlg.open ? dlg : undefined); }
+}, true);
 const panelOpen = () => !$('#chPanel').hidden || !$('#chStrip').hidden;
 v.addEventListener('click', e => {
   if (!fsOn) { if (S.cur) enterFs(); return; }
