@@ -1442,10 +1442,18 @@ S.last = LS.get('ap.last', ''); window.__player = { S, play, byNumber, numKey, z
 applyLook(); tick(); setInterval(tick, 15000);
 { const h = location.hash.slice(1); history.replaceState({ d: 0 }, '', '#' + (['live', 'movies', 'series', 'search', 'flix'].includes(h) ? h : 'home')); }
 route(); if (S.sources.length) selectSource(S.srcId || S.sources[0].id);
+Object.assign(PT, { 'How should the app look?': 'Como queres a app?', 'You can change this later in Settings → General.': 'Podes mudar depois em Definições → Geral.', 'Light': 'Leve', 'All effects and animations': 'Com todos os efeitos e animações', 'Smoother on weak TVs and boxes': 'Mais fluida em TVs e boxes fracas' });
 if (!LS.get('ap.lang', '') && !S.sources.length) {
   openDlg(`<h2>Português ou English?</h2><p class="mut">Escolha a língua da app · Choose the app language</p><div class="row" style="justify-content:center;gap:12px;margin-top:14px"><button class="btn p" data-lg="pt" style="min-width:150px">🇵🇹 Português</button><button class="btn p" data-lg="en" style="min-width:150px">🇬🇧 English</button></div>`);
-  $$('[data-lg]', dlg).forEach(b => b.onclick = () => { LS.set('ap.lang', b.dataset.lg); dlg.close(); if (b.dataset.lg !== LANG) location.reload(); });
+  $$('[data-lg]', dlg).forEach(b => b.onclick = () => { LS.set('ap.lang', b.dataset.lg); dlg.close(); if (b.dataset.lg !== LANG) location.reload(); else askMode(); });
   setTimeout(() => { const f = $(`[data-lg="${LANG}"]`, dlg); if (f) f.focus(); }, 60);
+} else if (!LS.get('ap.modeAsked', false) && !S.sources.length) askMode();
+// first start, after the language: full effects or the light mode for weak TVs (can be changed later in Settings → General)
+function askMode() {
+  LS.set('ap.modeAsked', true); const auto = liteOn();
+  openDlg(`<h2>${t('How should the app look?')}</h2><p class="mut">${t('You can change this later in Settings → General.')}</p><div class="row" style="justify-content:center;gap:12px;margin-top:14px;flex-wrap:wrap"><button class="btn ${auto ? '' : 'p'}" data-md="off" style="min-width:200px;flex-direction:column;align-items:flex-start;padding:14px 18px;height:auto"><b>✨ ${t('Normal')}</b><small class="mut">${t('All effects and animations')}</small></button><button class="btn ${auto ? 'p' : ''}" data-md="on" style="min-width:200px;flex-direction:column;align-items:flex-start;padding:14px 18px;height:auto"><b>⚡ ${t('Light')}</b><small class="mut">${t('Smoother on weak TVs and boxes')}</small></button></div>`);
+  $$('[data-md]', dlg).forEach(b => b.onclick = () => { S.set.lite = b.dataset.md; saveSet(); applyLite(); dlg.close(); });
+  setTimeout(() => { const f = $(`[data-md="${auto ? 'on' : 'off'}"]`, dlg); if (f) f.focus(); }, 60);
 }
 setTimeout(() => checkUpdate(false), 4000);
 cloudBoot().catch(e => console.warn('cloud', e));
