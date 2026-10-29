@@ -212,9 +212,15 @@ function whyHtml(url, viaHelper, detail) {
   if (viaHelper) return (pt ? 'O ajudante não conseguiu obter este canal. O fornecedor pode ter bloqueado o ajudante, o canal pode estar offline, ou o limite gratuito da Cloudflare foi atingido.' : 'The helper could not fetch this channel. The provider may block the helper, the channel may be offline, or the free Cloudflare limit was reached.') + d;
   return (pt ? 'O servidor pode bloquear páginas web (CORS), o formato pode não ser suportado ou o canal está offline.' : 'The server may block web pages (CORS), the format may be unsupported, or the channel is offline.') + d;
 }
+/* Colours per channel: some TV boxes show certain HD streams with red and blue swapped (red shirts look blue).
+   1 = swap red and blue back, 2 = compatible drawing (the video goes through the GPU, which fixes it on some boxes). */
+const COLFIX = LS.get('ap.colfix', {});
+document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="rbSwap" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 1 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 1 0"/></filter></svg>');
+function applyColor(c) { const m = (c && COLFIX[c.key]) || 0; v.style.filter = m === 1 ? 'url(#rbSwap)' : m === 2 ? 'saturate(1.001)' : ''; }
+Object.assign(PT, { 'Colours': 'Cores', 'Normal': 'Normal', 'Swap red / blue': 'Trocar vermelho / azul', 'Compatible': 'Compatível', 'Colours wrong? Try the options below (saved for this channel).': 'Cores estranhas? Experimenta as opções (fica guardado para este canal).' });
 async function play(c, isRetry) {
   if (!c) return; if (S.cur && S.cur.key !== c.key) S.last = S.cur.key; if (!isRetry) { retried = false; } if (S.cur && S.cur.key !== c.key) LS.set('ap.last', S.cur.key);
-  S.cur = c; LS.set('ap.cur', c.key); S.recent = [c.key].concat(S.recent.filter(k => k !== c.key)).slice(0, 30); LS.set('ap.recent', S.recent);
+  S.cur = c; applyColor(c); LS.set('ap.cur', c.key); S.recent = [c.key].concat(S.recent.filter(k => k !== c.key)).slice(0, 30); LS.set('ap.recent', S.recent);
   S.dbg = ''; stopRec(true); destroyPlayer(); $('#screen').classList.toggle('vod', c.kind !== 'live'); $('#msg').hidden = true; spin(true); showOsd(c); showInfo(c); updateFavBtn(); $$('#list .ch').forEach(r => r.classList.toggle('on', r.dataset.k === c.key));
   const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, url = proxied(cu), isHls = /m3u8/i.test(cu), isTs = (c.kind === 'live' || c.kind === 'catchup') && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu);
   try {
@@ -474,7 +480,13 @@ document.addEventListener('focusin', e => { const el = e.target; if (!isTxt(el) 
 document.addEventListener('focusout', e => { const el = e.target; if (el === tvTyping && !tvRefocus) tvTyping = null; if (el.dataset && el.dataset.tvro) { el.readOnly = false; delete el.dataset.tvro; } }, true);
 document.addEventListener('pointerdown', e => { const el = e.target; if (isTxt(el) && el.dataset.tvro) { el.readOnly = false; delete el.dataset.tvro; tvTyping = el; } }, true);
 document.addEventListener('keydown', e => {
-  const el = e.target; if (!isTxt(el)) return; const k = e.key;
+  const el = e.target, k = e.key;
+  if (el && el.tagName === 'SELECT' && lastInput === 'key') {
+    if (k.startsWith('Arrow')) { e.preventDefault(); e.stopImmediatePropagation(); spatial(k, dlg.open ? dlg : undefined); }
+    else if (k === 'Enter') { try { if (el.showPicker) { e.preventDefault(); el.showPicker(); } } catch (x) { } }
+    return;
+  }
+  if (!isTxt(el)) return;
   if (el.dataset.tvro) {
     if (k === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); el.readOnly = false; delete el.dataset.tvro; tvTyping = el; tvRefocus = true; el.blur(); el.focus(); tvRefocus = false; }
     else if (k.startsWith('Arrow')) { e.preventDefault(); e.stopImmediatePropagation(); spatial(k, dlg.open ? dlg : undefined); }
@@ -554,12 +566,14 @@ $('#cMore').onclick = () => {
   const sp = [0.5, 0.75, 1, 1.25, 1.5, 2];
   openDlg(`<h2>${t('More')}</h2>${isVodNow() ? `<label>${t('Speed')}</label><div class="tabs">${sp.map(x => `<button data-sp="${x}" class="${v.playbackRate === x ? 'on' : ''}">${x}×</button>`).join('')}</div>` : ''}
   <label>${t('Picture size')}</label><div class="tabs">${ASP.map((x, i) => `<button data-as="${i}" class="${aspI === i ? 'on' : ''}">${t(x[1])}</button>`).join('')}</div>
+  <label>${t('Colours')} <small class="mut">${t('Colours wrong? Try the options below (saved for this channel).')}</small></label><div class="tabs">${['Normal', 'Swap red / blue', 'Compatible'].map((x, i) => `<button data-cf="${i}" class="${((S.cur && COLFIX[S.cur.key]) || 0) === i ? 'on' : ''}">${t(x)}</button>`).join('')}</div>
   <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<label>${t('Sleep timer')}${sleepAt ? ' · ' + sleepLeft() + ' ' + t('min') : ''}</label><div class="tabs">${[0, 15, 30, 60, 90, 120].map(m => `<button data-sl="${m}" class="${(!sleepAt && !m) ? 'on' : ''}">${m ? m + ' ' + t('min') : t('Off ').trim()}</button>`).join('')}</div>
   <div class="row" style="justify-content:flex-start"><button class="btn" id="mInfo">${ic('signal')} ${t('Stream info')}</button><button class="btn" id="mExt">${ic('ext')} ${NATIVE ? t('Open in another player') : t('Copy link')}</button></div>
   <div class="row" style="justify-content:space-between"><button class="btn" id="mSet">${ic('gear')} ${t('Settings')}</button><button class="btn p" id="dx">OK</button></div>`);
   $('#dx').onclick = () => dlg.close(); $('#mSet').onclick = settingsDialog; $('#mInfo').onclick = streamInfo; $('#mExt').onclick = () => { dlg.close(); openElsewhere(); };
   $$('[data-sl]', dlg).forEach(b => b.onclick = () => { setSleep(+b.dataset.sl); dlg.close(); }); const ml = $('#mList'); if (ml) ml.onclick = () => addToListDialog(S.cur);
   $$('[data-sp]', dlg).forEach(b => b.onclick = () => { v.playbackRate = +b.dataset.sp; $$('[data-sp]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
+  $$('[data-cf]', dlg).forEach(b => b.onclick = () => { if (!S.cur) return; const m = +b.dataset.cf; if (m) COLFIX[S.cur.key] = m; else delete COLFIX[S.cur.key]; LS.set('ap.colfix', COLFIX); applyColor(S.cur); $$('[data-cf]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
   $$('[data-as]', dlg).forEach(b => b.onclick = () => { aspI = +b.dataset.as; v.style.objectFit = ASP[aspI][0]; $$('[data-as]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
   const p = $('#mPip'); if (p) p.onclick = () => { dlg.close(); try { v.requestPictureInPicture(); } catch (e) { } };
   const r = $('#mRec'); if (r) r.onclick = () => { dlg.close(); toggleRec(); };
@@ -895,11 +909,13 @@ function spatial(k, scope) {
   if (!cur || cur === document.body || !els.includes(cur)) { const vis = el => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight; }; const f = (!scope && !fsOn && els.find(el => el.closest('.view') && vis(el))) || els.find(vis) || els[0]; if (f) { f.focus(); return true; } return false; }
   const a = cur.getBoundingClientRect(); let best = null, bs = 1e9;
   for (const el of els) { if (el === cur) continue; const b = el.getBoundingClientRect(); let main, cross;
-    if (k === 'ArrowRight') { if (b.left < a.right - 4) continue; main = b.left - a.right; cross = Math.abs((b.top + b.bottom) / 2 - (a.top + a.bottom) / 2); }
-    else if (k === 'ArrowLeft') { if (b.right > a.left + 4) continue; main = a.left - b.right; cross = Math.abs((b.top + b.bottom) / 2 - (a.top + a.bottom) / 2); }
-    else if (k === 'ArrowDown') { if (b.top < a.bottom - 4) continue; main = b.top - a.bottom; cross = Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2); }
-    else { if (b.bottom > a.top + 4) continue; main = a.top - b.bottom; cross = Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2); }
-    const sc = main + cross * 2.2; if (sc < bs) { bs = sc; best = el; } }
+    // cross = gap between the boxes sideways (0 when they line up, so a wide field under a small tab is the obvious next stop); centre distance only breaks ties
+    const gapX = Math.max(0, b.left - a.right, a.left - b.right), gapY = Math.max(0, b.top - a.bottom, a.top - b.bottom), cx = Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2) * .05, cy = Math.abs((b.top + b.bottom) / 2 - (a.top + a.bottom) / 2) * .05;
+    if (k === 'ArrowRight') { if (b.left < a.right - 4) continue; main = b.left - a.right; cross = gapY * 4 + cy; }
+    else if (k === 'ArrowLeft') { if (b.right > a.left + 4) continue; main = a.left - b.right; cross = gapY * 4 + cy; }
+    else if (k === 'ArrowDown') { if (b.top < a.bottom - 4) continue; main = b.top - a.bottom; cross = gapX * 4 + cx; }
+    else { if (b.bottom > a.top + 4) continue; main = a.top - b.bottom; cross = gapX * 4 + cx; }
+    const sc = main + cross; if (sc < bs) { bs = sc; best = el; } }
   if (best) { best.focus({ preventScroll: true }); best.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return true; } return false;
 }
 document.addEventListener('keydown', e => {
