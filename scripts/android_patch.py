@@ -22,6 +22,7 @@ os.makedirs(os.path.dirname(act), exist_ok=True)
 open(act, 'w', encoding='utf-8').write("""package com.antunes.player;
 
 import android.app.UiModeManager;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Bundle;
@@ -41,14 +42,36 @@ public class MainActivity extends BridgeActivity {
         UiModeManager ui = (UiModeManager) getSystemService(UI_MODE_SERVICE);
         final boolean tv = (ui != null && ui.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION)
             || getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK);
-        if (tv && getBridge() != null) {
+        if (getBridge() != null) {
             getBridge().addWebViewListener(new WebViewListener() {
                 @Override
                 public void onPageLoaded(WebView webView) {
-                    webView.evaluateJavascript("window.AP_IS_TV=true;window.dispatchEvent(new Event('ap-tv'));", null);
+                    if (tv) webView.evaluateJavascript("window.AP_IS_TV=true;window.dispatchEvent(new Event('ap-tv'));", null);
+                    sendAmbient(getIntent());
                 }
             });
         }
+    }
+
+    // The TV home screen starts the app with "ambient": last channel, full screen, muted.
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        sendAmbient(intent);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (getBridge() != null) getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new Event('ap-pause'));", null);
+    }
+
+    private void sendAmbient(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra("ambient", false) || getBridge() == null) return;
+        intent.removeExtra("ambient");
+        getBridge().getWebView().post(() -> getBridge().getWebView().evaluateJavascript(
+            "window.AP_AMBIENT=true;window.dispatchEvent(new Event('ap-ambient'));", null));
     }
 
     @Override
