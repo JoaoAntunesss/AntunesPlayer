@@ -300,7 +300,7 @@ function addDialog(tab0) {
   draw();
 }
 /* settings split into tabs (built from the same controls, so every option keeps working) */
-Object.assign(PT, { 'Light mode (smoother on weak TVs)': 'Modo leve (mais fluido em TVs fracas)', 'on': 'ligado', 'off': 'desligado', 'General': 'Geral', 'Look': 'Aspeto', 'Player': 'Leitor', 'About': 'Sobre' });
+Object.assign(PT, { 'AntunesFlix opening sound': 'Som de abertura do AntunesFlix', 'Light mode (smoother on weak TVs)': 'Modo leve (mais fluido em TVs fracas)', 'on': 'ligado', 'off': 'desligado', 'General': 'Geral', 'Look': 'Aspeto', 'Player': 'Leitor', 'About': 'Sobre' });
 const SET_TABS = [['general', 'General', 'home'], ['look', 'Look', 'sun'], ['player', 'Player', 'play'], ['lists', 'Playlists', 'stack'], ['account', 'Account', 'user'], ['about', 'About', 'info']];
 const SET_MAP = { sAcc: 'account', sPin: 'account', sStart: 'general', sNum: 'general', sTv: 'general', sLang: 'general', sStyle: 'look', sTheme: 'look', cAcc: 'look', cFx: 'look', sDig: 'look', sBg: 'look', cRst: 'look', sPan: 'look', sSub: 'player', sOff: 'player', sAuto: 'lists', sProxy: 'lists', sPS: 'lists', sSA: 'player', sOK: 'player', sOU: 'player', sCats: 'account', sBak: 'lists', sFavs: 'lists', sUpd: 'about' };
 function tabOfNode(n) {
@@ -334,6 +334,7 @@ function settingsDialog() {
   <label>${t('When the app opens')}</label><select id="sStart"><option value="last" ${(s.startup || 'last') === 'last' ? 'selected' : ''}>${t('Last channel in full screen (favourites)')}</option><option value="home" ${s.startup === 'home' ? 'selected' : ''}>${t('Home screen')}</option></select><label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('TV mode (remote, bigger text)')}</label><select id="sTv"><option value="auto" ${(s.tvMode || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${isTvDevice() ? t('TV detected') : t('no TV detected')}</option><option value="on" ${s.tvMode === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.tvMode === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
   <label>${t('Light mode (smoother on weak TVs)')}</label><select id="sLite"><option value="auto" ${(s.lite || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${liteOn() ? t('on') : t('off')}</option><option value="on" ${s.lite === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.lite === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
+  <label>${t('AntunesFlix opening sound')}</label><select id="sISnd"><option value="1" ${s.introSound !== false ? 'selected' : ''}>${t('Yes')}</option><option value="0" ${s.introSound === false ? 'selected' : ''}>${t('No')}</option></select>
   <h2 style="margin-top:18px">${ic('cc')} ${t('Online subtitles')}</h2><label>${t('Subtitle languages (in order)')}</label><div class="row" style="justify-content:flex-start;gap:8px">${[0, 1, 2].map(i => `<select data-sl2="${i}" style="flex:1;min-width:120px"><option value="">—</option>${SUBL.map(x => `<option value="${x[0]}" ${subLangs()[i] === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`).join('')}</div><label>${t('Turn on subtitles automatically')}</label><select id="sSA"><option value="1" ${s.subAuto !== false ? 'selected' : ''}>${t('Yes')}</option><option value="0" ${s.subAuto === false ? 'selected' : ''}>${t('No')}</option></select><label>${t('OpenSubtitles API key')}</label><input id="sOK" value="${esc(s.osKey || '')}" autocomplete="off" placeholder="${t('Built in (optional: your own key)')}"><label>${t('OpenSubtitles account (optional: 20 a day instead of 5)')}</label><div class="row" style="justify-content:flex-start;gap:8px"><input id="sOU" placeholder="${t('Username')}" value="${esc((LS.get('ap.osu', null) || {}).u || '')}" autocomplete="off" style="flex:1"><input id="sOP" type="password" placeholder="${t('Password')}" value="${esc((LS.get('ap.osu', null) || {}).p || '')}" autocomplete="off" style="flex:1"></div>
   <h2 style="margin-top:18px">${t('Colours')}</h2><label>${t('App colour (Live TV, menus, effects)')}</label>${colorPicker('cAcc', s.accent, getComputedStyle(document.documentElement).getPropertyValue('--acc').trim())}<label>${t('AntunesFlix colour')}</label>${colorPicker('cFx', s.fxColor, '#e50914')}<label>${t('Numbers (clock and channels)')}</label><select id="sDig"><option value="" ${!s.digits ? 'selected' : ''}>${t('Theme default')}</option><option value="accent" ${s.digits === 'accent' ? 'selected' : ''}>${t('Same as the app colour')}</option></select><label>${t('Background')}</label><select id="sBg">${[['circuit', 'Circuit lines'], ['plain', 'Plain'], ['black', 'Black']].map(x => `<option value="${x[0]}" ${(s.bgStyle || 'circuit') === x[0] ? 'selected' : ''}>${t(x[1])}</option>`).join('')}</select><div class="row" style="justify-content:flex-start"><button class="btn" id="cRst">${t('Reset colours')}</button></div>
   <label>${t('Channel list over the video')}</label><select id="sPan"><option value="clear" ${s.panelBg !== 'dim' ? 'selected' : ''}>${t('See-through')}</option><option value="dim" ${s.panelBg === 'dim' ? 'selected' : ''}>${t('Dark')}</option></select>
@@ -345,7 +346,7 @@ function settingsDialog() {
   <div class="row" style="justify-content:space-between"><button class="btn" id="sUpd">${ic('refresh')} ${t('Check for updates')}${NATIVE ? ' · build ' + (BUILD || '—') : ''}</button><button class="btn p" id="sOk">${t('Close')}</button></div>`);
   tabifySettings();
   const chg = () => { s.startup = $('#sStart').value; s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tvMode = $('#sTv').value; applyTvMode(); s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
-  $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sLite').onchange = e => { s.lite = e.target.value; saveSet(); applyLite(); };
+  $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sLite').onchange = e => { s.lite = e.target.value; saveSet(); applyLite(); }; $('#sISnd').onchange = e => { s.introSound = e.target.value === '1'; saveSet(); if (s.introSound) introSound(); };
   $$('[data-sl2]', dlg).forEach(x => x.onchange = () => { s.subLangs = [...new Set($$('[data-sl2]', dlg).map(y => y.value).filter(Boolean))].join(','); saveSet(); S.subList = null; }); $('#sSA').onchange = e => { s.subAuto = e.target.value === '1'; saveSet(); }; $('#sOK').onchange = e => { s.osKey = e.target.value.trim(); saveSet(); }; $$('#sOU,#sOP', dlg).forEach(x => x.onchange = () => { LS.set('ap.osu', { u: $('#sOU').value.trim(), p: $('#sOP').value }); LS.set('ap.ost', null); });
   wireColorPicker('cAcc', c => { s.accent = c; saveSet(); applyLook(); }); wireColorPicker('cFx', c => { s.fxColor = c; saveSet(); applyLook(); });
   $('#sDig').onchange = e => { s.digits = e.target.value; saveSet(); applyLook(); }; $('#sBg').onchange = e => { s.bgStyle = e.target.value; saveSet(); applyLook(); };
@@ -1217,12 +1218,33 @@ v.addEventListener('timeupdate', nextUpTick);
 Object.assign(PT, { 'Details and more': 'Detalhes e mais', 'Remove from row': 'Remover da faixa', 'left': 'restantes', 'Cast': 'Com', 'Director': 'Realizador', 'Episodes': 'Episódios', 'More like this': 'Títulos semelhantes', 'Trailer': 'Trailer', 'Watch series': 'Ver série', 'Rate': 'Classificar', 'Continue': 'Continuar' });
 // intro: our own red "A" monogram with light streaks (shown when AntunesFlix opens)
 let fxIntroShown = false;
+// AntunesFlix's own opening sound, made on the spot (no audio file): a rising whoosh that blooms into a warm, shimmering chord as the red A appears
+function introSound() {
+  if (S.set.introSound === false) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ac = introSound.ac || (introSound.ac = new AC()); if (ac.state === 'suspended') ac.resume();
+    const t0 = ac.currentTime + 0.03, out = ac.createGain(); out.gain.value = 1.4; out.connect(ac.destination);
+    const len = Math.floor(ac.sampleRate * 0.62), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const n = ac.createBufferSource(), bp = ac.createBiquadFilter(), ng = ac.createGain(); n.buffer = buf; bp.type = 'bandpass'; bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(180, t0); bp.frequency.exponentialRampToValueAtTime(3200, t0 + 0.5);
+    ng.gain.setValueAtTime(0.0001, t0); ng.gain.exponentialRampToValueAtTime(0.22, t0 + 0.42); ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6);
+    n.connect(bp).connect(ng).connect(out); n.start(t0); n.stop(t0 + 0.62);
+    const tb = t0 + 0.45, lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, tb); lp.frequency.exponentialRampToValueAtTime(4200, tb + 0.6); lp.connect(out);
+    [110, 164.81, 220, 277.18, 329.63, 440, 659.25].forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), pk = i < 2 ? 0.2 : 0.06;
+      o.type = i < 2 ? 'sine' : 'triangle'; o.frequency.value = f; o.detune.value = i % 2 ? 5 : -5;
+      g.gain.setValueAtTime(0.0001, tb); g.gain.exponentialRampToValueAtTime(pk, tb + 0.1 + i * 0.035); g.gain.exponentialRampToValueAtTime(0.0001, tb + 1.75);
+      o.connect(g).connect(lp); o.start(tb); o.stop(tb + 1.8);
+    });
+  } catch (e) { }
+}
 function fxIntro() {
   if (fxIntroShown || RM || document.documentElement.classList.contains('lite')) return; fxIntroShown = true;
   const o = document.createElement('div'); o.id = 'fxIntro'; o.setAttribute('aria-hidden', 'true');
   o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">Antunes<span>Flix</span></div>`;
   document.body.appendChild(o); const end = () => { o.classList.add('out'); setTimeout(() => o.remove(), 450); };
-  o.onclick = end; setTimeout(end, 2300);
+  o.onclick = end; setTimeout(end, 2300); introSound();
 }
 const fmtLeft = s => { s = Math.max(0, Math.round(s / 60)); const h = Math.floor(s / 60), m = s % 60; return (h ? h + ' h ' : '') + m + ' min ' + t('left'); };
 function cwHtml(c) {
