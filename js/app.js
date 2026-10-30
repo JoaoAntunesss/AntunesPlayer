@@ -238,6 +238,7 @@ async function play(c, isRetry) {
     } else v.src = url;
     await v.play().catch(err => { if (err && err.name === 'NotAllowedError') { v.muted = true; $('#cMute').innerHTML = ic('mute'); v.play().catch(() => { }); toast(t('Tap for sound')); } });
     if (c.kind !== 'live' && c.kind !== 'catchup') autoSubs(c);
+    if (c.kind === 'live' && NATIVE && Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.share) Capacitor.Plugins.ExtPlayer.share({ url: cu, name: c.name || '', ua: uaHdr()['User-Agent'] || '' }).catch(() => { }); // TV home screen background
   } catch (e) { showMsg(t('Could not play this'), whyHtml(c.url, false, String(e && e.message || e)), true); }
 }
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -203,6 +203,20 @@ public class ExtPlayerPlugin extends Plugin {
         try { getActivity().startActivity(chooser); call.resolve(); }
         catch (Exception e) { call.reject("no player", e); }
     }
+
+    // Tells the TV home screen (com.mihir.tvhome) which live channel is playing, so it can show it
+    // muted as the home screen background. Sent only to that one app.
+    @PluginMethod
+    public void share(PluginCall call) {
+        Intent i = new Intent("com.antunes.player.NOW_PLAYING");
+        i.setPackage("com.mihir.tvhome");
+        i.putExtra("url", call.getString("url", ""));
+        i.putExtra("name", call.getString("name", ""));
+        i.putExtra("ua", call.getString("ua", ""));
+        i.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+        try { getContext().sendBroadcast(i); } catch (Exception ignored) { }
+        call.resolve();
+    }
 }
 """)
 print('external player plugin written')
