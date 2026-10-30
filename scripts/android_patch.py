@@ -37,6 +37,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ExtPlayerPlugin.class);
         super.onCreate(savedInstanceState);
+        sendAmbient(getIntent());
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideBars();
         UiModeManager ui = (UiModeManager) getSystemService(UI_MODE_SERVICE);
@@ -47,13 +48,16 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public void onPageLoaded(WebView webView) {
                     if (tv) webView.evaluateJavascript("window.AP_IS_TV=true;window.dispatchEvent(new Event('ap-tv'));", null);
-                    sendAmbient(getIntent());
                 }
             });
         }
     }
 
     // The TV home screen starts the app with "ambient": last channel, full screen, muted.
+    // Delivered to the page once app.js says it is ready (window.AP_AMB_READY); retried every second until then.
+    private boolean ambientPending;
+    private int ambientTries;
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -68,10 +72,20 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void sendAmbient(Intent intent) {
-        if (intent == null || !intent.getBooleanExtra("ambient", false) || getBridge() == null) return;
+        if (intent == null || !intent.getBooleanExtra("ambient", false)) return;
         intent.removeExtra("ambient");
-        getBridge().getWebView().post(() -> getBridge().getWebView().evaluateJavascript(
-            "window.AP_AMBIENT=true;window.dispatchEvent(new Event('ap-ambient'));", null));
+        ambientPending = true;
+        ambientTries = 0;
+        tryAmbient();
+    }
+
+    private void tryAmbient() {
+        if (!ambientPending || getBridge() == null) return;
+        final WebView w = getBridge().getWebView();
+        w.evaluateJavascript("(function(){if(!window.AP_AMB_READY)return false;window.AP_AMBIENT=true;window.dispatchEvent(new Event('ap-ambient'));return true;})()", value -> {
+            if ("true".equals(value)) ambientPending = false;
+            else if (ambientTries++ < 40) w.postDelayed(this::tryAmbient, 1000);
+        });
     }
 
     @Override

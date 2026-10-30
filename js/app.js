@@ -1457,7 +1457,7 @@ function ambientEnd(leave) {
   if (leave) { destroyPlayer(); if (NATIVE && Capacitor.Plugins.App) Capacitor.Plugins.App.exitApp(); return; }
   v.muted = false; $('#cMute').innerHTML = ic('vol'); toast(t('Sound on'));
 }
-window.addEventListener('ap-ambient', ambientStart);
+window.addEventListener('ap-ambient', ambientStart); window.AP_AMB_READY = true;
 window.addEventListener('keydown', e => { if (!AMB) return; if (/^(Escape|GoBack|BrowserBack|Backspace)$/.test(e.key)) { e.preventDefault(); e.stopImmediatePropagation(); ambientEnd(true); return; } const ok = e.key === 'Enter' || e.key === ' '; ambientEnd(false); if (ok) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 window.addEventListener('pointerdown', () => { if (AMB) ambientEnd(false); }, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden && AMB) ambientEnd(true); }); window.addEventListener('ap-pause', () => { if (AMB) ambientEnd(true); });
