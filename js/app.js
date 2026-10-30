@@ -1439,28 +1439,31 @@ v.addEventListener('pause', () => { if (isVodNow()) schedulePush(); }); v.addEve
 if (!S.set.nm2) { S.set.numberMode = 'favs'; S.set.nm2 = true; saveSet(); }
 applyTvMode(); window.addEventListener('ap-tv', applyTvMode); $('#cList small').textContent = S.set.tv ? t('Press ◀ on the remote') : t('Tap or swipe up');
 if (NATIVE && Capacitor.Plugins && Capacitor.Plugins.App) Capacitor.Plugins.App.addListener('backButton', () => { if (AMB) { ambientEnd(true); return; } if (!back()) Capacitor.Plugins.App.exitApp(); });
-/* Ambient mode: the TV home screen opens the app like this when the TV is switched on.
-   Last channel, full screen, no sound, no controls. OK turns the sound on (and it becomes the normal player);
-   Back or Home returns to the home screen. If the stream fails (network still coming up after boot) it retries. */
-let AMB = false, ambT = null, ambTries = 0;
+/* Ambient mode: when the TV is switched on, the TV home screen opens the app like this: last channel, full screen,
+   no sound, no controls. The app then puts the (see-through) home screen back on top, so the channel plays behind it
+   as the background. Opening the app from the home screen turns the sound on; opening any other app stops it.
+   If the stream fails (network still coming up after boot) it retries. */
+let AMB = false, ambT = null, ambTries = 0, ambAt = 0;
 function ambientStart() {
   if (!S.booted) return; // the playlist is still loading; bootLast() calls this when it is ready
   window.AP_AMBIENT = false;
   const c = S.byKey[LS.get('ap.cur', '')] || favLive()[0] || S.channels.find(x => x.kind === 'live'); if (!c) return;
-  AMB = true; ambTries = 0; v.muted = true; $('#cMute').innerHTML = ic('mute'); if (dlg.open) dlg.close();
+  AMB = true; window.AP_AMB_ON = true; ambAt = Date.now(); ambTries = 0; v.muted = true; $('#cMute').innerHTML = ic('mute'); if (dlg.open) dlg.close();
   if (!(fsOn && S.cur && S.cur.key === c.key)) { if (favLive().includes(c)) { S.gsel.live = 'fav'; LS.set('ap.gsel', S.gsel); } go('live'); enterFsFor(c); } else v.play().catch(() => { });
-  setTimeout(() => { if (AMB) { hideOv(); toast(t('OK for sound')); } }, 600);
+  setTimeout(() => { if (AMB) hideOv(); }, 600);
   clearInterval(ambT); ambT = setInterval(() => { if (!AMB) { clearInterval(ambT); return; } if (S.cur && (!$('#msg').hidden || (v.paused && v.readyState < 3)) && ambTries++ < 6) play(S.cur, true); }, 10000);
 }
 function ambientEnd(leave) {
-  AMB = false; clearInterval(ambT);
+  AMB = false; window.AP_AMB_ON = false; clearInterval(ambT);
   if (leave) { destroyPlayer(); if (NATIVE && Capacitor.Plugins.App) Capacitor.Plugins.App.exitApp(); return; }
-  v.muted = false; $('#cMute').innerHTML = ic('vol'); toast(t('Sound on'));
+  v.muted = false; $('#cMute').innerHTML = ic('vol'); showOv(); toast(t('Sound on'));
 }
 window.addEventListener('ap-ambient', ambientStart); window.AP_AMB_READY = true;
 window.addEventListener('keydown', e => { if (!AMB) return; if (/^(Escape|GoBack|BrowserBack|Backspace)$/.test(e.key)) { e.preventDefault(); e.stopImmediatePropagation(); ambientEnd(true); return; } const ok = e.key === 'Enter' || e.key === ' '; ambientEnd(false); if (ok) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 window.addEventListener('pointerdown', () => { if (AMB) ambientEnd(false); }, true);
-document.addEventListener('visibilitychange', () => { if (document.hidden && AMB) ambientEnd(true); }); window.addEventListener('ap-pause', () => { if (AMB) ambientEnd(true); });
+window.addEventListener('ap-resume', () => { if (AMB && Date.now() - ambAt > 2500) ambientEnd(false); });
+window.addEventListener('ap-stop', () => { if (AMB) ambientEnd(true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && AMB) ambientEnd(true); });
 Object.assign(PT, { 'OK for sound': 'OK para ligar o som', 'Sound on': 'Som ligado' });
 S.last = LS.get('ap.last', ''); window.__player = { S, play, byNumber, numKey, zap, parseM3U, parseXMLTV, finish, go, back };
 applyLook(); tick(); setInterval(tick, 15000);

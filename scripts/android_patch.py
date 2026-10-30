@@ -65,10 +65,21 @@ public class MainActivity extends BridgeActivity {
         sendAmbient(intent);
     }
 
+    // Tell the page when the app goes behind another one (ap-stop) and when it comes back (ap-resume).
     @Override
-    public void onPause() {
-        super.onPause();
-        if (getBridge() != null) getBridge().getWebView().evaluateJavascript("window.dispatchEvent(new Event('ap-pause'));", null);
+    public void onStop() {
+        super.onStop();
+        js("window.dispatchEvent(new Event('ap-stop'));");
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        js("window.dispatchEvent(new Event('ap-resume'));");
+    }
+
+    private void js(String code) {
+        if (getBridge() != null && getBridge().getWebView() != null) getBridge().getWebView().evaluateJavascript(code, null);
     }
 
     private void sendAmbient(Intent intent) {
@@ -83,7 +94,17 @@ public class MainActivity extends BridgeActivity {
         if (!ambientPending || getBridge() == null) return;
         final WebView w = getBridge().getWebView();
         w.evaluateJavascript("(function(){if(!window.AP_AMB_READY)return false;window.AP_AMBIENT=true;window.dispatchEvent(new Event('ap-ambient'));return true;})()", value -> {
-            if ("true".equals(value)) ambientPending = false;
+            if ("true".equals(value)) {
+                ambientPending = false;
+                // Once the channel is playing, bring the home screen back on top: it is see-through
+                // in this mode, so the muted channel stays behind it as the background.
+                w.postDelayed(() -> w.evaluateJavascript("!!window.AP_AMB_ON", on -> {
+                    if (!"true".equals(on)) return;
+                    Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                        .putExtra("ambient_bg", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try { startActivity(home); } catch (RuntimeException ignored) { }
+                }), 3500);
+            }
             else if (ambientTries++ < 40) w.postDelayed(this::tryAmbient, 1000);
         });
     }
