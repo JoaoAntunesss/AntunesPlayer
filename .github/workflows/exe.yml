@@ -1,0 +1,46 @@
+name: Build Windows EXE
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ['README.md', 'docs/**']
+permissions:
+  contents: write
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Copy the web app into the desktop app
+        shell: bash
+        run: |
+          echo "window.AP_BUILD = ${{ github.run_number }};" > js/build.js
+          mkdir -p desktop/app desktop/build
+          cp -r index.html style.css manifest.json icon-192.png icon-512.png js fonts desktop/app/
+          cp icon-512.png desktop/build/icon.png
+      - name: Build portable EXE and installer
+        working-directory: desktop
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm version 1.0.${{ github.run_number }} --no-git-tag-version --allow-same-version
+          npx electron-builder --win portable nsis --x64 --publish never
+      - name: Publish to the latest release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd desktop/dist
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest AntunesPlayer-portatil.exe AntunesPlayer-instalador.exe --clobber
+          else
+            gh release create latest AntunesPlayer-portatil.exe AntunesPlayer-instalador.exe --prerelease --title "AntunesPlayer build ${{ github.run_number }}" --notes "Android APK and Windows EXE."
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AntunesPlayer-windows
+          path: |
+            desktop/dist/AntunesPlayer-portatil.exe
+            desktop/dist/AntunesPlayer-instalador.exe
