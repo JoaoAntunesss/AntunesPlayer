@@ -1,0 +1,19 @@
+{
+  "name": "antunesplayer-desktop",
+  "productName": "AntunesPlayer",
+  "version": "1.0.0",
+  "description": "AntunesPlayer para Windows",
+  "author": "João Antunes",
+  "main": "main.js",
+  "license": "MIT",
+  "devDependencies": { "electron": "33.2.1", "electron-builder": "25.1.8" },
+  "build": {
+    "appId": "com.antunes.player.desktop",
+    "productName": "AntunesPlayer",
+    "files": ["main.js", "app/**/*"],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "win": { "icon": "build/icon.png" },
+    "portable": { "artifactName": "AntunesPlayer-portatil.exe" },
+    "nsis": { "artifactName": "AntunesPlayer-instalador.exe", "oneClick": false, "allowToChangeInstallationDirectory": true, "shortcutName": "AntunesPlayer" }
+  }
+}
