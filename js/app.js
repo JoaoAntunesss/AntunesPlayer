@@ -30,15 +30,17 @@ const proxied = (u, force) => { const p = S.set.proxy; if (!p || !(force || S.se
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
 const nativeHttp = () => NATIVE && Capacitor.Plugins && Capacitor.Plugins.CapacitorHttp;
 // In the Android app, hls.js loads through the native HTTP layer so servers that block web pages (CORS) still work.
+// Decodes base64 with the browser's native decoder: far faster than a JS loop and keeps TV boxes from stuttering.
+const b64buf = async s => { try { return await (await fetch('data:application/octet-stream;base64,' + s)).arrayBuffer(); } catch (e) { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u.buffer; } };
 class NativeLoader {
   constructor() { this.stats = { aborted: false, loaded: 0, retry: 0, total: 0, chunkCount: 0, bwEstimate: 0, loading: { start: 0, first: 0, end: 0 }, parsing: { start: 0, end: 0 }, buffering: { start: 0, first: 0, end: 0 } }; this.dead = false; }
   destroy() { this.dead = true; } abort() { this.dead = true; this.stats.aborted = true; }
   load(ctx, cfg, cb) {
     const st = this.stats; st.loading.start = performance.now(); const bin = ctx.responseType === 'arraybuffer', headers = Object.assign({}, uaHdr());
     if (ctx.rangeStart != null && ctx.rangeEnd != null) headers.Range = `bytes=${ctx.rangeStart}-${ctx.rangeEnd - 1}`;
-    nativeHttp().request({ url: ctx.url, method: 'GET', headers, responseType: bin ? 'arraybuffer' : 'text', connectTimeout: 15000, readTimeout: 20000 }).then(r => {
+    nativeHttp().request({ url: ctx.url, method: 'GET', headers, responseType: bin ? 'arraybuffer' : 'text', connectTimeout: 15000, readTimeout: 20000 }).then(async r => {
       if (this.dead) return; if (r.status >= 400) { cb.onError({ code: r.status, text: 'HTTP ' + r.status }, ctx, r); return; }
-      let data = r.data; if (bin) { const b = atob(typeof data === 'string' ? data : ''), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); data = u.buffer; }
+      let data = r.data; if (bin) { data = await b64buf(typeof data === 'string' ? data : ''); if (this.dead) return; }
       st.loading.first = st.loading.end = performance.now(); st.loaded = st.total = bin ? data.byteLength : String(data).length; cb.onSuccess({ url: r.url || ctx.url, data }, st, ctx, r);
     }).catch(e => { if (!this.dead) cb.onError({ code: 0, text: String(e && e.message || e) }, ctx, null); });
   }
@@ -229,11 +231,11 @@ async function play(c, isRetry) {
   try {
     if (isHls) {
       if (!window.Hls && (NATIVE || !v.canPlayType('application/vnd.apple.mpegurl'))) await loadScript('js/hls.min.js'); // in the app, hls.js + native HTTP is more reliable than the WebView's own HLS
-      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: !document.documentElement.classList.contains('lite'), maxBufferLength: 20, backBufferLength: 30, startFragPrefetch: true, manifestLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } }, playlistLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } } }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { S.dbg = (d.details || '') + (d.reason ? ' ' + d.reason : '') + (d.error && d.error.message ? ' ' + d.error.message : ''); if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried && !/manifest|level/i.test(d.details || '')) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else if (!c.useTs && /\/live\/[^/]+\/[^/]+\/[^/]+\.m3u8/i.test(c.url)) { c.useTs = true; play(c, true); } else showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, (d.details || '') + (d.response && d.response.code ? ' · HTTP ' + d.response.code : '')), true); }); }
+      if (window.Hls && Hls.isSupported()) { hls = new Hls(Object.assign({ lowLatencyMode: false, liveSyncDurationCount: 4, liveMaxLatencyDurationCount: 12, maxBufferLength: 30, maxMaxBufferLength: 60, backBufferLength: 20, startFragPrefetch: true, nudgeMaxRetry: 6, fragLoadPolicy: { default: { maxTimeToFirstByteMs: 10000, maxLoadTimeMs: 30000, timeoutRetry: { maxNumRetry: 4, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 6, retryDelayMs: 500, maxRetryDelayMs: 4000, backoff: 'exponential' } } }, manifestLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 0, retryDelayMs: 0, maxRetryDelayMs: 0 } } }, playlistLoadPolicy: { default: { maxTimeToFirstByteMs: 12000, maxLoadTimeMs: 15000, timeoutRetry: { maxNumRetry: 3, retryDelayMs: 0, maxRetryDelayMs: 0 }, errorRetry: { maxNumRetry: 4, retryDelayMs: 1000, maxRetryDelayMs: 8000, backoff: 'exponential' } } } }, nativeHttp() ? { loader: NativeLoader } : {})); hls.loadSource(url); hls.attachMedia(v); hls.on(Hls.Events.ERROR, (_, d) => { S.dbg = (d.details || '') + (d.reason ? ' ' + d.reason : '') + (d.error && d.error.message ? ' ' + d.error.message : ''); if (!d.fatal) return; if (d.type === Hls.ErrorTypes.NETWORK_ERROR && !retried && !/manifest/i.test(d.details || '')) { retried = true; hls.startLoad(); } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !retried) { retried = true; hls.recoverMediaError(); } else if (!c.useTs && /\/live\/[^/]+\/[^/]+\/[^/]+\.m3u8/i.test(c.url)) { c.useTs = true; play(c, true); } else showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, (d.details || '') + (d.response && d.response.code ? ' · HTTP ' + d.response.code : '')), true); }); }
       else v.src = url;
     } else if (isTs) {
       if (!window.mpegts) await loadScript('js/mpegts.min.js');
-      if (window.mpegts && mpegts.isSupported()) { mpg = mpegts.createPlayer({ type: 'mpegts', isLive: c.kind === 'live', url }, { enableWorker: true, liveBufferLatencyChasing: true, headers: uaHdr(), autoCleanupSourceBuffer: true }); mpg.attachMediaElement(v); mpg.load(); mpg.on(mpegts.Events.ERROR, (a, b) => { const was = c.useTs; c.useTs = false; showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, String(b || a || '')), true); }); }
+      if (window.mpegts && mpegts.isSupported()) { mpg = mpegts.createPlayer({ type: 'mpegts', isLive: c.kind === 'live', url }, { enableWorker: true, enableStashBuffer: true, stashInitialSize: 512 * 1024, lazyLoad: false, liveBufferLatencyChasing: false, liveSync: false, headers: uaHdr(), autoCleanupSourceBuffer: true, autoCleanupMaxBackwardDuration: 60, autoCleanupMinBackwardDuration: 30 }); mpg.attachMediaElement(v); mpg.load(); mpg.on(mpegts.Events.ERROR, (a, b) => { const was = c.useTs; c.useTs = false; showMsg(t('Could not play this'), whyHtml(c.url, c.url !== url, String(b || a || '')), true); }); }
       else v.src = url;
     } else v.src = url;
     await v.play().catch(err => { if (err && err.name === 'NotAllowedError') { v.muted = true; $('#cMute').innerHTML = ic('mute'); v.play().catch(() => { }); toast(t('Tap for sound')); } });
@@ -242,7 +244,20 @@ async function play(c, isRetry) {
   } catch (e) { showMsg(t('Could not play this'), whyHtml(c.url, false, String(e && e.message || e)), true); }
 }
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
-v.addEventListener('playing', () => { spin(false); $('#msg').hidden = true; if (v.animate && !RM && v.currentTime < 3) v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out' }); }); v.addEventListener('waiting', () => { if (S.cur) spin(true); }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url, proxied(S.cur.url) !== S.cur.url, (v.error ? 'media error ' + v.error.code + (v.error.message ? ' ' + v.error.message : '') : '') + (S.dbg ? ' · ' + S.dbg : '')), true); });
+v.addEventListener('playing', () => { spin(false); $('#msg').hidden = true; if (v.animate && !RM && v.currentTime < 3) v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out' }); }); v.addEventListener('waiting', () => { if (S.cur) spin(true); armStall(); });
+/* Live stall watchdog: if a live channel stays frozen, jump to the live edge (HLS) or reconnect (TS) instead of waiting forever. */
+let stallT = null, stallN = 0;
+function armStall() {
+  clearTimeout(stallT); stallT = null; if (!S.cur || S.cur.kind !== 'live') return; const k = S.cur.key, t0 = v.currentTime;
+  stallT = setTimeout(() => {
+    stallT = null; if (!S.cur || S.cur.key !== k || v.paused || v.currentTime > t0 + .5) return; stallN++;
+    if (hls) { const edge = hls.liveSyncPosition; if (edge && edge > v.currentTime + 1) v.currentTime = edge; else { hls.stopLoad(); hls.startLoad(); } }
+    else if (mpg) { try { mpg.unload(); mpg.load(); mpg.play(); } catch (e) { play(S.cur, true); } }
+    else play(S.cur, true);
+    if (stallN < 4) armStall();
+  }, 6000);
+}
+v.addEventListener('playing', () => { clearTimeout(stallT); stallT = null; stallN = 0; retried = false; }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url, proxied(S.cur.url) !== S.cur.url, (v.error ? 'media error ' + v.error.code + (v.error.message ? ' ' + v.error.message : '') : '') + (S.dbg ? ' · ' + S.dbg : '')), true); });
 function showOsd(c) { const o = $('#osd'); if (o && o.animate && !RM) o.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.22,1,.36,1)' }); const n = shownNum(c); $('#osdN').innerHTML = seg(n); $('#osdT').textContent = c.name; $('#osdS').textContent = c.group || ''; liveBar(c); if (fsOn) showOv(); }
 function liveBar(c) { const nn = c.kind === 'live' ? nowNext(c) : null; $('#liveBar').hidden = !(nn && nn.now); if (nn && nn.now) { $('#lbNow').innerHTML = `<b>${hm(nn.now.s)}</b> ${esc(nn.now.t)}`; $('#lbPb').style.width = Math.max(0, Math.min(100, Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100))) + '%'; $('#lbNext').innerHTML = nn.next ? `<b>${hm(nn.next.s)}</b> ${esc(nn.next.t)}` : ''; } }
 function showInfo(c) {
