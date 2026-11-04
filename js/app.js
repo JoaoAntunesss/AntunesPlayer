@@ -26,7 +26,9 @@ const S = { lists: LS.get('ap.lists', []), vis: [], unlocked: false, sort: {}, s
 const saveSet = () => LS.set('ap.set', S.set);
 let toastT; const toast = m => { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('on'), 2400); };
 const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
-const proxied = (u, force) => { const p = S.set.proxy; if (!p || !(force || S.set.proxyStreams || (location.protocol === 'https:' && /^http:/i.test(u)))) return u; return p.includes('{url}') ? p.replace('{url}', encodeURIComponent(u)) : p + encodeURIComponent(u); };
+// The helper only exists for the web version on https. The Android and Windows apps talk to the servers directly (no CORS, no mixed content), so they never use it, even when the helper link came with the synced settings.
+const needsHelper = () => location.protocol === 'https:' && !(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+const proxied = (u, force) => { const p = S.set.proxy; if (!p || !needsHelper() || !(force || S.set.proxyStreams || /^http:/i.test(u))) return u; return p.includes('{url}') ? p.replace('{url}', encodeURIComponent(u)) : p + encodeURIComponent(u); };
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
 const nativeHttp = () => NATIVE && Capacitor.Plugins && Capacitor.Plugins.CapacitorHttp;
 // In the Android app, hls.js loads through the native HTTP layer so servers that block web pages (CORS) still work.
