@@ -8,7 +8,7 @@ const LS = { get(k, d) { try { const v = localStorage.getItem(k); return v == nu
 /* ---------- language ---------- */
 const LANG = (LS.get('ap.lang', '') || navigator.language || 'en').slice(0, 2) === 'pt' ? 'pt' : 'en';
 const PT = { 'Search channels…': 'Pesquisar canais…', 'Favourites': 'Favoritos', 'Recent': 'Recentes', 'All channels': 'Todos os canais', 'Movies': 'Filmes', 'Series': 'Séries', 'Add playlist': 'Adicionar lista', 'Settings': 'Definições', 'Cancel': 'Cancelar', 'Save': 'Guardar', 'Add': 'Adicionar', 'Close': 'Fechar', 'Delete': 'Apagar', 'Refresh': 'Atualizar', 'Playlist link (M3U / M3U8)': 'Link da lista (M3U / M3U8)', 'Paste or upload': 'Colar ou carregar', 'Xtream login': 'Login Xtream', 'Name': 'Nome', 'Server (with http/https)': 'Servidor (com http/https)', 'Username': 'Utilizador', 'Password': 'Palavra-passe', 'TV guide link (XMLTV, optional)': 'Link do guia de programação (XMLTV, opcional)', 'Playlist text': 'Texto da lista', 'or choose a file': 'ou escolhe um ficheiro', 'Welcome to AntunesPlayer': 'Bem-vindo ao AntunesPlayer', 'AntunesPlayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.': 'O AntunesPlayer reproduz as listas que lhe deres — não traz canais. Adiciona a tua lista ou experimenta com emissões de teste gratuitas.', 'Try demo channels': 'Experimentar canais de demonstração', 'Nothing found': 'Nada encontrado', 'Show more': 'Mostrar mais', 'Last channel': 'Último canal', 'No channel': 'Sem canal', 'Added to favourites': 'Adicionado aos favoritos', 'Removed from favourites': 'Removido dos favoritos', 'Loading…': 'A carregar…', 'Could not play this': 'Não foi possível reproduzir', 'Retry': 'Tentar de novo', 'Look': 'Aspeto', 'Theme': 'Tema', 'Number keys jump to': 'As teclas numéricas vão para', 'Channel numbers from the playlist': 'Números dos canais da lista', 'My favourites, in order': 'Os meus favoritos, por ordem', 'Big TV mode': 'Modo TV (grande)', 'Network': 'Rede', 'Helper link for blocked playlists (optional)': 'Link auxiliar para listas bloqueadas (opcional)', 'Also use it for streams': 'Usar também nas emissões', 'Yes': 'Sim', 'No': 'Não', 'Playlists': 'Listas', 'Keyboard & remote': 'Teclado e comando', 'Number': 'Número', 'jump to that channel': 'ir para esse canal', 'next / previous channel': 'canal seguinte / anterior', 'channel list': 'lista de canais', 'favourite on/off': 'favorito sim/não', 'last channel': 'último canal', 'mute': 'sem som', 'record (needs a browser that allows it)': 'gravar (precisa de navegador que permita)', 'full screen': 'ecrã inteiro', 'Recording saved': 'Gravação guardada', 'Recording…': 'A gravar…', 'Recording is not possible for this stream': 'Não é possível gravar esta emissão', 'Download': 'Descarregar', 'Now': 'Agora', 'Next': 'A seguir', 'channels': 'canais', 'Language': 'Idioma', 'Playlist added': 'Lista adicionada', 'Could not load the playlist': 'Não foi possível carregar a lista', 'Fill in the fields': 'Preenche os campos', 'No programme guide for this channel': 'Sem guia para este canal', 'Live': 'Em direto', 'Full screen': 'Ecrã inteiro' };
-Object.assign(PT, { 'Filter categories…': 'Filtrar categorias…', 'TV guide': 'Guia de TV', 'Play': 'Ver', 'Search channels, movies, series…': 'Pesquisar canais, filmes, séries…', 'No guide data yet': 'Sem dados de guia ainda', 'Favourite': 'Favorito', 'Categories': 'Categorias', 'TV': 'TV', 'Season': 'Época', 'Episodes': 'Episódios', 'Loading…': 'A carregar…', 'No episodes found': 'Sem episódios' });
+Object.assign(PT, { 'Search movies and series…': 'Pesquisar filmes e séries…', 'Filter categories…': 'Filtrar categorias…', 'TV guide': 'Guia de TV', 'Play': 'Ver', 'Search channels, movies, series…': 'Pesquisar canais, filmes, séries…', 'No guide data yet': 'Sem dados de guia ainda', 'Favourite': 'Favorito', 'Categories': 'Categorias', 'TV': 'TV', 'Season': 'Época', 'Episodes': 'Episódios', 'Loading…': 'A carregar…', 'No episodes found': 'Sem episódios' });
 Object.assign(PT, { 'Audio': 'Áudio', 'Subtitles': 'Legendas', 'Off': 'Desligadas', 'No extra audio or subtitles': 'Sem áudio ou legendas extra', 'Fit': 'Ajustar', 'Fill': 'Preencher', 'Stretch': 'Esticar', 'Resume': 'Continuar', 'Continue watching': 'Continuar a ver' });
 const VER = 'v20';
 const t = s => (LANG === 'pt' && PT[s]) || s;
@@ -22,7 +22,7 @@ const idbDel = k => idb().then(d => new Promise(ok => { const tx = d.transaction
 
 /* ---------- state ---------- */
 const S0 = 0;
-const S = { lists: LS.get('ap.lists', []), vis: [], unlocked: false, sort: {}, sources: LS.get('ap.sources', []), srcId: LS.get('ap.src', ''), channels: [], favs: LS.get('ap.favs', []), recent: LS.get('ap.recent', []), set: Object.assign({ proxy: '', proxyStreams: false, numberMode: 'chno', theme: 'night', tv: false }, LS.get('ap.set', {})), group: 'all', q: '', shown: 250, cur: null, last: null, epg: {}, byNum: {}, byKey: {} };
+const S = { lists: LS.get('ap.lists', []), vis: [], unlocked: false, sort: {}, sources: LS.get('ap.sources', []), srcId: LS.get('ap.src', ''), channels: [], favs: LS.get('ap.favs', []), recent: LS.get('ap.recent', []), set: Object.assign({ proxy: '', proxyStreams: false, numberMode: 'chno', theme: 'night', tv: false }, LS.get('ap.set', {})), group: 'all', q: '', qs: 'all', shown: 250, cur: null, last: null, epg: {}, byNum: {}, byKey: {} };
 const saveSet = () => LS.set('ap.set', S.set);
 let toastT; const toast = m => { const e = $('#toast'); e.textContent = m; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('on'), 2400); };
 const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -448,12 +448,13 @@ const GDEF = { live: 'all', vod: '_vod', series: '_series' };
 S.mode = 'live'; S.gsel = Object.assign({}, GDEF, LS.get('ap.gsel', {})); S.view = 'home'; S.detail = null; const EPS = LS.get('ap.eps', {});
 let fsOn = false, ovT = 0;
 const screenEl = $('#screen');
+function openSearch(scope) { S.qs = scope || 'all'; if (S.qs !== 'flix') S.fx = false; S.q = ''; $('#q').value = ''; go('search'); }
 function go(r, replace) { const d = (history.state && history.state.d || 0) + (replace ? 0 : 1); if (!replace && ('#' + r) === location.hash) { route(); return; } history[replace ? 'replaceState' : 'pushState']({ d }, '', '#' + r); route(); }
 function route() {
   const h = (location.hash || '#home').slice(1);
   if (h === 'play') { if (S.cur) { doFs(true); return; } history.replaceState({ d: 0 }, '', '#home'); return route(); }
   if (fsOn) doFs(false);
-  let view = 'home';
+  let view = 'home'; const prevView = S.view, prevMode = S.mode;
   if (h === 'live' || h === 'movies' || h === 'series') { view = 'browse'; const m = h === 'live' ? 'live' : h === 'movies' ? 'vod' : 'series'; if (S.mode !== m) { S.mode = m; S.q = ''; $('#q').value = ''; S.shown = 250; } S.group = S.gsel[m]; }
   else if (h === 'detail' && S.detail) view = 'detail';
   else if (h === 'search') view = 'search';
@@ -461,6 +462,9 @@ function route() {
   if (!(view === 'browse' && S.mode === 'live') && S.cur && !fsOn) stopPlayback();
   S.fx = view === 'flix' || (S.fx && (view === 'detail' || view === 'search' || (view === 'browse' && S.mode !== 'live'))); document.body.classList.toggle('fx', !!S.fx);
   if (view === 'flix' && S.view !== 'flix' && S.view !== 'detail') fxIntro();
+  { const viaDetalhe = (prevView === 'detail' && (view === 'search' || view === 'browse')) || (view === 'detail' && (prevView === 'search' || prevView === 'browse'));
+    const mesmo = prevView === view && (view !== 'browse' || prevMode === S.mode);
+    if (!viaDetalhe && !mesmo && view !== 'search') { S.q = ''; $('#q').value = ''; S.shown = 250; } }
   S.view = view; document.body.dataset.view = view; document.body.dataset.mode = view === 'browse' ? S.mode : '';
   render();
   if (view === 'search') setTimeout(() => $('#q').focus(), 50);
@@ -606,12 +610,12 @@ const TITLES = { live: 'Live TV', vod: 'Movies', series: 'Series' };
 function renderHeader() {
   renderNav();
   const vw = S.view; $('#title').textContent = vw === 'browse' ? t(TITLES[S.mode]) : vw === 'search' ? t('Search') : '';
-  $('#q').placeholder = vw === 'search' ? t('Search channels, movies, series…') : vw === 'browse' ? (t('Search') + ' · ' + t(TITLES[S.mode])) : '';
+  $('#q').placeholder = vw === 'search' ? t(S.qs === 'flix' ? 'Search movies and series…' : S.qs === 'live' ? 'Search channels…' : 'Search channels, movies, series…') : vw === 'browse' ? (t('Search') + ' · ' + t(TITLES[S.mode])) : '';
   $('#bGuide').hidden = !(vw === 'home' || (vw === 'browse' && S.mode === 'live'));
   $('#bSearch').hidden = !(vw === 'home' || vw === 'flix') || !S.sources.length; if (!S.sources.length) $('#bGuide').hidden = true;
 }
 const NAV = [['home', 'home', 'Home'], ['live', 'tv', 'Live TV'], ['flix', 'film', 'AntunesFlix'], ['search', 'search', 'Search'], ['settings', 'gear', 'Settings']];
-function renderNav() { const cur = S.view === 'browse' ? (S.mode === 'live' ? 'live' : 'flix') : S.view === 'detail' ? 'flix' : S.view; $$('#bnav button').forEach((b, i) => { const n = NAV[i]; if (!b.innerHTML) { b.innerHTML = ic(n[1]) + `<span>${t(n[2])}</span>`; b.onclick = () => { if (n[0] === 'settings') { settingsDialog(); return; } if (n[0] === 'search') { S.q = ''; $('#q').value = ''; } go(n[0]); }; } b.classList.toggle('on', n[0] === cur); }); $('#bnav').hidden = !S.sources.length; }
+function renderNav() { const cur = S.view === 'browse' ? (S.mode === 'live' ? 'live' : 'flix') : S.view === 'detail' ? 'flix' : S.view; $$('#bnav button').forEach((b, i) => { const n = NAV[i]; if (!b.innerHTML) { b.innerHTML = ic(n[1]) + `<span>${t(n[2])}</span>`; b.onclick = () => { if (n[0] === 'settings') { settingsDialog(); return; } if (n[0] === 'search') { openSearch('all'); return; } go(n[0]); }; } b.classList.toggle('on', n[0] === cur); }); $('#bnav').hidden = !S.sources.length; }
 function tick() { const d = new Date(), tm = d.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit', hour12: false }), dt = d.toLocaleDateString(LANG === 'pt' ? 'pt-PT' : undefined, { weekday: 'short', day: 'numeric', month: 'short' }); $('#clock b').innerHTML = seg(tm); $('#clock small').textContent = dt; $('#ovClock').innerHTML = seg(tm); if (S.cur && S.cur.kind === 'live') liveBar(S.cur); }
 
 /* ---------- home ---------- */
@@ -655,7 +659,7 @@ function renderHome() {
   </div>
   ${cont.length ? `<section class="hrow"><h3>${t('Continue watching')}</h3><div class="rail">${cont.map(posterHtml).join('')}</div></section>` : ''}
   ${rec.length ? `<section class="hrow"><h3>${t('Recent channels')}</h3><div class="rail chrail">${rec.map(c => `<button class="chc" data-k="${c.key}">${logoHtml(c)}<b>${seg(shownNum(c))}</b><span>${esc(c.name)}</span></button>`).join('')}</div></section>` : ''}`;
-  $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
+  $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else if (g === 'search') openSearch('all'); else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
   $('#hRef').onclick = () => selectSource(S.srcId, true);
   wireItems(box);
   $$('.chc', box).forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; if (c) { S.gsel.live = 'recent'; go('live'); play(c); } });
@@ -771,7 +775,7 @@ function vodHome(box) {
 function renderSearch() {
   const box = $('#sres'), q = fold(S.q.trim());
   if (q.length < 2) { box.innerHTML = `<div class="empty">${ic('search')}<p>${t('Type at least 2 letters')}</p></div>`; return; }
-  const res = S.vis.filter(c => lname(c).includes(q)), sec = (k, label, f) => { const a = res.filter(c => c.kind === k); return a.length ? `<section class="hrow"><h3>${label} <small>${fmtN(a.length)}</small></h3>${k === 'live' ? `<div class="slist">${a.slice(0, 60).map(rowHtml).join('')}</div>` : `<div class="rail">${a.slice(0, 40).map(posterHtml).join('')}</div>`}</section>` : ''; };
+  const kinds = S.qs === 'flix' ? ['vod', 'series'] : S.qs === 'live' ? ['live'] : ['live', 'vod', 'series'], res = S.vis.filter(c => kinds.includes(c.kind) && lname(c).includes(q)), sec = (k, label, f) => { const a = res.filter(c => c.kind === k); return a.length ? `<section class="hrow"><h3>${label} <small>${fmtN(a.length)}</small></h3>${k === 'live' ? `<div class="slist">${a.slice(0, 60).map(rowHtml).join('')}</div>` : `<div class="rail">${a.slice(0, 40).map(posterHtml).join('')}</div>`}</section>` : ''; };
   box.innerHTML = (sec('live', t('Live TV')) + sec('vod', t('Movies')) + sec('series', t('Series'))) || `<div class="empty"><h3>${t('Nothing found')}</h3></div>`;
   wireItems(box);
 }
@@ -916,7 +920,7 @@ function listsDialog() {
 
 /* ---------- wiring ---------- */
 [['#bBack', 'back'], ['#bSearch', 'search'], ['#bGuide', 'guide'], ['#bSet', 'gear'], ['#qWrap .si', 'search'], ['#pExpand', 'expand'], ['#cExit', 'back'], ['#cBack', 'rew10'], ['#cFwd', 'fwd10'], ['#cPlay', 'pause'], ['#cPrev', 'skp'], ['#cNext', 'skn'], ['#cTrk', 'cc'], ['#cAsp', 'aspect'], ['#cRec', 'rec'], ['#cMute', 'vol'], ['#cInfo', 'info'], ['#cMore', 'dots'], ['#cpPrev', 'left'], ['#cpNext', 'right'], ['#csClose', 'close'], ['#cList i', 'stack']].forEach(([s, n]) => { $(s).innerHTML = ic(n); });
-$('#bBack').onclick = () => back(); $('#bSearch').onclick = () => { S.q = ''; $('#q').value = ''; go('search'); }; $('#bGuide').onclick = openGuide; $('#bSet').onclick = settingsDialog; $('#logo').onclick = () => go('home');
+$('#bBack').onclick = () => back(); $('#bSearch').onclick = () => openSearch(S.view === 'flix' ? 'flix' : 'all'); $('#bGuide').onclick = openGuide; $('#bSet').onclick = settingsDialog; $('#logo').onclick = () => go('home');
 let qT; $('#q').oninput = e => { S.q = e.target.value; S.shown = 250; clearTimeout(qT); qT = setTimeout(() => S.view === 'search' ? renderSearch() : renderList(), 150); };
 $('#cFav').onclick = () => toggleFav(S.cur); $('#cPrev').onclick = () => zap(-1); $('#cNext').onclick = () => zap(1); $('#cRec').onclick = toggleRec;
 $('#cMute').onclick = () => { v.muted = !v.muted; $('#cMute').innerHTML = ic(v.muted ? 'mute' : 'vol'); };
@@ -1198,7 +1202,7 @@ function renderFlix() {
   }
   box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>` +
     (tab !== 'mylist' && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
-  wireItems(box); wireCw(box); $('#fxS', box).onclick = () => { S.q = ''; $('#q').value = ''; go('search'); };
+  wireItems(box); wireCw(box); $('#fxS', box).onclick = () => openSearch('flix');
   const fr = $('#fxR', box); if (fr) fr.onclick = () => surprise(withArt);
   lazyRows(box); $('#fxH', box).onclick = () => go('home');
   $$('[data-ft]', box).forEach(b => b.onclick = () => { S.flixTab = b.dataset.ft; renderFlix(); box.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`[data-ft="${S.flixTab}"]`, box); if (f) f.focus(); }, 20); });
