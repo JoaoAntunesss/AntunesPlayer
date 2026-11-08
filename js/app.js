@@ -30,6 +30,9 @@ const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 
 const needsHelper = () => location.protocol === 'https:' && !(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
 const proxied = (u, force) => { const p = S.set.proxy; if (!p || !needsHelper() || !(force || S.set.proxyStreams || /^http:/i.test(u))) return u; return p.includes('{url}') ? p.replace('{url}', encodeURIComponent(u)) : p + encodeURIComponent(u); };
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+// Windows app (Electron) opens the app with ?desktop=1; a browser opened by it to sign in arrives with #login-pc=CODE
+const DESKTOP = (() => { const q = /[?&]desktop=1\b/.test(location.search); try { if (q) sessionStorage.setItem('ap.desktop', '1'); return sessionStorage.getItem('ap.desktop') === '1'; } catch (e) { return q; } })();
+const LOGIN_PC = (location.hash.match(/^#login-pc=([A-Z2-9]{8})$/) || [])[1] || '';
 const nativeHttp = () => NATIVE && Capacitor.Plugins && Capacitor.Plugins.CapacitorHttp;
 // In the Android app, hls.js loads through the native HTTP layer so servers that block web pages (CORS) still work.
 // Decodes base64 with the browser's native decoder: far faster than a JS loop and keeps TV boxes from stuttering.
@@ -1394,6 +1397,8 @@ async function googleSignIn() {
     // open the Google account picker first (Firebase loads while the person picks)
     const fbw = fbLoad(); const r = await P.FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true }); const tok = r && r.credential && r.credential.idToken;
     if (!tok) throw new Error('no token'); const fb = await fbw; await fb.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(tok));
+  } else if (DESKTOP) {
+    await desktopGoogle();
   } else {
     const fb = await fbLoad(), p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
     try { await fb.auth().signInWithPopup(p); } catch (e) { if (/popup-blocked|operation-not-supported/.test(e.code || '')) await fb.auth().signInWithRedirect(p); else throw e; }
@@ -1445,6 +1450,50 @@ function pairDialog() {
   };
   pairT = setTimeout(poll, 2500);
 }
+/* Windows app: Google refuses to sign in inside app windows ("this browser or app may not be secure").
+   The app opens the PC's own browser on the web version with a one-time code. You sign in there, and that page
+   sends the Google credential back, encrypted with the code (same channel as "Send to a TV"). */
+const WEB_URL = 'https://joaoantunesss.github.io/AntunesPlayer/';
+function desktopGoogle() {
+  return new Promise((resolve, reject) => {
+    const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => PAIR_ABC[b % 32]).join(''), url = FB.databaseURL + '/pair/' + code + '.json', end = Date.now() + 10 * 60e3;
+    const abrir = () => window.open(WEB_URL + '#login-pc=' + code, '_blank');
+    openDlg(`<h2>${ic('user')} ${t('Sign in with Google')}</h2><p>${t('Your web browser opened. Sign in with Google there and this window carries on by itself.')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="pSt">${t('Waiting for the browser…')}</p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="pOpen">${t('Open the browser again')}</button></div>`);
+    let tm = 0, done = false; const fim = e => { done = true; clearTimeout(tm); if (e) reject(e); };
+    $('#dx').onclick = () => { fim(new Error('cancelled')); dlg.close(); };
+    $('#pOpen').onclick = abrir; abrir();
+    const poll = async () => {
+      if (done) return;
+      if (!dlg.open || !$('#pOpen', dlg)) { fim(new Error('cancelled')); return; }
+      if (Date.now() > end) { $('#pSt').textContent = t('The code expired. Open it again for a new one.'); fim(new Error('cancelled')); return; }
+      try {
+        const r = await fetch(url, { cache: 'no-store' }); const v = r.ok ? await r.json() : null;
+        if (v && v.d) {
+          fetch(url, { method: 'DELETE' }).catch(() => { }); const g = await unseal(v.d, code + PEPPER);
+          if (g && g.idToken) { $('#pSt').textContent = t('Signing in…'); const fb = await fbLoad(); await fb.auth().signInWithCredential(firebase.auth.GoogleAuthProvider.credential(g.idToken, g.accessToken || null)); done = true; resolve(); return; }
+        }
+      } catch (e) { if (e && e.code && /auth\//.test(e.code)) { fim(e); return; } }
+      tm = setTimeout(poll, 2500);
+    };
+    tm = setTimeout(poll, 2000);
+  });
+}
+// web version opened by the Windows app: sign in here and send the credential to the PC
+function loginPcDialog(code) {
+  openDlg(`<h2>${ic('user')} ${t('Sign in on the PC app')}</h2><p>${t('Sign in with Google here to finish signing in on AntunesPlayer for Windows. Check that the code is the same as on the PC:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="lpSt"></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="lpGo">${ic('user')} ${t('Continue with Google')}</button></div>`);
+  $('#dx').onclick = () => dlg.close();
+  $('#lpGo').onclick = async () => {
+    const b = $('#lpGo'); b.disabled = true; $('#lpSt').textContent = '';
+    try {
+      const fb = await fbLoad(), p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+      const r = await fb.auth().signInWithPopup(p), cr = r.credential || {};
+      if (!cr.idToken) throw new Error('no token');
+      await fb.database().ref('pair/' + code).set({ d: await seal({ idToken: cr.idToken, accessToken: cr.accessToken || '' }, code + PEPPER), t: firebase.database.ServerValue.TIMESTAMP });
+      openDlg(`<h2>${ic('user')} ${t('Done')}</h2><p>${t('You can go back to the PC app: it is signing in now. You can close this tab.')}</p><div class="row"><button class="btn p" id="dx">OK</button></div>`); $('#dx').onclick = () => dlg.close();
+    } catch (e) { b.disabled = false; const m = String(e && (e.message || e.code) || e); if (!/closed-by-user|cancel/i.test(m)) $('#lpSt').textContent = t('Could not sign in') + ': ' + m; }
+  };
+}
+Object.assign(PT, { 'Your web browser opened. Sign in with Google there and this window carries on by itself.': 'Abrimos o navegador do teu PC. Entra com a Google lá e esta janela continua sozinha.', 'Waiting for the browser…': 'À espera do navegador…', 'Open the browser again': 'Abrir o navegador outra vez', 'Signing in…': 'A entrar…', 'Sign in on the PC app': 'Entrar na app do PC', 'Sign in with Google here to finish signing in on AntunesPlayer for Windows. Check that the code is the same as on the PC:': 'Entra com a Google aqui para acabares de entrar no AntunesPlayer para Windows. Confirma que o código é igual ao do PC:', 'Continue with Google': 'Continuar com a Google', 'You can go back to the PC app: it is signing in now. You can close this tab.': 'Podes voltar à app do PC: já está a entrar. Podes fechar este separador.' });
 function sendToTvDialog() {
   openDlg(`<h2>${ic('tv')} ${t('Send to a TV')}</h2><label>${t('Code shown on the TV')}</label><input id="tvC" autocomplete="off" autocapitalize="characters" placeholder="ABCD-EFGH" style="text-transform:uppercase;letter-spacing:.2em"><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="tvGo">${t('Send to a TV')}</button></div>`);
   $('#dx').onclick = accountDialog;
@@ -1506,4 +1555,5 @@ function askMode() {
 }
 setTimeout(() => checkUpdate(false), 4000);
 cloudBoot().catch(e => console.warn('cloud', e));
+if (LOGIN_PC && !NATIVE && !DESKTOP) setTimeout(() => loginPcDialog(LOGIN_PC), 400);
 })();

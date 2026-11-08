@@ -63,7 +63,7 @@ app.whenReady().then(async () => {
     if (input.key === 'F5') { win.webContents.reload(); e.preventDefault(); }
     if (input.key === 'F12' && input.control && input.shift) win.webContents.toggleDevTools();
   });
-  win.loadURL(`http://localhost:${port}/`);
+  win.loadURL(`http://localhost:${port}/?desktop=1`); // ?desktop=1: o início de sessão Google abre no navegador do PC
 });
 
 app.on('window-all-closed', () => app.quit());
