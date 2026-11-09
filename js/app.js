@@ -1244,16 +1244,25 @@ const XMAS_TITLE = /christmas|xmas|\bnatal\b|navidad|\bno[eë]l\b|grinch|santa c
 Object.assign(PT, { 'Christmas': 'Natal', 'Comedy': 'Comédia', 'Romance': 'Romance', 'Action': 'Ação', 'Adventure': 'Aventura', 'Animation': 'Animação', 'Family & kids': 'Família e crianças', 'Horror': 'Terror', 'Thriller': 'Suspense', 'Crime': 'Crime', 'Drama': 'Drama', 'Sci-fi': 'Ficção científica', 'Fantasy': 'Fantasia', 'Mystery': 'Mistério', 'Documentaries': 'Documentários', 'War': 'Guerra', 'History': 'História', 'Music': 'Música', 'Western': 'Western', 'Reality TV': 'Reality shows', 'Genres': 'Géneros' });
 function genreOf(c) {
   const txt = c.genre || GEN[c.key] || '', sig = txt + '|' + (c.name || '');
-  if (c._gs !== sig) { c._gs = sig; c._g = GENRES.filter(g => txt && g[2].test(txt)).map(g => g[0]); if (!c._g.includes('xmas') && XMAS_TITLE.test(c.name || '')) c._g.push('xmas'); }
+  if (c._gs !== sig) { c._gs = sig; c._g = txt ? GENRES.map(g => [g[0], txt.search(g[2])]).filter(x => x[1] > -1).sort((a, b) => a[1] - b[1]).map(x => x[0]) : []; if (!c._g.includes('xmas') && XMAS_TITLE.test(c.name || '')) c._g.push('xmas'); }
   return c._g;
 }
 const genSort = (a, b) => (b.rating || 0) - (a.rating || 0) || (b.added || 0) - (a.added || 0);
 const xmasSeason = () => { const d = new Date(), m = d.getMonth(); return m === 10 || m === 11 || (m === 0 && d.getDate() <= 6); };
 function genreGroups(all) { const m = {}; for (const c of all) for (const g of genreOf(c)) (m[g] || (m[g] = [])).push(c); return m; }
 // one row per genre with at least 4 titles, in the order of GENRES (Christmas goes to the end out of season)
+// a film whose main genre is this one comes before films that only have it as a side genre
+const genByMain = id => (a, b) => (genreOf(a).indexOf(id) > 0) - (genreOf(b).indexOf(id) > 0) || genSort(a, b);
 function genreRows(all) {
   const m = genreGroups(all.filter(c => c.logo)), ids = GENRES.map(g => g[0]); if (!xmasSeason()) ids.push(ids.shift());
-  return ids.filter(id => (m[id] || []).length >= 4).map(id => [t(GENRES.find(g => g[0] === id)[1]), m[id].slice().sort(genSort).slice(0, 24), { gen: id }, m[id].length]);
+  // like Netflix, each row shows mostly titles not shown in the rows above, so the rows do not all look the same
+  const used = new Set();
+  return ids.map(id => {
+    const list = (m[id] || []).slice().sort(genByMain(id)), fresh = list.filter(c => !used.has(c.key));
+    const pick = (fresh.length >= 8 ? fresh : fresh.concat(list.filter(c => used.has(c.key)))).slice(0, 24);
+    if (pick.length < 4) return null; pick.forEach(c => used.add(c.key));
+    return [t(GENRES.find(g => g[0] === id)[1]), pick, { gen: id }, list.length];
+  }).filter(Boolean);
 }
 function genreChips(all) {
   const m = genreGroups(all), ids = GENRES.map(g => g[0]).filter(id => (m[id] || []).length >= 4); if (!xmasSeason()) { const i = ids.indexOf('xmas'); if (i > -1) ids.push(ids.splice(i, 1)[0]); }
@@ -1262,13 +1271,13 @@ function genreChips(all) {
 // background: read the genre of a few films at a time (best rated and newest first), gently, and keep it
 let genBusy = false, genDone = 0;
 async function genEnrich() {
-  const x = xbase(); if (genBusy || !x || genDone >= 80) return;
+  const x = xbase(); if (genBusy || !x || genDone >= 150) return;
   const films = S.vis.filter(c => c.kind === 'vod' && c.vodId && c.logo && !c.genre && GEN[c.key] == null); if (!films.length) return;
-  const seen = new Set(), queue = films.slice().sort(genSort).slice(0, 60).concat(films.slice().sort((a, b) => (b.added || 0) - (a.added || 0)).slice(0, 40)).filter(c => !seen.has(c.key) && seen.add(c.key));
+  const seen = new Set(), queue = films.slice().sort(genSort).slice(0, 100).concat(films.slice().sort((a, b) => (b.added || 0) - (a.added || 0)).slice(0, 60)).filter(c => !seen.has(c.key) && seen.add(c.key));
   genBusy = true; const src = S.srcId; let got = 0;
   try {
     for (const c of queue) {
-      if (genDone >= 80 || S.srcId !== src) break;
+      if (genDone >= 150 || S.srcId !== src) break;
       if (S.cur && isVodNow()) { await new Promise(r => setTimeout(r, 5000)); continue; }
       try { const d = await fetchJson(`${x.base}/player_api.php?username=${x.q(x.s.user)}&password=${x.q(x.s.pass)}&action=get_vod_info&vod_id=${x.q(c.vodId)}`); GEN[c.key] = (d && d.info && d.info.genre) || ''; if (GEN[c.key]) got++; genDone++; saveGen(); } catch (e) { genDone++; }
       await new Promise(r => setTimeout(r, 400));
@@ -1289,7 +1298,7 @@ function renderFlix() {
     const mine = favList().filter(c => c.kind === 'vod' || c.kind === 'series');
     body = mine.length ? `<div class="fxgrid">${mine.map(posterHtml).join('')}</div>` : `<div class="empty"><p>${t('Your list is empty. Add films and series with the star.')}</p></div>`;
   } else if (S.flixGenre) {
-    const g = GENRES.find(x => x[0] === S.flixGenre), list = all.filter(c => genreOf(c).includes(S.flixGenre)).sort(genSort);
+    const g = GENRES.find(x => x[0] === S.flixGenre), list = all.filter(c => genreOf(c).includes(S.flixGenre)).sort(genByMain(S.flixGenre));
     body = `<div class="rh fxgh"><h3>${esc(t(g ? g[1] : ''))} <small>${fmtN(list.length)}</small></h3></div>` + (list.length ? `<div class="fxgrid">${list.slice(0, 600).map(posterHtml).join('')}</div>` : `<div class="empty"><p>${t('Nothing found')}</p></div>`);
   } else {
     const cw = contFor(kinds), rows = [[t('My list'), favList().filter(c => kinds.includes(c.kind))]];
