@@ -78,8 +78,8 @@ async function loadSource(src) {
     const [cats, live, vod, vcats, ser, scats] = await Promise.all([api('get_live_categories'), api('get_live_streams'), api('get_vod_streams').catch(() => []), api('get_vod_categories').catch(() => []), api('get_series').catch(() => []), api('get_series_categories').catch(() => [])]);
     const cm = {}, vm = {}, sm = {}; (scats || []).forEach(c => sm[c.category_id] = c.category_name); (cats || []).forEach(c => cm[c.category_id] = c.category_name); (vcats || []).forEach(c => vm[c.category_id] = c.category_name);
     const list = (live || []).map(x => ({ name: x.name, logo: x.stream_icon || '', group: cm[x.category_id] || '', tvg: x.epg_channel_id || '', num: parseInt(x.num, 10) || 0, url: `${base}/live/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.m3u8`, kind: 'live', sid: x.stream_id, arch: +x.tv_archive || 0, archD: +x.tv_archive_duration || 0 }))
-      .concat((vod || []).map(x => ({ name: x.name, logo: x.stream_icon || '', vodId: x.stream_id, rating: parseFloat(x.rating) || 0, added: +x.added || 0, group: vm[x.category_id] || 'Movies', tvg: '', num: 0, url: `${base}/movie/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.${x.container_extension || 'mp4'}`, kind: 'vod' })))
-      .concat((ser || []).map(x => ({ name: x.name, logo: x.cover || '', group: sm[x.category_id] || 'Series', tvg: '', num: 0, url: 'xtream-series:' + x.series_id, seriesId: x.series_id, rating: parseFloat(x.rating) || 0, added: +x.last_modified || 0, kind: 'series' })));
+      .concat((vod || []).map(x => ({ name: x.name, logo: x.stream_icon || '', vodId: x.stream_id, rating: parseFloat(x.rating) || 0, added: +x.added || 0, group: vm[x.category_id] || 'Movies', tvg: '', num: 0, url: `${base}/movie/${encodeURIComponent(src.user)}/${encodeURIComponent(src.pass)}/${x.stream_id}.${x.container_extension || 'mp4'}`, genre: x.genre || '', kind: 'vod' })))
+      .concat((ser || []).map(x => ({ name: x.name, logo: x.cover || '', group: sm[x.category_id] || 'Series', tvg: '', num: 0, url: 'xtream-series:' + x.series_id, seriesId: x.series_id, rating: parseFloat(x.rating) || 0, added: +x.last_modified || 0, genre: x.genre || '', kind: 'series' })));
     const acct = await fetchJson(`${base}/player_api.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}`).then(d => d && d.user_info ? { exp: +d.user_info.exp_date || 0, max: d.user_info.max_connections, act: d.user_info.active_cons, status: d.user_info.status, tz: d.server_info && d.server_info.timezone || '' } : null).catch(() => null);
     return { acct, list: finish(list), epg: src.epg || `${base}/xmltv.php?username=${encodeURIComponent(src.user)}&password=${encodeURIComponent(src.pass)}` };
   }
@@ -126,12 +126,12 @@ const hm = ms => new Date(ms).toLocaleTimeString(LOC, { hour: '2-digit', minute:
 const curSrc = () => S.sources.find(x => x.id === S.srcId) || S.sources[0];
 async function selectSource(id, refresh) {
   const src = S.sources.find(x => x.id === id); if (!src) { S.channels = []; S.srcId = ''; S.acct = null; indexChannels(); render(); return; }
-  S.srcId = id; LS.set('ap.src', id); S.epg = {}; S.loadErr = ''; let data = refresh ? null : await idbGet('ch:' + id); if (data && data.v !== 3) data = null;
-  if (!data) { S.loading = true; render(); try { data = await loadSource(src); data.v = 3; data.at = Date.now(); await idbSet('ch:' + id, data); } catch (e) { S.loading = false; S.loadErr = t('Could not load the playlist') + ': ' + e.message; render(); return; } }
+  S.srcId = id; LS.set('ap.src', id); S.epg = {}; S.loadErr = ''; let data = refresh ? null : await idbGet('ch:' + id); if (data && data.v !== 4) data = null;
+  if (!data) { S.loading = true; render(); try { data = await loadSource(src); data.v = 4; data.at = Date.now(); await idbSet('ch:' + id, data); } catch (e) { S.loading = false; S.loadErr = t('Could not load the playlist') + ': ' + e.message; render(); return; } }
   S.loading = false; S.channels = data.list; S.acct = data.acct || null; src.epgUrl = data.epg; indexChannels(); refreshVis(); S.shown = 250; render(); loadEpg(id, data.epg);
   if (!S.booted) { S.booted = true; bootLast(); }
   if (!refresh && S.set.autoRefresh !== false && Date.now() - (data.at || 0) > 24 * 3600e3) setTimeout(async () => { // refresh the channel list quietly once a day
-    try { const nd = await loadSource(src); nd.v = 3; nd.at = Date.now(); await idbSet('ch:' + id, nd); if (S.srcId !== id) return; S.channels = nd.list; S.acct = nd.acct || S.acct; indexChannels(); refreshVis(); if (!fsOn) render(); toast(t('Playlist updated')); } catch (e) { }
+    try { const nd = await loadSource(src); nd.v = 4; nd.at = Date.now(); await idbSet('ch:' + id, nd); if (S.srcId !== id) return; S.channels = nd.list; S.acct = nd.acct || S.acct; indexChannels(); refreshVis(); if (!fsOn) render(); toast(t('Playlist updated')); } catch (e) { }
   }, 8000);
 }
 /* ---------- import / export favourites (JSON) ---------- */
@@ -793,7 +793,7 @@ async function openDetail(c) { if (!c) return; S.fxSn = ''; S.fxTabD = ''; S.det
 function xbase() { const s = curSrc(); return s && s.type === 'xtream' ? { s, base: s.server.replace(/\/+$/, ''), q: encodeURIComponent } : null; }
 async function loadDetail(c) {
   const x = xbase(); if (!x || (!c.vodId && !c.seriesId)) { S.dinfo = {}; renderDetailShell(); return; }
-  try { const d = await fetchJson(`${x.base}/player_api.php?username=${x.q(x.s.user)}&password=${x.q(x.s.pass)}&action=${c.seriesId ? 'get_series_info&series_id=' + x.q(c.seriesId) : 'get_vod_info&vod_id=' + x.q(c.vodId)}`); if (S.detail !== c) return; S.dinfo = d.info || {}; if (c.seriesId) S.deps = d.episodes || {}; if (S.dinfo.duration_secs) c.dur = +S.dinfo.duration_secs; }
+  try { const d = await fetchJson(`${x.base}/player_api.php?username=${x.q(x.s.user)}&password=${x.q(x.s.pass)}&action=${c.seriesId ? 'get_series_info&series_id=' + x.q(c.seriesId) : 'get_vod_info&vod_id=' + x.q(c.vodId)}`); if (S.detail !== c) return; S.dinfo = d.info || {}; if (S.dinfo.genre && !c.genre && GEN[c.key] !== S.dinfo.genre) { GEN[c.key] = S.dinfo.genre; saveGen(); } if (c.seriesId) S.deps = d.episodes || {}; if (S.dinfo.duration_secs) c.dur = +S.dinfo.duration_secs; }
   catch (e) { if (S.detail === c) S.dinfo = { err: e.message }; }
   if (S.detail === c && S.view === 'detail') renderDetailShell();
   if (S.autoResume && S.detail === c) { S.autoResume = false; const x = c.seriesId ? serResume(c) : null; if (x) enterFsFor(x.ep); }
@@ -1160,7 +1160,8 @@ function lazyRows(box) {
   const sc = /(auto|scroll)/.test(getComputedStyle(box).overflowY) ? box : null; lazyIO = new IntersectionObserver(es => { if (es[0].isIntersecting) more(); }, { root: sc, rootMargin: '900px 0px' }); lazyIO.observe(sent);
 }
 function wireSeeAll(root) {
-  $$('.seeall', root).forEach(b => b.onclick = () => { const m = b.dataset.m; go(m === 'vod' ? 'movies' : 'series'); setTimeout(() => { if (b.dataset.g) { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } else if (b.dataset.sort) { S.sort[S.mode] = b.dataset.sort === 'top' ? 'rate' : 'new'; S.group = GDEF[S.mode] + '!'; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; }, 0); });
+  $$('[data-gen]', root).forEach(b => b.onclick = () => { S.flixGenre = S.flixGenre === b.dataset.gen && b.closest('.fxgen') ? '' : b.dataset.gen; renderFlix(); const bx = $('#vFlix'); if (bx) bx.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`.fxgen [data-gen="${S.flixGenre}"]`) || $('.fxgen [data-gen]'); if (f) f.focus(); }, 20); });
+  $$('.seeall:not([data-gen])', root).forEach(b => b.onclick = () => { const m = b.dataset.m; go(m === 'vod' ? 'movies' : 'series'); setTimeout(() => { if (b.dataset.g) { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } else if (b.dataset.sort) { S.sort[S.mode] = b.dataset.sort === 'top' ? 'rate' : 'new'; S.group = GDEF[S.mode] + '!'; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; }, 0); });
 }
 // "Because you watched X": more from the same genre as the last thing watched, best rated first, nothing already seen
 function becauseRow(kinds, all) {
@@ -1175,6 +1176,71 @@ function surprise(pool) {
   const c = from[Math.floor(Math.random() * from.length)]; if (c) openDetail(c);
 }
 Object.assign(PT, { 'Surprise me': 'Surpreende-me', 'Because you watched': 'Porque viste' });
+/* ---------- genres: Netflix-style rows (Comedy, Romance, Christmas…) ----------
+   Series lists usually carry the genre; films often don't, so it is read from the film's details
+   (when you open one, and a few at a time in the background) and kept on the device. */
+const GEN = LS.get('ap.gen', {}); let genSaveT = 0;
+const saveGen = () => { clearTimeout(genSaveT); genSaveT = setTimeout(() => { const k = Object.keys(GEN); if (k.length > 9000) k.slice(0, k.length - 9000).forEach(x => delete GEN[x]); LS.set('ap.gen', GEN); }, 800); };
+// [id, English label, what that genre is called in the providers' genre text (en/pt/es/fr/it/de)]
+const GENRES = [
+  ['xmas', 'Christmas', /christmas|xmas|\bnatal|navidad|no[eë]l\b|weihnacht/i],
+  ['comedy', 'Comedy', /com[eé]d|kom[oö]die|humou?r|sitcom|rom-?com/i],
+  ['romance', 'Romance', /roman(ce|tic|tico|tique|tisch|zo)|rom[aâá]ntic|rom-?com/i],
+  ['action', 'Action', /\ba[cç][cç]?[aã]o\b|action|acci[oó]n|azione/i],
+  ['adventure', 'Adventure', /advent|aventur|abenteuer/i],
+  ['animation', 'Animation', /anima[tcç]|anime|cartoon|zeichentrick/i],
+  ['family', 'Family & kids', /fam[ií]l|\bkids\b|infantil|enfant|crian[cç]/i],
+  ['horror', 'Horror', /horr|terror|orrore/i],
+  ['thriller', 'Thriller', /thriller|suspen/i],
+  ['crime', 'Crime', /\bcrim|polic|krimi|gangster/i],
+  ['drama', 'Drama', /drama/i],
+  ['scifi', 'Sci-fi', /sci[- ]?fi|science.?fiction|fic[cç][aã]o cient|ciencia ficci|science-fiction/i],
+  ['fantasy', 'Fantasy', /fant[aá]s/i],
+  ['mystery', 'Mystery', /myst|mist[eé]ri/i],
+  ['docs', 'Documentaries', /docum|\bdocu/i],
+  ['war', 'War', /\bwar\b|guerr|krieg|b[eé]lic/i],
+  ['history', 'History', /hist[oó]r|geschicht/i],
+  ['music', 'Music', /m[uú]sic/i],
+  ['western', 'Western', /western|faroeste/i],
+  ['reality', 'Reality TV', /reality/i]
+];
+const XMAS_TITLE = /christmas|xmas|\bnatal\b|navidad|\bno[eë]l\b|grinch|santa claus|pai natal|weihnacht/i;
+Object.assign(PT, { 'Christmas': 'Natal', 'Comedy': 'Comédia', 'Romance': 'Romance', 'Action': 'Ação', 'Adventure': 'Aventura', 'Animation': 'Animação', 'Family & kids': 'Família e crianças', 'Horror': 'Terror', 'Thriller': 'Suspense', 'Crime': 'Crime', 'Drama': 'Drama', 'Sci-fi': 'Ficção científica', 'Fantasy': 'Fantasia', 'Mystery': 'Mistério', 'Documentaries': 'Documentários', 'War': 'Guerra', 'History': 'História', 'Music': 'Música', 'Western': 'Western', 'Reality TV': 'Reality shows', 'Genres': 'Géneros' });
+function genreOf(c) {
+  const txt = c.genre || GEN[c.key] || '', sig = txt + '|' + (c.name || '');
+  if (c._gs !== sig) { c._gs = sig; c._g = GENRES.filter(g => txt && g[2].test(txt)).map(g => g[0]); if (!c._g.includes('xmas') && XMAS_TITLE.test(c.name || '')) c._g.push('xmas'); }
+  return c._g;
+}
+const genSort = (a, b) => (b.rating || 0) - (a.rating || 0) || (b.added || 0) - (a.added || 0);
+const xmasSeason = () => { const d = new Date(), m = d.getMonth(); return m === 10 || m === 11 || (m === 0 && d.getDate() <= 6); };
+function genreGroups(all) { const m = {}; for (const c of all) for (const g of genreOf(c)) (m[g] || (m[g] = [])).push(c); return m; }
+// one row per genre with at least 4 titles, in the order of GENRES (Christmas goes to the end out of season)
+function genreRows(all) {
+  const m = genreGroups(all.filter(c => c.logo)), ids = GENRES.map(g => g[0]); if (!xmasSeason()) ids.push(ids.shift());
+  return ids.filter(id => (m[id] || []).length >= 4).map(id => [t(GENRES.find(g => g[0] === id)[1]), m[id].slice().sort(genSort).slice(0, 24), { gen: id }, m[id].length]);
+}
+function genreChips(all) {
+  const m = genreGroups(all), ids = GENRES.map(g => g[0]).filter(id => (m[id] || []).length >= 4); if (!xmasSeason()) { const i = ids.indexOf('xmas'); if (i > -1) ids.push(ids.splice(i, 1)[0]); }
+  return ids.length ? `<nav class="fxtabs fxgen" aria-label="${t('Genres')}">${ids.map(id => `<button data-gen="${id}" class="${S.flixGenre === id ? 'on' : ''}">${t(GENRES.find(g => g[0] === id)[1])}</button>`).join('')}</nav>` : '';
+}
+// background: read the genre of a few films at a time (best rated and newest first), gently, and keep it
+let genBusy = false, genDone = 0;
+async function genEnrich() {
+  const x = xbase(); if (genBusy || !x || genDone >= 80) return;
+  const films = S.vis.filter(c => c.kind === 'vod' && c.vodId && c.logo && !c.genre && GEN[c.key] == null); if (!films.length) return;
+  const seen = new Set(), queue = films.slice().sort(genSort).slice(0, 60).concat(films.slice().sort((a, b) => (b.added || 0) - (a.added || 0)).slice(0, 40)).filter(c => !seen.has(c.key) && seen.add(c.key));
+  genBusy = true; const src = S.srcId; let got = 0;
+  try {
+    for (const c of queue) {
+      if (genDone >= 80 || S.srcId !== src) break;
+      if (S.cur && isVodNow()) { await new Promise(r => setTimeout(r, 5000)); continue; }
+      try { const d = await fetchJson(`${x.base}/player_api.php?username=${x.q(x.s.user)}&password=${x.q(x.s.pass)}&action=get_vod_info&vod_id=${x.q(c.vodId)}`); GEN[c.key] = (d && d.info && d.info.genre) || ''; if (GEN[c.key]) got++; genDone++; saveGen(); } catch (e) { genDone++; }
+      await new Promise(r => setTimeout(r, 400));
+    }
+  } finally { genBusy = false; }
+  // show the new rows if the user is still at the top of AntunesFlix and not in the middle of something
+  const box = $('#vFlix'); if (got && S.view === 'flix' && box && box.scrollTop < 40 && !S.flixGenre && !(document.activeElement && box.contains(document.activeElement) && S.set.tv)) renderFlix();
+}
 function renderFlix() {
   const box = $('#vFlix'), tab = S.flixTab, kinds = FLIX_KINDS[tab] || FLIX_KINDS.all;
   const all = S.vis.filter(c => kinds.includes(c.kind)), withArt = all.filter(c => c.logo);
@@ -1186,6 +1252,9 @@ function renderFlix() {
   if (tab === 'mylist') {
     const mine = favList().filter(c => c.kind === 'vod' || c.kind === 'series');
     body = mine.length ? `<div class="fxgrid">${mine.map(posterHtml).join('')}</div>` : `<div class="empty"><p>${t('Your list is empty. Add films and series with the star.')}</p></div>`;
+  } else if (S.flixGenre) {
+    const g = GENRES.find(x => x[0] === S.flixGenre), list = all.filter(c => genreOf(c).includes(S.flixGenre)).sort(genSort);
+    body = `<div class="rh fxgh"><h3>${esc(t(g ? g[1] : ''))} <small>${fmtN(list.length)}</small></h3></div>` + (list.length ? `<div class="fxgrid">${list.slice(0, 600).map(posterHtml).join('')}</div>` : `<div class="empty"><p>${t('Nothing found')}</p></div>`);
   } else {
     const cw = contFor(kinds), rows = [[t('My list'), favList().filter(c => kinds.includes(c.kind))]];
     const t10 = byRating.slice(0, 10);
@@ -1193,22 +1262,24 @@ function renderFlix() {
     const rest = [[t('New on AntunesFlix'), recent.slice(0, 24), { sort: 'new', m: kinds.length > 1 ? 'vod' : kinds[0] }]];
     if (kinds.includes('vod')) rest.push([t('Top rated films'), withArt.filter(c => c.kind === 'vod' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'vod', sort: 'top' }]);
     if (kinds.includes('series')) rest.push([t('Top rated series'), withArt.filter(c => c.kind === 'series' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'series', sort: 'top' }]);
-    // genres / categories from both, taking turns
+    const gr = genreRows(all), xmasRow = xmasSeason() ? gr.find(r => r[2].gen === 'xmas') : null;
+    if (xmasRow) rows.splice(1, 0, xmasRow); gr.filter(r => r !== xmasRow).forEach(r => rest.push(r));
+    // the provider's own categories from both, taking turns
     const cv = kinds.includes('vod') ? catItems('vod').filter(x => x.id.indexOf('v:') === 0 && x.icon !== 'lock').map(g => ['vod', g]) : [], cs = kinds.includes('series') ? catItems('series').filter(x => x.id.indexOf('s:') === 0 && x.icon !== 'lock').map(g => ['series', g]) : [];
     const cats = []; for (let i = 0; i < Math.max(cv.length, cs.length) && cats.length < 120; i++) { if (cv[i]) cats.push(cv[i]); if (cs[i]) cats.push(cs[i]); }
     const byG = groupBy(all, c => c.kind + '|' + (c.group || '—'));
     cats.forEach(([m, g]) => rest.push([g.label, (byG.get(m + '|' + g.id.slice(2)) || []).slice(0, 24), { m, g: g.id }, g.n]));
-    const rowHtmlF = r => `<section class="hrow vrow"><div class="rh"><h3>${esc(r[0])}${r[3] ? ` <small>${fmtN(r[3])}</small>` : ''}</h3>${r[2] ? `<button class="seeall" data-m="${r[2].m}" ${r[2].g ? `data-g="${esc(r[2].g)}"` : ''} ${r[2].sort ? `data-sort="${r[2].sort}"` : ''}>${t('See all')}</button>` : ''}</div><div class="rail">${r[1].map(posterHtml).join('')}</div></section>`;
+    const rowHtmlF = r => `<section class="hrow vrow"><div class="rh"><h3>${esc(r[0])}${r[3] ? ` <small>${fmtN(r[3])}</small>` : ''}</h3>${r[2] && r[2].gen ? `<button class="seeall" data-gen="${r[2].gen}">${t('See all')}</button>` : r[2] ? `<button class="seeall" data-m="${r[2].m}" ${r[2].g ? `data-g="${esc(r[2].g)}"` : ''} ${r[2].sort ? `data-sort="${r[2].sort}"` : ''}>${t('See all')}</button>` : ''}</div><div class="rail">${r[1].map(posterHtml).join('')}</div></section>`;
     body = (cw.length ? `<section class="hrow vrow cwrow"><div class="rh"><h3>${t('Continue watching')}</h3></div><div class="rail">${cw.map(cwHtml).join('')}</div></section>` : '') + rows.filter(r => r[1].length).map(rowHtmlF).join('') + (t10.length >= 5 ? top10Html(t10) : '');
     // only the first rows go in now; the others are added as you scroll (a big catalogue has 100+ genre rows)
     lazyRest = rest.filter(r => r[1].length); lazyHtml = rowHtmlF; body += lazyRest.splice(0, 8).map(rowHtmlF).join('') + (lazyRest.length ? '<div class="fxmore" id="fxMore"></div>' : '');
   }
-  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>` +
-    (tab !== 'mylist' && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
+  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>${tab !== 'mylist' ? genreChips(all) : ''}` +
+    (tab !== 'mylist' && !S.flixGenre && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
   wireItems(box); wireCw(box); $('#fxS', box).onclick = () => openSearch('flix');
   const fr = $('#fxR', box); if (fr) fr.onclick = () => surprise(withArt);
-  lazyRows(box); $('#fxH', box).onclick = () => go('home');
-  $$('[data-ft]', box).forEach(b => b.onclick = () => { S.flixTab = b.dataset.ft; renderFlix(); box.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`[data-ft="${S.flixTab}"]`, box); if (f) f.focus(); }, 20); });
+  lazyRows(box); $('#fxH', box).onclick = () => go('home'); setTimeout(genEnrich, 3000);
+  $$('[data-ft]', box).forEach(b => b.onclick = () => { S.flixTab = b.dataset.ft; S.flixGenre = ''; renderFlix(); box.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`[data-ft="${S.flixTab}"]`, box); if (f) f.focus(); }, 20); });
   wireSeeAll(box);
   const slides = $$('.hs', box), dots = $$('.hdots button', box); let hi = 0; clearInterval(flixHeroT);
   const show = n => { hi = (n + slides.length) % slides.length; slides.forEach((x, i) => x.classList.toggle('on', i === hi)); dots.forEach((x, i) => x.classList.toggle('on', i === hi)); };
