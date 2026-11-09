@@ -677,3 +677,5 @@ html.lite .po .fv,html.lite[data-style=circuit] .tile>.i{filter:none!important}
 html.lite #chPanel{background:rgba(6,12,20,.93)}html.lite #bnav{background:rgba(12,18,30,.97)}html.lite dialog::backdrop{background:rgba(3,6,14,.82)}
 html.lite .view{animation:none!important}html.lite dialog{animation-duration:.12s!important}
 html.lite *{transition-duration:.08s!important}
+.fxgen{padding-top:0!important;gap:8px!important}.fxgen button{font-size:13px!important;padding:5px 12px!important;border-color:rgba(255,255,255,.3)!important;color:#ddd!important}.fxgen button.on{color:#fff!important}
+.fxgh{padding:6px 20px 2px}
