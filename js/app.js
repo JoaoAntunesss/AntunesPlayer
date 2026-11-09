@@ -665,6 +665,7 @@ function renderHome() {
     <button class="tile t-mov t-flix" data-go="flix">${TRACE}${ic('film')}<b>Antunes<span class="fxr">Flix</span></b>${ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(M, 'cnt')} ${t('movies')} · ${seg(Se, 'cnt')} ${t('series')}</small>`}<span class="fxchips"><span data-go2="movies">${ic('film')} ${t('Movies')}</span><span data-go2="series">${ic('series')} ${t('Series')}</span></span></button>
     <div class="minis">
       <button class="mini" data-go="guide">${ic('guide')}<span>${t('TV guide')}</span></button>
+      <button class="mini" data-go="sports">${ic('tv')}<span>${t('Games')}</span></button>
       <button class="mini" data-go="fav">${ic('star')}<span>${t('Favourites')}</span><small>${favList().length}</small></button>
       <button class="mini" data-go="search">${ic('search')}<span>${t('Search')}</span></button>
       <button class="mini" data-go="lists">${ic('stack')}<span>${t('Playlists')}</span><small>${S.sources.length}</small></button>
@@ -676,7 +677,7 @@ function renderHome() {
   </div>
   ${cont.length ? `<section class="hrow"><h3>${t('Continue watching')}</h3><div class="rail">${cont.map(posterHtml).join('')}</div></section>` : ''}
   ${rec.length ? `<section class="hrow"><h3>${t('Recent channels')}</h3><div class="rail chrail">${rec.map(c => `<button class="chc" data-k="${c.key}">${logoHtml(c)}<b>${seg(shownNum(c))}</b><span>${esc(c.name)}</span></button>`).join('')}</div></section>` : ''}`;
-  $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else if (g === 'search') openSearch('all'); else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
+  $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'sports') sportsDialog(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else if (g === 'search') openSearch('all'); else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
   $('#hRef').onclick = () => selectSource(S.srcId, true);
   wireItems(box);
   $$('.chc', box).forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; if (c) { S.gsel.live = 'recent'; go('live'); play(c); } });
@@ -1071,6 +1072,38 @@ function checkReminders() {
   setTimeout(() => { for (let i = REM.length - 1; i >= 0; i--) if (REM[i].done && REM[i].s < Date.now() - 600e3) REM.splice(i, 1); saveRem(); }, 1000);
 }
 setInterval(checkReminders, 15000);
+
+/* ---------- sports agenda: the games of the next 24 hours, taken from the TV guide ---------- */
+const SPORT_CH = /sport|desport|dazn|eleven|eurosport|benfica|\bbtv\b|porto canal|sporting tv|canal 11|\bespn|bein|\bnba\b|ufc|motor|\bf1\b|golf|t[eé]nis|tennis|arena/i;
+const SPORT_WORDS = /futebol|football|soccer|\bliga\b|league|champions|taça|\bcup\b|copa|primeira|premier|bundesliga|serie a|laliga|ligue 1|\bnba\b|\bnfl\b|f[oó]rmula ?1|\bf1\b|motogp|\bufc\b|t[eé]nis|tennis|basquet|andebol|h[oó]quei|v[oó]lei|rugby|ciclismo|grande pr[eé]mio|grand prix|\bjogo\b|\bao vivo\b|\blive\b/i;
+const NOT_GAME = /resumo|magazine|not[ií]ci|\bnews\b|talk|debate|replay|reposi[cç]|highlights|melhores momentos|antevis|document[aá]ri|\btop\b|golos da/i;
+function sportsEvents(hours) {
+  const now = Date.now(), until = now + hours * 3600e3, ev = new Map();
+  for (const c of S.vis) {
+    if (c.kind !== 'live') continue; const l = epgFor(c); if (!l) continue; const sc = SPORT_CH.test((c.name || '') + ' ' + (c.group || ''));
+    for (const p of l) {
+      if (p.e < now || p.s > until) continue; const tt = (p.t || '').trim(); if (!tt || NOT_GAME.test(tt)) continue;
+      // a game: "Team x Team" / "Team vs Team", or a sports title on a sports channel
+      if (!/\S\s+(x|vs\.?|v)\s+\S/i.test(tt) && !(sc && SPORT_WORDS.test(tt + ' ' + (p.d || '')))) continue;
+      const k = tt.toLowerCase().replace(/\s+/g, ' ') + '|' + Math.round(p.s / 900e3);
+      let e = ev.get(k); if (!e) ev.set(k, e = { t: tt, s: p.s, e: p.e, d: p.d, ch: [] }); if (!e.ch.includes(c)) e.ch.push(c);
+    }
+  }
+  // the same game on many channels (SD/HD/FHD): favourites first, then HD versions
+  const score = c => (S.favs.includes(c.key) ? 0 : 10) + (/\b(fhd|hd)\b/i.test(c.name || '') ? 0 : 1);
+  return [...ev.values()].map(e => { e.ch.sort((a, b) => score(a) - score(b)); return e; }).sort((a, b) => a.s - b.s);
+}
+function sportsDialog() {
+  const list = sportsEvents(24), now = Date.now(), today = new Date().toDateString(), noEpg = !Object.keys(S.epg || {}).length;
+  const when = e => (e.s <= now ? `<i class="splive">${t('Live')}</i> ` : '') + (new Date(e.s).toDateString() === today ? '' : t('tomorrow') + ' ') + hm(e.s);
+  openDlg(`<div class="gh"><h2>${ic('tv')} ${t('Games')}</h2><button class="ib" id="dx" aria-label="${t('Close')}">${ic('back')}</button></div>` + (list.length
+    ? `<p class="mut">${t('Next 24 hours, from the TV guide. Choose a game to watch it or to be reminded.')}</p><div class="catlist sports">${list.map((e, i) => `<button data-sp="${i}"><span><b>${when(e)}</b> ${esc(e.t)}<small class="mut"> · ${esc(e.ch.slice(0, 3).map(c => c.name).join(' · '))}${e.ch.length > 3 ? ' +' + (e.ch.length - 3) : ''}</small></span></button>`).join('')}</div>`
+    : `<p class="mut">${noEpg ? t('The TV guide has not loaded yet. Try again in a moment.') : t('No games found in the TV guide for the next 24 hours.')}</p>`), 'sportsdlg');
+  $('#dx').onclick = () => dlg.close();
+  $$('[data-sp]', dlg).forEach(b => b.onclick = () => { const e = list[+b.dataset.sp]; progDialog(e.ch[0], { s: e.s, e: e.e, t: e.t, d: e.d }); });
+  setTimeout(() => { const f = $('[data-sp]', dlg) || $('#dx'); if (f) f.focus(); }, 40);
+}
+Object.assign(PT, { 'Games': 'Jogos', 'tomorrow': 'amanhã', 'Next 24 hours, from the TV guide. Choose a game to watch it or to be reminded.': 'Próximas 24 horas, a partir do guia de TV. Escolhe um jogo para o ver ou para seres avisado.', 'The TV guide has not loaded yet. Try again in a moment.': 'O guia de TV ainda não carregou. Tenta daqui a pouco.', 'No games found in the TV guide for the next 24 hours.': 'Não há jogos no guia de TV para as próximas 24 horas.' });
 
 /* stream info */
 let infoT = 0;
