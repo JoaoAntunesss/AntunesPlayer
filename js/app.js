@@ -1483,7 +1483,7 @@ function bundle() {
   const set = Object.assign({}, S.set); delete set.tv; delete set.tvMode;
   const sources = S.sources.map(x => { const o = Object.assign({}, x); if (o.text && o.text.length > 400000) delete o.text; return o; });
   const m = profMainData(); // only the main profile's lists and progress go to the account
-  return { sources, favs: m ? m.favs : S.favs, lists: m ? m.lists : S.lists, set, watch: m ? m.watch : { pos: POS, dur: DUR, seen: SEEN, wts: WTS, slast: SLAST, eps: EPS } };
+  return { sources, favs: m ? m.favs : S.favs, lists: m ? m.lists : S.lists, set, watch: m ? m.watch : { pos: POS, dur: DUR, seen: SEEN, wts: WTS, slast: SLAST, eps: EPS }, profiles: profBundle() };
 }
 // "continue watching" and watched marks follow you between devices: newest wins per title
 function mergeWatch(w) {
@@ -1502,12 +1502,14 @@ function applyBundle(b, mode, pick) {
     if (mode === 'replace') S.sources = rs.map(x => Object.assign({}, x));
     else rs.forEach(x => { if (!S.sources.some(y => sameSrc(x, y))) S.sources.push(Object.assign({}, x)); });
     LS.set('ap.sources', S.sources);
-    if (profIsMain()) {
-    const f = (b.favs || []).slice(); if (mode !== 'replace') S.favs.forEach(k => { if (!f.includes(k)) f.push(k); }); S.favs = f; LS.set('ap.favs', f);
-    const L = (b.lists || []).slice(); if (mode !== 'replace') S.lists.forEach(l => { if (!L.some(x => x.id === l.id)) L.push(l); }); S.lists = L; LS.set('ap.lists', L);
+    // profiles come with the account: every profile's lists and progress, on every device
+    const pd = profApply(b.profiles, mode) || (profIsMain() ? { favs: b.favs, lists: b.lists, watch: b.watch } : null);
+    if (pd) {
+    const f = (pd.favs || []).slice(); if (mode !== 'replace') S.favs.forEach(k => { if (!f.includes(k)) f.push(k); }); S.favs = f; LS.set('ap.favs', f);
+    const L = (pd.lists || []).slice(); if (mode !== 'replace') S.lists.forEach(l => { if (!L.some(x => x.id === l.id)) L.push(l); }); S.lists = L; LS.set('ap.lists', L);
     if (b.set) { const keep = { tv: S.set.tv, tvMode: S.set.tvMode }; Object.assign(S.set, b.set, keep); saveSet(); applyLook(); }
-    mergeWatch(b.watch);
-    } // other profiles keep their own lists and progress on this device
+    mergeWatch(pd.watch);
+    }
   } finally { C.applying = false; }
   if (typeof refreshVis === 'function') refreshVis();
   if (!S.sources.some(x => x.id === S.srcId)) selectSource(S.sources[0] && S.sources[0].id); else render();
@@ -1669,7 +1671,21 @@ function profCur() { return PROFS.list.find(p => p.id === PROFS.cur) || PROFS.li
 function profIsMain() { return profCur().id === PROFS.list[0].id; }
 function kidsOn() { return !!profCur().kids; }
 function kidsOk(c) { return KIDS_RX.test((c.group || '') + ' ' + (c.name || '')) || (c.kind !== 'live' && genreOf(c).some(g => g === 'animation' || g === 'family')); }
-const profSave = () => localStorage.setItem('ap.profiles', JSON.stringify(PROFS));
+const profSave = () => { localStorage.setItem('ap.profiles', JSON.stringify(PROFS)); schedulePush(); };
+const PROF_MAX = 6;
+function profUnpack(o) { const g = (k, d) => { try { return o && o[k] != null ? JSON.parse(o[k]) : d; } catch (e) { return d; } }; return { favs: g('ap.favs', []), lists: g('ap.lists', []), watch: { pos: g('ap.pos', {}), dur: g('ap.dur', {}), seen: g('ap.seen', {}), wts: g('ap.wts', {}), slast: g('ap.slast', {}), eps: g('ap.eps', {}) } }; }
+function profSnapObj() { const o = {}; PROF_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v != null) o[k] = v; }); return o; }
+// what goes to the Google account: the profiles and the lists/progress of each one
+function profBundle() { const data = {}; PROFS.list.forEach(p => { if (p.id === PROFS.cur) data[p.id] = profSnapObj(); else { try { data[p.id] = JSON.parse(localStorage.getItem('ap.prof.' + p.id) || '{}'); } catch (e) { data[p.id] = {}; } } }); return { list: PROFS.list, data }; }
+// what comes from the account; returns the active profile's lists/progress to apply now
+function profApply(bp, mode) {
+  if (!bp || !Array.isArray(bp.list) || !bp.list.length) return null;
+  if (mode === 'replace') PROFS.list = bp.list.map(p => Object.assign({}, p)); else bp.list.forEach(p => { if (!PROFS.list.some(x => x.id === p.id)) PROFS.list.push(Object.assign({}, p)); });
+  if (!PROFS.list.some(p => p.id === PROFS.cur)) PROFS.cur = PROFS.list[0].id;
+  localStorage.setItem('ap.profiles', JSON.stringify(PROFS));
+  Object.keys(bp.data || {}).forEach(id => { if (id !== PROFS.cur && PROFS.list.some(p => p.id === id) && (mode === 'replace' || localStorage.getItem('ap.prof.' + id) == null)) localStorage.setItem('ap.prof.' + id, JSON.stringify(bp.data[id] || {})); });
+  return bp.data && bp.data[PROFS.cur] ? profUnpack(bp.data[PROFS.cur]) : null;
+}
 function profSnap(id) { const o = {}; PROF_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v != null) o[k] = v; }); localStorage.setItem('ap.prof.' + id, JSON.stringify(o)); }
 function profMainData() {
   if (profIsMain()) return null;
@@ -1686,9 +1702,9 @@ const leaveKids = go => (kidsOn() && S.set.pin ? askPin(go) : go());
 function profilesDialog() {
   const cur = profCur();
   openDlg(`<h2>${ic('user')} ${t('Who is watching?')}</h2><div class="profs">${PROFS.list.map(p => `<button class="prof ${p.id === cur.id ? 'on' : ''}" data-pf="${p.id}"><span class="pfav" style="background:${p.color}">${esc((p.name || '?').charAt(0).toUpperCase())}</span><b>${esc(p.name)}</b><small>${p.kids ? t('Kids') : p.id === cur.id ? t('In use') : '&nbsp;'}</small></button>`).join('')}</div>
-    <div class="row"><button class="btn" id="pfAdd">${ic('plus')} ${t('Add profile')}</button><button class="btn" id="pfEd">${ic('gear')} ${t('Edit profile')}</button><button class="btn p" id="dx">${t('Close')}</button></div>`);
+    <div class="row">${PROFS.list.length < PROF_MAX ? `<button class="btn" id="pfAdd">${ic('plus')} ${t('Add profile')}</button>` : ''}<button class="btn" id="pfEd">${ic('gear')} ${t('Edit profile')}</button><button class="btn p" id="dx">${t('Close')}</button></div>`);
   $$('[data-pf]', dlg).forEach(b => b.onclick = () => { const id = b.dataset.pf; if (id === PROFS.cur) { dlg.close(); return; } leaveKids(() => switchProfile(id)); });
-  $('#pfAdd').onclick = () => leaveKids(() => profEdit(null)); $('#pfEd').onclick = () => leaveKids(() => profEdit(cur.id)); $('#dx').onclick = () => dlg.close();
+  const pa = $('#pfAdd'); if (pa) pa.onclick = () => leaveKids(() => profEdit(null)); $('#pfEd').onclick = () => leaveKids(() => profEdit(cur.id)); $('#dx').onclick = () => dlg.close();
   setTimeout(() => { const f = $('.prof.on', dlg); if (f) f.focus(); }, 40);
 }
 function profEdit(id) {
