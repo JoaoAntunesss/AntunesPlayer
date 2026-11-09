@@ -965,7 +965,7 @@ function settingsNav(k, cur) {
 }
 function spatial(k, scope) {
   if (scope === dlg && dlg.classList.contains('settings') && (k === 'ArrowUp' || k === 'ArrowDown') && settingsNav(k, document.activeElement)) return true;
-  const cur = document.activeElement, els = $$('button, [tabindex="0"], input, select', scope || document).filter(el => { if (el.disabled || el.closest('[hidden]')) return false; if (!scope && dlg.contains(el)) return false; if (fsOn ? !screenEl.contains(el) : screenEl.contains(el) && el.id !== 'pExpand') return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+  const cur = document.activeElement, els = $$('button, [tabindex="0"], input, select', scope || document).filter(el => { if (el.disabled || el.closest('[hidden]')) return false; if (!scope && dlg.contains(el)) return false; if (scope !== dlg && (fsOn ? !screenEl.contains(el) : screenEl.contains(el) && el.id !== 'pExpand')) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
   if (!cur || cur === document.body || !els.includes(cur)) { const vis = el => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight; }; const f = (!scope && !fsOn && els.find(el => el.closest('.view') && vis(el))) || els.find(vis) || els[0]; if (f) { f.focus(); return true; } return false; }
   const a = cur.getBoundingClientRect(); let best = null, bs = 1e9, bestIn = null, bsIn = 1e9; const box = scrollerOf(cur);
   for (const el of els) { if (el === cur) continue; const b = el.getBoundingClientRect(); let main, cross;
@@ -1209,7 +1209,8 @@ function onlineSubsHtml(c) {
   return `<label>${t('Online subtitles')}${S.subLeft != null ? ` <small class="mut">· ${S.subLeft} ${t('left today')}</small>` : ''}</label>` + (L ? (L.length ? `<div class="catlist">${L.map((r, i) => `${!i || L[i - 1].lang !== r.lang ? `<p class="mut oslang">${esc(langName(r.lang))}</p>` : ''}<button data-os="${i}"><span>${esc(langName(r.lang))}${r.hi ? ' · CC' : ''} <small class="mut">${esc(r.rel).slice(0, 60)} · ${r.dl} ${t('downloads')}</small></span></button>`).join('')}</div>` : `<p class="mut">${t('No subtitles found online')}</p>`) : `<div class="row" style="justify-content:flex-start"><button class="btn" id="osGo">${ic('search')} ${t('Search online')}</button></div>`);
 }
 function wireOnlineSubs(c, reopen) {
-  const g = $('#osGo', dlg); if (g) g.onclick = async () => { if (!OSK()) { toast(t('Add the OpenSubtitles key in Settings')); return; } g.disabled = true; g.textContent = t('Searching subtitles…'); try { S.subList = { k: c.key, list: await subsSearch(c) }; } catch (e) { subsErr(e); } reopen(); };
+  const g = $('#osGo', dlg); if (g) g.onclick = async () => { if (!OSK()) { toast(t('Add the OpenSubtitles key in Settings')); return; } g.disabled = true; g.textContent = t('Searching subtitles…'); try { S.subList = { k: c.key, list: await subsSearch(c) }; } catch (e) { subsErr(e); } S.osFocus = true; reopen(); };
+  if (S.osFocus) { S.osFocus = false; const f0 = $('[data-os]', dlg); if (f0) setTimeout(() => { f0.focus(); f0.scrollIntoView({ block: 'nearest' }); }, 30); }
   $$('[data-os]', dlg).forEach(b => b.onclick = async () => { const r = S.subList.list[+b.dataset.os]; dlg.close(); try { if (await subsLoad(r, c)) toast(t('Subtitles') + ': ' + langName(r.lang)); } catch (e) { subsErr(e); } });
 }
 
