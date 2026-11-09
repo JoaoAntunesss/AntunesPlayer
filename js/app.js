@@ -205,7 +205,7 @@ function baseList() {
 function shownNum(c) { if (c.kind !== 'live') return ''; if (S.set.numberMode === 'favs' && S.favs.length) { const i = favLive().indexOf(c); return i < 0 ? '' : i + 1; } return c.num || ''; }
 const gkey = c => c.kind + ':' + (c.group || '—');
 const lockedSet = () => new Set(S.set.pin ? (S.set.locked || []) : []);
-function refreshVis() { const H = new Set(S.set.hidden || []), L = lockedSet(); S.vis = S.channels.filter(c => { const g = gkey(c); return !H.has(g) && (S.unlocked || !L.has(g)); }); }
+function refreshVis() { const H = new Set(S.set.hidden || []), L = lockedSet(); const K = kidsOn(); S.vis = S.channels.filter(c => { const g = gkey(c); return !H.has(g) && (S.unlocked || !L.has(g)) && (!K || kidsOk(c)); }); }
 const favLive = () => favList().filter(c => c.kind === 'live');
 
 /* ---------- player ---------- */
@@ -671,14 +671,14 @@ function renderHome() {
       <button class="mini" data-go="lists">${ic('stack')}<span>${t('Playlists')}</span><small>${S.sources.length}</small></button>
       <button class="mini" data-go="settings">${ic('gear')}<span>${t('Settings')}</span></button>
     </div>
-    <div class="acct"><div class="ah">${ic('user')}<div><b>${esc(src.name || '')}</b><small>${src.type === 'xtream' ? 'Xtream' : 'M3U'}${a && a.status ? ' · ' + esc(a.status) : ''}</small></div><button class="ib" id="hRef" aria-label="${t('Refresh')}">${ic('refresh')}</button></div>
+    <div class="acct"><div class="ah">${ic('user')}<div><b>${esc(src.name || '')}</b><small>${src.type === 'xtream' ? 'Xtream' : 'M3U'}${a && a.status ? ' · ' + esc(a.status) : ''}</small></div><button class="ib" id="hRef" aria-label="${t('Refresh')}">${ic('refresh')}</button></div><button class="btn hprof" id="hProf"><span class="pfav sm" style="background:${profCur().color}">${esc(profCur().name.charAt(0).toUpperCase())}</span> ${esc(profCur().name)}${kidsOn() ? ` · ${t('Kids')}` : ''}</button>
       ${a ? `<dl><dt>${t('Expires')}</dt><dd>${esc(exp)}</dd><dt>${t('Connections')}</dt><dd>${esc(a.act != null ? a.act : '–')} / ${esc(a.max || '–')}</dd></dl>` : `<dl><dt>${t('Live TV')}</dt><dd>${fmtN(L)}</dd><dt>${t('Movies')}</dt><dd>${fmtN(M)}</dd></dl>`}
       ${S.loadErr ? `<p class="err">${esc(S.loadErr)}</p>` : ''}</div>
   </div>
   ${cont.length ? `<section class="hrow"><h3>${t('Continue watching')}</h3><div class="rail">${cont.map(posterHtml).join('')}</div></section>` : ''}
   ${rec.length ? `<section class="hrow"><h3>${t('Recent channels')}</h3><div class="rail chrail">${rec.map(c => `<button class="chc" data-k="${c.key}">${logoHtml(c)}<b>${seg(shownNum(c))}</b><span>${esc(c.name)}</span></button>`).join('')}</div></section>` : ''}`;
   $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'sports') sportsDialog(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else if (g === 'search') openSearch('all'); else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
-  $('#hRef').onclick = () => selectSource(S.srcId, true);
+  $('#hRef').onclick = () => selectSource(S.srcId, true); $('#hProf').onclick = () => profilesDialog();
   wireItems(box);
   $$('.chc', box).forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; if (c) { S.gsel.live = 'recent'; go('live'); play(c); } });
 }
@@ -1482,7 +1482,8 @@ const userSecret = () => C.user.uid + PEPPER;
 function bundle() {
   const set = Object.assign({}, S.set); delete set.tv; delete set.tvMode;
   const sources = S.sources.map(x => { const o = Object.assign({}, x); if (o.text && o.text.length > 400000) delete o.text; return o; });
-  return { sources, favs: S.favs, lists: S.lists, set, watch: { pos: POS, dur: DUR, seen: SEEN, wts: WTS, slast: SLAST, eps: EPS } };
+  const m = profMainData(); // only the main profile's lists and progress go to the account
+  return { sources, favs: m ? m.favs : S.favs, lists: m ? m.lists : S.lists, set, watch: m ? m.watch : { pos: POS, dur: DUR, seen: SEEN, wts: WTS, slast: SLAST, eps: EPS } };
 }
 // "continue watching" and watched marks follow you between devices: newest wins per title
 function mergeWatch(w) {
@@ -1501,10 +1502,12 @@ function applyBundle(b, mode, pick) {
     if (mode === 'replace') S.sources = rs.map(x => Object.assign({}, x));
     else rs.forEach(x => { if (!S.sources.some(y => sameSrc(x, y))) S.sources.push(Object.assign({}, x)); });
     LS.set('ap.sources', S.sources);
+    if (profIsMain()) {
     const f = (b.favs || []).slice(); if (mode !== 'replace') S.favs.forEach(k => { if (!f.includes(k)) f.push(k); }); S.favs = f; LS.set('ap.favs', f);
     const L = (b.lists || []).slice(); if (mode !== 'replace') S.lists.forEach(l => { if (!L.some(x => x.id === l.id)) L.push(l); }); S.lists = L; LS.set('ap.lists', L);
     if (b.set) { const keep = { tv: S.set.tv, tvMode: S.set.tvMode }; Object.assign(S.set, b.set, keep); saveSet(); applyLook(); }
     mergeWatch(b.watch);
+    } // other profiles keep their own lists and progress on this device
   } finally { C.applying = false; }
   if (typeof refreshVis === 'function') refreshVis();
   if (!S.sources.some(x => x.id === S.srcId)) selectSource(S.sources[0] && S.sources[0].id); else render();
@@ -1654,6 +1657,64 @@ function sendToTvDialog() {
 }
 window.addEventListener('focus', () => { if (C.user && LS.get('ap.dirty', false)) schedulePush(); });
 v.addEventListener('pause', () => { if (isVodNow()) schedulePush(); }); v.addEventListener('ended', () => schedulePush());
+
+/* ---------- profiles: each person has their own favourites, lists, "continue watching" and progress ----------
+   The active profile's data lives in the normal keys; the others are kept aside and swapped in when you change profile.
+   A kids profile only shows children's channels, cartoons and family films; leaving it asks for the parental PIN, if set. */
+const PROF_KEYS = ['ap.favs', 'ap.recent', 'ap.lists', 'ap.pos', 'ap.dur', 'ap.seen', 'ap.wts', 'ap.slast', 'ap.eps', 'ap.cur', 'ap.last', 'ap.gsel', 'ap.rem'];
+const PROF_COLORS = ['#2fd8ff', '#e50914', '#f5a623', '#7ed321', '#bd10e0', '#ff6fb5', '#50e3c2', '#ffd400'];
+const PROFS = LS.get('ap.profiles', null) || { list: [{ id: 'p1', name: LANG === 'pt' ? 'Principal' : 'Main', color: PROF_COLORS[0] }], cur: 'p1' };
+const KIDS_RX = /kids|infantil|crian[cç]|anima[cç]|cartoon|disney|nick|panda|baby|j[uú]nior|boomerang|cartoonito|\bclan\b|kika|toons|animados|desenhos|fam[ií]l/i;
+function profCur() { return PROFS.list.find(p => p.id === PROFS.cur) || PROFS.list[0]; }
+function profIsMain() { return profCur().id === PROFS.list[0].id; }
+function kidsOn() { return !!profCur().kids; }
+function kidsOk(c) { return KIDS_RX.test((c.group || '') + ' ' + (c.name || '')) || (c.kind !== 'live' && genreOf(c).some(g => g === 'animation' || g === 'family')); }
+const profSave = () => localStorage.setItem('ap.profiles', JSON.stringify(PROFS));
+function profSnap(id) { const o = {}; PROF_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v != null) o[k] = v; }); localStorage.setItem('ap.prof.' + id, JSON.stringify(o)); }
+function profMainData() {
+  if (profIsMain()) return null;
+  try { const o = JSON.parse(localStorage.getItem('ap.prof.' + PROFS.list[0].id) || '{}'), g = (k, d) => o[k] != null ? JSON.parse(o[k]) : d; return { favs: g('ap.favs', []), lists: g('ap.lists', []), watch: { pos: g('ap.pos', {}), dur: g('ap.dur', {}), seen: g('ap.seen', {}), wts: g('ap.wts', {}), slast: g('ap.slast', {}), eps: g('ap.eps', {}) } }; } catch (e) { return null; }
+}
+function switchProfile(id) {
+  if (id === PROFS.cur) { dlg.close(); return; }
+  try { if (S.cur) stopPlayback(); LS.set('ap.pos', POS); LS.set('ap.dur', DUR); saveWatch(); } catch (e) { }
+  profSnap(PROFS.cur); let o = {}; try { o = JSON.parse(localStorage.getItem('ap.prof.' + id) || '{}'); } catch (e) { }
+  PROF_KEYS.forEach(k => { if (o[k] != null) localStorage.setItem(k, o[k]); else localStorage.removeItem(k); });
+  PROFS.cur = id; profSave(); localStorage.removeItem('ap.prof.' + id); location.hash = '#home'; location.reload();
+}
+const leaveKids = go => (kidsOn() && S.set.pin ? askPin(go) : go());
+function profilesDialog() {
+  const cur = profCur();
+  openDlg(`<h2>${ic('user')} ${t('Who is watching?')}</h2><div class="profs">${PROFS.list.map(p => `<button class="prof ${p.id === cur.id ? 'on' : ''}" data-pf="${p.id}"><span class="pfav" style="background:${p.color}">${esc((p.name || '?').charAt(0).toUpperCase())}</span><b>${esc(p.name)}</b><small>${p.kids ? t('Kids') : p.id === cur.id ? t('In use') : '&nbsp;'}</small></button>`).join('')}</div>
+    <div class="row"><button class="btn" id="pfAdd">${ic('plus')} ${t('Add profile')}</button><button class="btn" id="pfEd">${ic('gear')} ${t('Edit profile')}</button><button class="btn p" id="dx">${t('Close')}</button></div>`);
+  $$('[data-pf]', dlg).forEach(b => b.onclick = () => { const id = b.dataset.pf; if (id === PROFS.cur) { dlg.close(); return; } leaveKids(() => switchProfile(id)); });
+  $('#pfAdd').onclick = () => leaveKids(() => profEdit(null)); $('#pfEd').onclick = () => leaveKids(() => profEdit(cur.id)); $('#dx').onclick = () => dlg.close();
+  setTimeout(() => { const f = $('.prof.on', dlg); if (f) f.focus(); }, 40);
+}
+function profEdit(id) {
+  const p = id ? PROFS.list.find(x => x.id === id) : { name: '', kids: false, color: PROF_COLORS[PROFS.list.length % PROF_COLORS.length] }, main = id && id === PROFS.list[0].id;
+  openDlg(`<h2>${ic('user')} ${id ? t('Edit profile') : t('Add profile')}</h2><label>${t('Name')}</label><input id="pfN" maxlength="20" value="${esc(p.name)}" autocomplete="off">
+    <label>${t('Colour')}</label><div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">${PROF_COLORS.map(c => `<button class="pfc ${c === p.color ? 'on' : ''}" data-pc="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>
+    ${main ? '' : `<label>${t('Kids profile')}</label><select id="pfK"><option value="0" ${p.kids ? '' : 'selected'}>${t('No')}</option><option value="1" ${p.kids ? 'selected' : ''}>${t('Yes: only cartoons and family content')}</option></select>`}
+    <div class="row">${id && !main ? `<button class="btn" id="pfDel">${ic('close')} ${t('Delete profile')}</button>` : ''}<button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="pfOk">${t('Save')}</button></div>`);
+  let color = p.color; $$('[data-pc]', dlg).forEach(b => b.onclick = () => { color = b.dataset.pc; $$('[data-pc]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
+  $('#dx').onclick = profilesDialog;
+  $('#pfOk').onclick = () => {
+    const name = $('#pfN').value.trim(); if (!name) { toast(t('Fill in the fields')); return; }
+    const kids = $('#pfK') ? $('#pfK').value === '1' : false;
+    if (id) { const wasKids = !!p.kids; Object.assign(p, { name, color, kids }); profSave(); if (id === PROFS.cur && wasKids !== kids) { refreshVis(); render(); } }
+    else PROFS.list.push({ id: 'p' + Date.now().toString(36), name, color, kids }), profSave();
+    toast(t('Saved')); render(); profilesDialog();
+  };
+  const del = $('#pfDel'); if (del) del.onclick = () => {
+    if (!confirm(t('Delete this profile and its lists and progress?'))) return;
+    const wasCur = id === PROFS.cur; PROFS.list = PROFS.list.filter(x => x.id !== id); localStorage.removeItem('ap.prof.' + id);
+    if (wasCur) { const m = PROFS.list[0].id; let o = {}; try { o = JSON.parse(localStorage.getItem('ap.prof.' + m) || '{}'); } catch (e) { } PROF_KEYS.forEach(k => { if (o[k] != null) localStorage.setItem(k, o[k]); else localStorage.removeItem(k); }); PROFS.cur = m; profSave(); localStorage.removeItem('ap.prof.' + m); location.hash = '#home'; location.reload(); return; }
+    profSave(); profilesDialog();
+  };
+  setTimeout(() => $('#pfN').focus(), 50);
+}
+Object.assign(PT, { 'Who is watching?': 'Quem está a ver?', 'Add profile': 'Adicionar perfil', 'Edit profile': 'Editar perfil', 'Delete profile': 'Apagar perfil', 'Kids profile': 'Perfil infantil', 'Kids': 'Infantil', 'Colour': 'Cor', 'Yes: only cartoons and family content': 'Sim: só desenhos animados e conteúdo para a família', 'Delete this profile and its lists and progress?': 'Apagar este perfil, com as listas e o progresso dele?', 'In use': 'Em uso' });
 
 /* ---------- start ---------- */
 if (!S.set.nm2) { S.set.numberMode = 'favs'; S.set.nm2 = true; saveSet(); }
