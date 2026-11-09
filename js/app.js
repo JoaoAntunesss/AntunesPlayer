@@ -934,7 +934,22 @@ document.body.appendChild($('#num')); $('#slot').appendChild(screenEl);
 
 /* ---------- remote / keyboard ---------- */
 function scrollerOf(el) { for (let x = el.parentElement; x && x !== document.body; x = x.parentElement) { if (x.scrollHeight > x.clientHeight + 2) { const o = getComputedStyle(x).overflowY; if (o === 'auto' || o === 'scroll') return x; } } return null; }
+// Settings: ▲ ▼ go through the open tab in order (tab → its fields, top to bottom → Close) instead of guessing by position
+function settingsNav(k, cur) {
+  const nav = $('.stabs', dlg), pane = $('.spane:not([hidden])', dlg); if (!nav || !pane || !cur) return false;
+  const ok = el => !el.disabled && !el.closest('[hidden]') && el.getBoundingClientRect().height > 0, sel = 'button, [tabindex="0"], input, select, textarea';
+  const items = $$(sel, pane).filter(ok), foot = $$(sel, dlg).filter(el => ok(el) && !nav.contains(el) && !pane.contains(el) && !el.closest('.sbody')), tab = $('[data-st].on', nav);
+  const go = el => { if (!el) return false; el.focus({ preventScroll: true }); el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return true; };
+  if (nav.contains(cur)) return k === 'ArrowDown' ? go(items[0] || foot[0]) : false;
+  const i = items.indexOf(cur);
+  if (i > -1) { const a = cur.getBoundingClientRect();
+    if (k === 'ArrowDown') return go(items.slice(i + 1).find(el => el.getBoundingClientRect().top >= a.bottom - 4) || foot[0]);
+    return go(items.slice(0, i).reverse().find(el => el.getBoundingClientRect().bottom <= a.top + 4) || tab); }
+  if (foot.includes(cur) && k === 'ArrowUp') return go(items[items.length - 1] || tab);
+  return false;
+}
 function spatial(k, scope) {
+  if (scope === dlg && dlg.classList.contains('settings') && (k === 'ArrowUp' || k === 'ArrowDown') && settingsNav(k, document.activeElement)) return true;
   const cur = document.activeElement, els = $$('button, [tabindex="0"], input, select', scope || document).filter(el => { if (el.disabled || el.closest('[hidden]')) return false; if (!scope && dlg.contains(el)) return false; if (fsOn ? !screenEl.contains(el) : screenEl.contains(el) && el.id !== 'pExpand') return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
   if (!cur || cur === document.body || !els.includes(cur)) { const vis = el => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight; }; const f = (!scope && !fsOn && els.find(el => el.closest('.view') && vis(el))) || els.find(vis) || els[0]; if (f) { f.focus(); return true; } return false; }
   const a = cur.getBoundingClientRect(); let best = null, bs = 1e9, bestIn = null, bsIn = 1e9; const box = scrollerOf(cur);
@@ -1084,7 +1099,11 @@ function editSourceDialog(id) {
 /* ---------- online subtitles (OpenSubtitles.com): search by film/episode, pick a language, switch on by itself ---------- */
 Object.assign(PT, { 'Online subtitles': 'Legendas online', 'Search online': 'Procurar online', 'Searching subtitles…': 'A procurar legendas…', 'No subtitles found online': 'Não foram encontradas legendas online', 'Subtitles': 'Legendas', 'Subtitle languages (in order)': 'Idiomas das legendas (por ordem)', 'Turn on subtitles automatically': 'Ligar legendas automaticamente', 'OpenSubtitles API key': 'Chave da API do OpenSubtitles', 'OpenSubtitles account (optional: 20 a day instead of 5)': 'Conta OpenSubtitles (opcional: 20 por dia em vez de 5)', 'Username': 'Utilizador', 'Password': 'Palavra-passe', 'Daily download limit reached': 'Limite diário de downloads atingido', 'Add the OpenSubtitles key in Settings': 'Põe a chave do OpenSubtitles nas Definições', 'Could not get subtitles': 'Não foi possível obter as legendas', 'left today': 'restantes hoje', 'downloads': 'downloads', 'Built in (optional: your own key)': 'Já incluída (opcional: a tua chave)' });
 const SUBL = [['pt-pt', 'Português (PT)'], ['pt-br', 'Português (BR)'], ['en', 'English'], ['es', 'Español'], ['fr', 'Français'], ['it', 'Italiano'], ['de', 'Deutsch'], ['nl', 'Nederlands'], ['ro', 'Română'], ['pl', 'Polski'], ['tr', 'Türkçe'], ['ar', 'العربية']];
-const subLangs = () => (S.set.subLangs || (LANG === 'pt' ? 'pt-pt,pt-br,en' : 'en')).split(',').filter(Boolean);
+const subLangs = () => {
+  // once: Portuguese users get PT-PT, PT-BR, English (an older remote bug could leave English alone in the first box)
+  if (!S.set.subMig && LANG === 'pt') { S.set.subLangs = 'pt-pt,pt-br,en'; S.set.subMig = 1; saveSet(); }
+  return (S.set.subLangs || (LANG === 'pt' ? 'pt-pt,pt-br,en' : 'en')).split(',').filter(Boolean);
+};
 const OS_APP_KEY = 'PK4BCOwRA0rHjsuJ9VKLY0OaTMZMx0oJ'; // AntunesPlayer's OpenSubtitles consumer (identifies the app, not a password)
 const OSK = () => (S.set.osKey || '').trim() || OS_APP_KEY;
 let osBase = 'https://api.opensubtitles.com/api/v1';
@@ -1108,12 +1127,15 @@ async function subsTarget(c) {
   i = i || {}; o.tmdb = i.tmdb_id || i.tmdb || ''; o.year = (i.releasedate || i.release_date || '').slice(0, 4) || ((/\b(19|20)\d\d\b/.exec(c.name) || [])[0] || ''); return o;
 }
 async function subsSearch(c) {
-  const o = await subsTarget(c), L = subLangs(), q = new URLSearchParams({ languages: L.join(','), order_by: 'download_count' });
+  const o = await subsTarget(c), L = subLangs(), q = new URLSearchParams({ order_by: 'download_count' });
   if (o.type === 'episode') { if (o.tmdb) q.set('parent_tmdb_id', o.tmdb); else q.set('query', o.name); if (o.sn) q.set('season_number', o.sn); if (o.ep) q.set('episode_number', o.ep); q.set('type', 'episode'); }
   else { if (o.tmdb) q.set('tmdb_id', o.tmdb); else { q.set('query', o.name); if (o.year) q.set('year', o.year); } q.set('type', 'movie'); }
-  const j = await osFetch('/subtitles?' + q.toString()), rank = l => { const i = L.indexOf(String(l).toLowerCase()); return i < 0 ? 99 : i; };
-  return (j.data || []).map(d => { const a = d.attributes || {}, f = (a.files || [])[0] || {}; return { id: f.file_id, lang: String(a.language || '').toLowerCase(), rel: a.release || f.file_name || '', dl: a.download_count || 0, hi: !!a.hearing_impaired }; })
-    .filter(x => x.id).sort((a, b) => rank(a.lang) - rank(b.lang) || (a.hi - b.hi) || b.dl - a.dl).slice(0, 30);
+  // two searches: the chosen languages (so they are always there) and every language (to choose from all that exist)
+  const qp = new URLSearchParams(q); qp.set('languages', L.join(',')); qp.sort(); q.sort();
+  const [jp, ja] = await Promise.all([osFetch('/subtitles?' + qp.toString()), osFetch('/subtitles?' + q.toString()).catch(() => ({ data: [] }))]);
+  const rank = l => { const i = L.indexOf(String(l).toLowerCase()); return i < 0 ? 99 : i; }, seen = new Set();
+  return (jp.data || []).concat(ja.data || []).map(d => { const a = d.attributes || {}, f = (a.files || [])[0] || {}; return { id: f.file_id, lang: String(a.language || '').toLowerCase(), rel: a.release || f.file_name || '', dl: a.download_count || 0, hi: !!a.hearing_impaired }; })
+    .filter(x => x.id && !seen.has(x.id) && seen.add(x.id)).sort((a, b) => rank(a.lang) - rank(b.lang) || a.lang.localeCompare(b.lang) || (a.hi - b.hi) || b.dl - a.dl).slice(0, 80);
 }
 const langName = l => (SUBL.find(x => x[0] === l) || [0, l.toUpperCase()])[1];
 async function subsLoad(r, c) {
@@ -1137,7 +1159,7 @@ async function autoSubs(c) {
 function onlineSubsHtml(c) {
   if (!c || c.kind === 'live') return '';
   const L = S.subList && S.subList.k === c.key ? S.subList.list : null;
-  return `<label>${t('Online subtitles')}${S.subLeft != null ? ` <small class="mut">· ${S.subLeft} ${t('left today')}</small>` : ''}</label>` + (L ? (L.length ? `<div class="catlist">${L.map((r, i) => `<button data-os="${i}"><span>${esc(langName(r.lang))}${r.hi ? ' · CC' : ''} <small class="mut">${esc(r.rel).slice(0, 60)} · ${r.dl} ${t('downloads')}</small></span></button>`).join('')}</div>` : `<p class="mut">${t('No subtitles found online')}</p>`) : `<div class="row" style="justify-content:flex-start"><button class="btn" id="osGo">${ic('search')} ${t('Search online')}</button></div>`);
+  return `<label>${t('Online subtitles')}${S.subLeft != null ? ` <small class="mut">· ${S.subLeft} ${t('left today')}</small>` : ''}</label>` + (L ? (L.length ? `<div class="catlist">${L.map((r, i) => `${!i || L[i - 1].lang !== r.lang ? `<p class="mut oslang">${esc(langName(r.lang))}</p>` : ''}<button data-os="${i}"><span>${esc(langName(r.lang))}${r.hi ? ' · CC' : ''} <small class="mut">${esc(r.rel).slice(0, 60)} · ${r.dl} ${t('downloads')}</small></span></button>`).join('')}</div>` : `<p class="mut">${t('No subtitles found online')}</p>`) : `<div class="row" style="justify-content:flex-start"><button class="btn" id="osGo">${ic('search')} ${t('Search online')}</button></div>`);
 }
 function wireOnlineSubs(c, reopen) {
   const g = $('#osGo', dlg); if (g) g.onclick = async () => { if (!OSK()) { toast(t('Add the OpenSubtitles key in Settings')); return; } g.disabled = true; g.textContent = t('Searching subtitles…'); try { S.subList = { k: c.key, list: await subsSearch(c) }; } catch (e) { subsErr(e); } reopen(); };
