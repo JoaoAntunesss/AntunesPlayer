@@ -392,8 +392,8 @@ function settingsDialog() {
   <h2 style="margin-top:18px">${ic('lock')} ${t('Parental control')}</h2><label>${t('PIN (4 digits, empty = off)')}</label><input id="sPin" type="password" inputmode="numeric" maxlength="8" value="${esc(s.pin || '')}" autocomplete="off"><div class="row" style="justify-content:flex-start"><button class="btn" id="sCats">${t('Manage categories')}</button><button class="btn" id="sBak">${ic('stack')} ${t('Backup')}</button><button class="btn" id="sFavs">${ic('star')} ${t('Import / export favourites')}</button></div><label>${t('Helper link for blocked playlists (optional)')}</label><input id="sProxy" value="${esc(s.proxy)}" placeholder="https://your-helper.example/?url={url}"><label>${t('Also use it for streams')}</label><select id="sPS"><option value="0" ${!s.proxyStreams ? 'selected' : ''}>${t('No')}</option><option value="1" ${s.proxyStreams ? 'selected' : ''}>${t('Yes')}</option></select>
   <h2 style="margin-top:18px">${t('Playlists')}</h2>${S.sources.map(x => `<div style="display:flex;gap:6px;align-items:center;margin:6px 0"><b style="flex:1">${esc(x.name)}</b><button class="btn" data-r="${x.id}">${t('Refresh')}</button><button class="btn" data-d="${x.id}">${t('Delete')}</button></div>`).join('') || '<p class="mut">—</p>'}
   <h2 style="margin-top:18px">${t('Keyboard & remote')}</h2><div class="keys"><kbd>0–9</kbd><span>${t('jump to that channel')}</span><kbd>↑ ↓ / CH±</kbd><span>${t('next / previous channel')}</span><kbd>Enter</kbd><span>${t('channel list')}</span><kbd>F</kbd><span>${t('favourite on/off')}</span><kbd>L</kbd><span>${t('last channel')}</span><kbd>M</kbd><span>${t('mute')}</span><kbd>R</kbd><span>${t('record (needs a browser that allows it)')}</span><kbd>Z</kbd><span>${t('full screen')}</span></div>
-  <div class="row" style="justify-content:space-between"><button class="btn" id="sUpd">${ic('refresh')} ${t('Check for updates')}${NATIVE ? ' · build ' + (BUILD || '—') : ''}</button><button class="btn p" id="sOk">${t('Close')}</button></div>`);
-  tabifySettings();
+  <div class="row" style="justify-content:space-between"><button class="btn" id="sUpd">${ic('refresh')} ${t('Check for updates')}${NATIVE ? ' · build ' + (BUILD || '—') : ''}</button><button class="btn" id="sTour">${ic('info')} ${t('Show the tutorial')}</button><button class="btn p" id="sOk">${t('Close')}</button></div>`);
+  tabifySettings(); $('#sTour').onclick = () => { dlg.close(); LS.set('ap.tour', 0); go('home'); setTimeout(() => tourStart(S.sources.length ? 'home' : 'welcome', true), 300); };
   const chg = () => { s.startup = $('#sStart').value; s.style = $('#sStyle').value; s.theme = $('#sTheme').value; s.numberMode = $('#sNum').value; s.tvMode = $('#sTv').value; applyTvMode(); s.proxy = $('#sProxy').value.trim(); s.proxyStreams = $('#sPS').value === '1'; saveSet(); applyLook(); render(); };
   $$('#sStart,#sStyle,#sTheme,#sNum,#sTv,#sPS', dlg).forEach(e => e.onchange = chg); $('#sLite').onchange = e => { s.lite = e.target.value; saveSet(); applyLite(); };
   $$('[data-sl2]', dlg).forEach(x => x.onchange = () => { s.subLangs = [...new Set($$('[data-sl2]', dlg).map(y => y.value).filter(Boolean))].join(','); saveSet(); S.subList = null; }); $('#sSA').onchange = e => { s.subAuto = e.target.value === '1'; saveSet(); }; $('#sOK').onchange = e => { s.osKey = e.target.value.trim(); saveSet(); }; $$('#sOU,#sOP', dlg).forEach(x => x.onchange = () => { LS.set('ap.osu', { u: $('#sOU').value.trim(), p: $('#sOP').value }); LS.set('ap.ost', null); });
@@ -671,7 +671,7 @@ function renderHome() {
   if (!S.sources.length) {
     box.innerHTML = `<div class="welcome"><div class="wmark">${ic('tv')}</div><h2>${t('Welcome to AntunesPlayer')}</h2><p>${t('AntunesPlayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.')}</p>
     <div class="wacts"><button class="btn p big" id="wX">${ic('user')} ${t('Xtream login')}</button><button class="btn big" id="wU">${ic('plus')} ${t('Add a playlist')}</button><button class="btn big ghost" id="wD">${ic('play')} ${t('Try demo channels')}</button><button class="btn big ghost" id="wS">${ic('gear')} ${t('Settings')}</button></div>${C.user ? `<p class="mut">${ic('user')} ${t('Signed in as')} <b>${esc(C.user.email || '')}</b> · ${t('Synced')}. ${t('Playlists you add here are saved to your account.')}</p>` : `<div class="wacts"><button class="btn big" id="wG">${ic('user')} ${t('Sign in with Google')}</button><button class="btn big ghost" id="wC">${ic('tv')} ${t('Sign in with a code (TV)')}</button></div><p class="mut">${t('Your playlists are already in your Google account. Sign in to get them back.')}</p>`}</div>`;
-    $('#wX').onclick = () => addDialog('xt'); $('#wU').onclick = () => addDialog('url'); $('#wD').onclick = addDemo; $('#wS').onclick = settingsDialog; if ($('#wG')) { $('#wG').onclick = signInFlow; $('#wC').onclick = pairDialog; } return;
+    tourMaybe('welcome'); $('#wX').onclick = () => addDialog('xt'); $('#wU').onclick = () => addDialog('url'); $('#wD').onclick = addDemo; $('#wS').onclick = settingsDialog; if ($('#wG')) { $('#wG').onclick = signInFlow; $('#wC').onclick = pairDialog; } return;
   }
   const n = k => S.vis.filter(c => c.kind === k).length, L = n('live'), M = n('vod'), Se = n('series'), src = curSrc() || {}, a = S.acct, ld = S.loading;
   const cnt = (x, w) => ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(x, 'cnt')} ${w}</small>`;
@@ -696,6 +696,7 @@ function renderHome() {
   ${rec.length ? `<section class="hrow"><h3>${t('Recent channels')}</h3><div class="rail chrail">${rec.map(c => `<button class="chc" data-k="${c.key}">${logoHtml(c)}<b>${seg(shownNum(c))}</b><span>${esc(c.name)}</span></button>`).join('')}</div></section>` : ''}`;
   $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'sports') sportsDialog(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else if (g === 'search') openSearch('all'); else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
   $('#hRef').onclick = () => selectSource(S.srcId, true); $('#hProf').onclick = () => profilesDialog();
+  if (!ld && (M + Se + L) > 0) tourMaybe('home');
   wireItems(box);
   $$('.chc', box).forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; if (c) { S.gsel.live = 'recent'; go('live'); play(c); } });
 }
@@ -1354,6 +1355,88 @@ async function genEnrich() {
   // show the new rows if the user is still at the top of AntunesFlix and not in the middle of something
   const box = $('#vFlix'); if (got && S.view === 'flix' && box && box.scrollTop < 40 && !S.flixGenre && !(document.activeElement && box.contains(document.activeElement) && S.set.tv)) renderFlix();
 }
+/* ---------- first-run tutorial, like the official apps: the button to press is lit up, everything else is dimmed;
+   pressing it (or "Next") moves on to the next step, which may be on the next screen. "Skip" ends it. ---------- */
+Object.assign(PT, { 'Show the tutorial': 'Ver o tutorial', 'Skip': 'Saltar', 'Next step': 'Seguinte', 'Finish': 'Concluir', 'of': 'de',
+  'Start here': 'Começa aqui', 'Choose how to add your channels: your Xtream login, a playlist link, or the demo channels to look around.': 'Escolhe como juntar os teus canais: o login Xtream, o link de uma lista ou os canais de demonstração para experimentar.',
+  'Your films and series': 'Os teus filmes e séries', 'AntunesFlix puts all your films and series together, like Netflix. Tap it.': 'O AntunesFlix junta todos os teus filmes e séries, como na Netflix. Toca aqui.',
+  'The whole catalogue': 'O catálogo todo', 'Here you see every title, a page at a time. Tap it.': 'Aqui vês todos os títulos, sem limite. Toca aqui.',
+  'Sort and filter': 'Ordenar e filtrar', 'Choose films or series, and sort by IMDb rating, newest or A–Z.': 'Escolhe filmes ou séries e ordena pela nota do IMDb, pelos mais recentes ou de A a Z.',
+  'The best on IMDb': 'O melhor do IMDb', 'The series you have with the best IMDb rating. Tap it.': 'As séries que tens com melhor nota no IMDb. Toca aqui.',
+  'Open a title': 'Abrir um título', 'Tap a poster to see the details, the episodes and to watch. The yellow badge is the IMDb rating.': 'Toca num cartaz para veres os detalhes, os episódios e para começar a ver. O selo amarelo é a nota do IMDb.',
+  'Back to the start': 'Voltar ao início', 'This takes you back to the home screen. Tap it.': 'Isto leva-te de volta ao ecrã inicial. Toca aqui.',
+  'Live TV': 'TV em direto', 'All your channels, with the TV guide. Tap it.': 'Todos os teus canais, com o guia de TV. Toca aqui.',
+  'Categories': 'Categorias', 'Pick a category to see only those channels. Favourites and recent channels are here too.': 'Escolhe uma categoria para veres só esses canais. Os favoritos e os últimos canais também estão aqui.',
+  'Watch a channel': 'Ver um canal', 'Tap a channel to watch it. Tap again for full screen. The star adds it to your favourites.': 'Toca num canal para o veres. Toca outra vez para ecrã inteiro. A estrela junta-o aos favoritos.',
+  'Settings': 'Definições', 'Language, TV mode, parental control and updates. You can see this tutorial again here.': 'Idioma, modo TV, controlo parental e atualizações. Podes ver este tutorial outra vez aqui.' });
+var TOURS = {
+  welcome: [['#vHome .wacts', 'Start here', 'Choose how to add your channels: your Xtream login, a playlist link, or the demo channels to look around.']],
+  home: [
+    ['#vHome .t-flix', 'Your films and series', 'AntunesFlix puts all your films and series together, like Netflix. Tap it.', 'click'],
+    ['#vFlix [data-ft="catalog"]', 'The whole catalogue', 'Here you see every title, a page at a time. Tap it.', 'click'],
+    ['#vFlix .fxsort', 'Sort and filter', 'Choose films or series, and sort by IMDb rating, newest or A–Z.'],
+    ['#vFlix [data-ft="imdbs"]', 'The best on IMDb', 'The series you have with the best IMDb rating. Tap it.', 'click'],
+    ['#vFlix .fxgrid .pc, #vFlix .empty', 'Open a title', 'Tap a poster to see the details, the episodes and to watch. The yellow badge is the IMDb rating.'],
+    ['#vFlix #fxH', 'Back to the start', 'This takes you back to the home screen. Tap it.', 'click'],
+    ['#vHome .t-live', 'Live TV', 'All your channels, with the TV guide. Tap it.', 'click'],
+    ['#groups, #catBtn', 'Categories', 'Pick a category to see only those channels. Favourites and recent channels are here too.'],
+    ['#list .ch', 'Watch a channel', 'Tap a channel to watch it. Tap again for full screen. The star adds it to your favourites.'],
+    ['#bnav button:last-child, #bSet', 'Settings', 'Language, TV mode, parental control and updates. You can see this tutorial again here.']
+  ]
+};
+var TOUR = null;
+var tourPending = '';
+function tourMaybe(name) {
+  const d = LS.get('ap.tour', 0); if (TOUR || tourPending === name || d === 'done' || (name === 'welcome' && d === 'welcome')) return; tourPending = name;
+  // waits for the first-run questions (language, look) to be answered, and for that screen to still be showing
+  let n = 0; const iv = setInterval(() => { if (tourPending !== name || ++n > 600) { clearInterval(iv); return; } if (TOUR || (dlg && dlg.open) || fsOn) return;
+    const where = name === 'welcome' ? $('#vHome .wacts') : $('#vHome .t-flix'); if (!tourVisible(where)) { if (name === 'welcome' && S.sources.length) { clearInterval(iv); tourPending = ''; } return; }
+    clearInterval(iv); tourPending = ''; setTimeout(() => { if (!TOUR && !(dlg && dlg.open)) tourStart(name); }, 600); }, 1000);
+}
+const tourVisible = el => { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < innerHeight && getComputedStyle(el).visibility !== 'hidden'; };
+function tourFind(sel) { for (const one of sel.split(',')) { const el = $$(one.trim()).find(tourVisible); if (el) return el; } return null; }
+function tourStart(name, force) {
+  if (TOUR) tourEnd(false);
+  const steps = TOURS[name]; if (!steps) return;
+  const o = document.createElement('div'); o.id = 'tour'; o.innerHTML = '<div class="tspot"></div><div class="tcard" role="dialog" aria-live="polite"></div>'; document.body.appendChild(o);
+  TOUR = { name, steps, i: -1, o, el: null, wait: 0 };
+  o.addEventListener('click', e => { // a tap on the lit-up button does what the button does, then the tour moves on
+    if (e.target.closest('.tcard') || !TOUR || !TOUR.el) return; e.preventDefault(); e.stopPropagation();
+    const r = TOUR.el.getBoundingClientRect(); if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) tourPress();
+  }, true);
+  addEventListener('resize', tourPlace); tourNext();
+}
+function tourPress() { const st = TOUR.steps[TOUR.i], el = TOUR.el; if (st[3] === 'click') { const b = el.matches('button,[data-go],[data-ft]') ? el : el.querySelector('button') || el; b.click(); } tourNext(); }
+function tourNext() {
+  if (!TOUR) return; TOUR.i++; const T = TOUR; if (T.i >= T.steps.length) { tourEnd(true); return; }
+  T.el = null; T.o.classList.add('busy'); let tries = 0; clearInterval(T.wait);
+  T.wait = setInterval(() => { // the next screen may still be opening (and the AntunesFlix intro playing)
+    if (TOUR !== T) { clearInterval(T.wait); return; }
+    const el = !$('#fxIntro') && tourFind(T.steps[T.i][0]);
+    if (el) { clearInterval(T.wait); T.el = el; el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); setTimeout(() => tourShow(), 120); }
+    else if (++tries > 25) { clearInterval(T.wait); tourNext(); } // not on this screen (e.g. phone vs TV layout): skip that step
+  }, 120);
+}
+function tourShow() {
+  const T = TOUR; if (!T || !T.el) return; const st = T.steps[T.i], last = T.i === T.steps.length - 1, n = T.steps.length;
+  $('.tcard', T.o).innerHTML = `${n > 1 ? `<small>${T.i + 1} ${t('of')} ${n}</small>` : ''}<h3>${t(st[1])}</h3><p>${t(st[2])}</p><div class="tacts"><button class="btn ghost" id="tSkip">${t('Skip')}</button><button class="btn p" id="tNext">${last ? t('Finish') : t('Next step')}</button></div>`;
+  $('#tSkip', T.o).onclick = () => tourEnd(true); $('#tNext', T.o).onclick = () => tourPress();
+  T.o.classList.remove('busy'); tourPlace(); $('#tNext', T.o).focus({ preventScroll: true });
+}
+function tourPlace() {
+  const T = TOUR; if (!T || !T.el) return; const r = T.el.getBoundingClientRect(), pad = 8, sp = $('.tspot', T.o), cd = $('.tcard', T.o);
+  Object.assign(sp.style, { left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px' });
+  const cw = Math.min(360, innerWidth - 32); cd.style.width = cw + 'px';
+  const below = r.bottom + 16 + cd.offsetHeight < innerHeight - 8, top = below ? r.bottom + 16 : Math.max(12, r.top - 16 - cd.offsetHeight);
+  cd.style.top = (below || r.top - 16 - cd.offsetHeight > 12 ? top : Math.max(12, innerHeight - cd.offsetHeight - 12)) + 'px';
+  cd.style.left = Math.min(innerWidth - cw - 16, Math.max(16, r.left + r.width / 2 - cw / 2)) + 'px';
+}
+function tourEnd(done) {
+  const T = TOUR; if (!T) return; TOUR = null; clearInterval(T.wait); removeEventListener('resize', tourPlace); T.o.remove();
+  if (done) LS.set('ap.tour', T.name === 'welcome' ? 'welcome' : 'done');
+}
+// the remote's Back key closes the tutorial
+addEventListener('keydown', e => { if (TOUR && (e.key === 'Escape' || e.key === 'GoBack' || e.key === 'BrowserBack' || e.keyCode === 4)) { e.preventDefault(); e.stopImmediatePropagation(); tourEnd(true); } }, true);
 /* ---------- IMDb ratings: data/imdb.json (built monthly from IMDb's datasets by .github/workflows/imdb.yml)
    is matched to the playlist by title (+ year when the name has one). Powers the IMDb badge and the Top IMDb tabs. */
 var IMDB = null, imdbBusy = false, IMDBIDX = new Map();

@@ -729,3 +729,13 @@ body.mvOn #bnav{display:none}
 
 .fxsort{padding-top:0!important}.fxsort .fxsep{flex:0 0 1px;background:rgba(255,255,255,.25);margin:4px 4px}
 .po .rt.imdb{background:#f5c518;color:#000}.fxnote{padding:0 20px 4px;margin:0;font-size:13px}
+#tour{position:fixed;inset:0;z-index:9999}
+#tour .tspot{position:fixed;border-radius:18px;box-shadow:0 0 0 9999px rgba(3,6,12,.78);outline:3px solid #fff;outline-offset:0;transition:left .3s,top .3s,width .3s,height .3s;pointer-events:none}
+#tour .tspot::after{content:"";position:absolute;inset:-8px;border-radius:24px;border:3px solid var(--acc);animation:tpulse 1.4s ease-out infinite}
+@keyframes tpulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(1.08)}}
+#tour .tcard{position:fixed;background:#101826;color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:16px 18px;box-shadow:0 24px 60px -20px #000;transition:top .3s,left .3s}
+#tour .tcard small{color:var(--acc);font-weight:700}#tour .tcard h3{margin:4px 0 6px;font-size:18px}#tour .tcard p{margin:0 0 14px;color:#c9d2df;line-height:1.45}
+#tour .tacts{display:flex;justify-content:space-between;gap:10px}
+#tour.busy .tcard,#tour.busy .tspot{opacity:0}
+@media (prefers-reduced-motion:reduce){#tour .tspot::after{animation:none}#tour .tspot,#tour .tcard{transition:none}}
+body.fx .po .rt.imdb{display:block;font-size:11px;padding:3px 7px;border-radius:0 0 8px 0}
