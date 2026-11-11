@@ -492,7 +492,7 @@ window.addEventListener('popstate', route);
 function tvFocus() { if (fsOn || dlg.open) return; const ae = document.activeElement; if (ae && ae !== document.body && ae.closest('.view') && ae.offsetParent) return; const v2 = $(`#v${S.view[0].toUpperCase() + S.view.slice(1)}`); const f = $('#list .ch.on', v2) || $('#list .ch', v2) || $('.hacts .btn', v2) || $('#list .pc', v2) || $('.tile', v2) || $('#dPlay', v2) || $('#dFav', v2) || $('button, [tabindex="0"]', v2); if (f) { f.focus({ preventScroll: true }); f.scrollIntoView({ block: 'nearest' }); } }
 // exit = the on-screen back arrow: always leaves the player. The 'hide the controls first' step is only for remotes/keyboards,
 // on a phone the tap focuses the arrow itself, so it used to hide the controls instead of going back.
-function back(exit) { if (dlg.open) { dlg.close(); return true; } if (fsOn && closeQuick() && !exit) return true; if (fsOn && !exit && !isTouch() && screenEl.classList.contains('show') && screenEl.contains(document.activeElement)) { hideOv(); return true; } if (S.view === 'browse' && S.mode !== 'live' && S.group !== GDEF[S.mode]) { S.group = GDEF[S.mode]; S.gsel[S.mode] = S.group; S.q = ''; $('#q').value = ''; renderBrowse(); $('#list').scrollTop = 0; return true; } if ((location.hash || '#home') !== '#home') { if (history.state && history.state.d > 0) history.back(); else go('home', true); return true; } return false; }
+function back(exit) { if (dlg.open) { dlg.close(); return true; } if (MV.on) { mvClose(); return true; } if (fsOn && closeQuick() && !exit) return true; if (fsOn && !exit && !isTouch() && screenEl.classList.contains('show') && screenEl.contains(document.activeElement)) { hideOv(); return true; } if (S.view === 'browse' && S.mode !== 'live' && S.group !== GDEF[S.mode]) { S.group = GDEF[S.mode]; S.gsel[S.mode] = S.group; S.q = ''; $('#q').value = ''; renderBrowse(); $('#list').scrollTop = 0; return true; } if ((location.hash || '#home') !== '#home') { if (history.state && history.state.d > 0) history.back(); else go('home', true); return true; } return false; }
 
 /* ---------- full screen player ---------- */
 function enterFs() {
@@ -611,7 +611,7 @@ $('#cMore').onclick = () => {
   openDlg(`<h2>${t('More')}</h2>${isVodNow() ? `<label>${t('Speed')}</label><div class="tabs">${sp.map(x => `<button data-sp="${x}" class="${v.playbackRate === x ? 'on' : ''}">${x}×</button>`).join('')}</div>` : ''}
   <label>${t('Picture size')}</label><div class="tabs">${ASP.map((x, i) => `<button data-as="${i}" class="${aspI === i ? 'on' : ''}">${t(x[1])}</button>`).join('')}</div>
   <label>${t('Colours')} <small class="mut">${t('Colours wrong? Try the options below (saved for this channel).')}</small></label><div class="tabs">${['Normal', 'Swap red / blue', 'Compatible'].map((x, i) => `<button data-cf="${i}" class="${((S.cur && COLFIX[S.cur.key]) || 0) === i ? 'on' : ''}">${t(x)}</button>`).join('')}</div>
-  <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<label>${t('Sleep timer')}${sleepAt ? ' · ' + sleepLeft() + ' ' + t('min') : ''}</label><div class="tabs">${[0, 15, 30, 60, 90, 120].map(m => `<button data-sl="${m}" class="${(!sleepAt && !m) ? 'on' : ''}">${m ? m + ' ' + t('min') : t('Off ').trim()}</button>`).join('')}</div>
+  <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button><button class="btn" id="mMv">${ic('stack')} ${t('Multi-screen')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<label>${t('Sleep timer')}${sleepAt ? ' · ' + sleepLeft() + ' ' + t('min') : ''}</label><div class="tabs">${[0, 15, 30, 60, 90, 120].map(m => `<button data-sl="${m}" class="${(!sleepAt && !m) ? 'on' : ''}">${m ? m + ' ' + t('min') : t('Off ').trim()}</button>`).join('')}</div>
   <div class="row" style="justify-content:flex-start"><button class="btn" id="mInfo">${ic('signal')} ${t('Stream info')}</button><button class="btn" id="mExt">${ic('ext')} ${NATIVE ? t('Open in another player') : t('Copy link')}</button></div>
   <div class="row" style="justify-content:space-between"><button class="btn" id="mSet">${ic('gear')} ${t('Settings')}</button><button class="btn p" id="dx">OK</button></div>`);
   $('#dx').onclick = () => dlg.close(); $('#mSet').onclick = settingsDialog; $('#mInfo').onclick = streamInfo; $('#mExt').onclick = () => { dlg.close(); openElsewhere(); };
@@ -621,6 +621,7 @@ $('#cMore').onclick = () => {
   $$('[data-as]', dlg).forEach(b => b.onclick = () => { aspI = +b.dataset.as; v.style.objectFit = ASP[aspI][0]; $$('[data-as]', dlg).forEach(x => x.classList.toggle('on', x === b)); });
   const p = $('#mPip'); if (p) p.onclick = () => { dlg.close(); try { v.requestPictureInPicture(); } catch (e) { } };
   const r = $('#mRec'); if (r) r.onclick = () => { dlg.close(); toggleRec(); };
+  const mm = $('#mMv'); if (mm) mm.onclick = () => { const c = S.cur; dlg.close(); openMulti([c]); };
 };
 
 /* ---------- header ---------- */
@@ -996,6 +997,7 @@ function spatial(k, scope) {
 document.addEventListener('keydown', e => {
   const k = e.key; if (e.defaultPrevented) return;
   if (dlg.open) { if (k.startsWith('Arrow') && !/input|textarea|select/i.test(e.target.tagName)) { if (spatial(k, dlg)) e.preventDefault(); } return; }
+  if (MV.on) { if (k.startsWith('Arrow')) { e.preventDefault(); spatial(k, $('#multi')); } else if (k === 'Escape' || k === 'GoBack' || k === 'BrowserBack' || k === 'Backspace') { e.preventDefault(); back(); } return; }
   if (k === 'Escape' || k === 'GoBack' || k === 'BrowserBack') { e.preventDefault(); if (numBuf) { numBuf = ''; $('#num').hidden = true; return; } back(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return; const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select') { if (k === 'ArrowDown' && e.target.id === 'q') { e.preventDefault(); e.target.blur(); spatial(k); } return; }
@@ -1110,10 +1112,11 @@ function sportsDialog() {
   const list = sportsEvents(24), now = Date.now(), today = new Date().toDateString(), noEpg = !Object.keys(S.epg || {}).length;
   const when = e => (e.s <= now ? `<i class="splive">${t('Live')}</i> ` : '') + (new Date(e.s).toDateString() === today ? '' : t('tomorrow') + ' ') + hm(e.s);
   openDlg(`<div class="gh"><h2>${ic('tv')} ${t('Games')}</h2><button class="ib" id="dx" aria-label="${t('Close')}">${ic('back')}</button></div>` + (list.length
-    ? `<p class="mut">${t('Next 24 hours, from the TV guide. Choose a game to watch it or to be reminded.')}</p><div class="catlist sports">${list.map((e, i) => `<button data-sp="${i}"><span><b>${when(e)}</b> ${esc(e.t)}<small class="mut"> · ${esc(e.ch.slice(0, 3).map(c => c.name).join(' · '))}${e.ch.length > 3 ? ' +' + (e.ch.length - 3) : ''}</small></span></button>`).join('')}</div>`
+    ? `<p class="mut">${t('Next 24 hours, from the TV guide. Choose a game to watch it or to be reminded.')}</p>${list.some(e => e.s <= now) ? `<button class="btn" id="spMv">${ic('stack')} ${t('Watch several games at once')}</button>` : ''}<div class="catlist sports">${list.map((e, i) => `<button data-sp="${i}"><span><b>${when(e)}</b> ${esc(e.t)}<small class="mut"> · ${esc(e.ch.slice(0, 3).map(c => c.name).join(' · '))}${e.ch.length > 3 ? ' +' + (e.ch.length - 3) : ''}</small></span></button>`).join('')}</div>`
     : `<p class="mut">${noEpg ? t('The TV guide has not loaded yet. Try again in a moment.') : t('No games found in the TV guide for the next 24 hours.')}</p>`), 'sportsdlg');
   $('#dx').onclick = () => dlg.close();
   $$('[data-sp]', dlg).forEach(b => b.onclick = () => { const e = list[+b.dataset.sp]; progDialog(e.ch[0], { s: e.s, e: e.e, t: e.t, d: e.d }); });
+  const smv = $('#spMv'); if (smv) smv.onclick = () => { dlg.close(); openMulti(list.filter(e => e.s <= now).slice(0, 4).map(e => e.ch[0])); };
   setTimeout(() => { const f = $('[data-sp]', dlg) || $('#dx'); if (f) f.focus(); }, 40);
 }
 Object.assign(PT, { 'Games': 'Jogos', 'tomorrow': 'amanhã', 'Next 24 hours, from the TV guide. Choose a game to watch it or to be reminded.': 'Próximas 24 horas, a partir do guia de TV. Escolhe um jogo para o ver ou para seres avisado.', 'The TV guide has not loaded yet. Try again in a moment.': 'O guia de TV ainda não carregou. Tenta daqui a pouco.', 'No games found in the TV guide for the next 24 hours.': 'Não há jogos no guia de TV para as próximas 24 horas.' });
@@ -1773,6 +1776,64 @@ function profEdit(id) {
   setTimeout(() => $('#pfN').focus(), 50);
 }
 Object.assign(PT, { 'Who is watching?': 'Quem está a ver?', 'Add profile': 'Adicionar perfil', 'Edit profile': 'Editar perfil', 'Delete profile': 'Apagar perfil', 'Kids profile': 'Perfil infantil', 'Kids': 'Infantil', 'Colour': 'Cor', 'Yes: only cartoons and family content': 'Sim: só desenhos animados e conteúdo para a família', 'Delete this profile and its lists and progress?': 'Apagar este perfil, com as listas e o progresso dele?', 'In use': 'Em uso' });
+
+/* ---------- multi-screen: 2 or 4 live channels at once, sound from the one you pick ----------
+   Each picture is its own small player (lower quality is chosen automatically to save bandwidth).
+   Remote: arrows move between pictures; OK gives that picture the sound; OK again changes its channel; Back closes. */
+const MV = { on: false, n: 4, aud: 0, cells: [] };
+function mvPlay(cell) {
+  const c = cell.c, el = cell.el; if (!c || !el) return;
+  const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, url = proxied(cu), isHls = /m3u8/i.test(cu);
+  el.muted = MV.cells.indexOf(cell) !== MV.aud;
+  (async () => {
+    try {
+      if (isHls) {
+        if (!window.Hls && (NATIVE || !el.canPlayType('application/vnd.apple.mpegurl'))) await loadScript('js/hls.min.js');
+        if (window.Hls && Hls.isSupported()) { const h = cell.h = new Hls(Object.assign({ liveSyncDurationCount: 6, maxBufferLength: 30, backBufferLength: 10, capLevelToPlayerSize: true }, nativeHttp() ? { loader: NativeLoader } : {})); h.loadSource(url); h.attachMedia(el); h.on(Hls.Events.ERROR, (_, d) => { if (!d.fatal || cell.h !== h) return; if (d.type === Hls.ErrorTypes.MEDIA_ERROR) h.recoverMediaError(); else setTimeout(() => { if (cell.h === h) h.startLoad(); }, 2000); }); }
+        else el.src = url;
+      } else {
+        if (!window.mpegts) await loadScript('js/mpegts.min.js');
+        if (window.mpegts && mpegts.isSupported()) { const m = cell.m = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, enableStashBuffer: true, stashInitialSize: 1024 * 1024, liveBufferLatencyChasing: false, headers: uaHdr(), autoCleanupSourceBuffer: true }); m.attachMediaElement(el); m.load(); }
+        else el.src = url;
+      }
+      await el.play().catch(() => { el.muted = true; el.play().catch(() => { }); });
+    } catch (e) { }
+  })();
+}
+function mvStop(cell) { try { if (cell.h) cell.h.destroy(); } catch (e) { } try { if (cell.m) cell.m.destroy(); } catch (e) { } cell.h = cell.m = null; if (cell.el) { cell.el.removeAttribute('src'); try { cell.el.load(); } catch (e) { } } }
+function mvLabel(i) {
+  const cell = MV.cells[i], b = $(`[data-mv="${i}"]`); if (!b) return;
+  b.classList.toggle('aud', i === MV.aud && !!cell.c); b.classList.toggle('empty', !cell.c);
+  $('.mvname', b).innerHTML = cell.c ? `${ic(i === MV.aud ? 'vol' : 'mute')} ${esc(cell.c.name)}` : `${ic('plus')} ${t('Choose channel')}`;
+}
+function mvAudio(i) { MV.aud = i; MV.cells.forEach((x, j) => { if (x.el) x.el.muted = j !== i; mvLabel(j); }); }
+function mvBuild() {
+  let box = $('#multi'); if (!box) { box = document.createElement('div'); box.id = 'multi'; document.body.appendChild(box); }
+  box.hidden = false; box.className = 'mv' + MV.n;
+  box.innerHTML = `<div class="mvgrid">${MV.cells.slice(0, MV.n).map((x, i) => `<button class="mvcell" data-mv="${i}"><video playsinline muted></video><span class="mvname"></span></button>`).join('')}</div>
+    <div class="mvbar"><small class="mut">${t('OK: sound from this channel · OK again: change channel')}</small><button class="btn" id="mvN">${ic('stack')} ${MV.n === 4 ? t('2 screens') : t('4 screens')}</button><button class="btn" id="mvX">${ic('close')} ${t('Close')}</button></div>`;
+  MV.cells.slice(0, MV.n).forEach((x, i) => { x.el = $(`[data-mv="${i}"] video`, box); mvLabel(i); mvPlay(x); });
+  $$('[data-mv]', box).forEach(b => b.onclick = () => { const i = +b.dataset.mv, x = MV.cells[i]; if (x.c && i !== MV.aud) mvAudio(i); else mvPick(i); });
+  $('#mvX').onclick = mvClose;
+  $('#mvN').onclick = () => { MV.cells.forEach(mvStop); MV.n = MV.n === 4 ? 2 : 4; if (MV.aud >= MV.n) MV.aud = 0; mvBuild(); };
+  setTimeout(() => { const f = $(`[data-mv="${MV.aud}"]`, box); if (f) f.focus(); }, 40);
+}
+function mvPick(i) {
+  const live = S.vis.filter(c => c.kind === 'live'), favs = live.filter(c => S.favs.includes(c.key)), list = q => (q ? live.filter(c => lname(c).includes(fold(q))) : favs.concat(live.filter(c => !S.favs.includes(c.key)))).slice(0, 150);
+  openDlg(`<h2>${ic('tv')} ${t('Choose channel')}</h2><input id="mvQ" placeholder="${t('Search')}" autocomplete="off"><div class="catlist" id="mvL"></div><div class="row"><button class="btn p" id="dx">${t('Close')}</button></div>`);
+  const draw = () => { const L = list($('#mvQ').value.trim()); $('#mvL').innerHTML = L.map((c, j) => `<button data-mc="${j}"><span>${esc(c.name)}</span></button>`).join(''); $$('[data-mc]', dlg).forEach(b => b.onclick = () => { const c = L[+b.dataset.mc], x = MV.cells[i]; dlg.close(); mvStop(x); x.c = c; mvLabel(i); mvAudio(i); mvPlay(x); const f = $(`[data-mv="${i}"]`); if (f) f.focus(); }); };
+  $('#mvQ').oninput = draw; $('#dx').onclick = () => dlg.close(); draw();
+  setTimeout(() => { const f = $('[data-mc]', dlg) || $('#mvQ'); if (f) f.focus(); }, 40);
+}
+function openMulti(chs) {
+  if (S.cur) stopPlayback(); if (fsOn) doFs(false);
+  MV.on = true; MV.aud = 0; MV.n = (chs || []).filter(Boolean).length > 2 ? 4 : (MV.n || 4);
+  MV.cells = [0, 1, 2, 3].map(i => ({ c: (chs || [])[i] || null, el: null, h: null, m: null }));
+  document.body.classList.add('mvOn'); mvBuild();
+  toast(t('Each picture uses one connection of your IPTV account'));
+}
+function mvClose() { MV.cells.forEach(mvStop); MV.on = false; const box = $('#multi'); if (box) { box.hidden = true; box.innerHTML = ''; } document.body.classList.remove('mvOn'); render(); }
+Object.assign(PT, { 'Multi-screen': 'Multi-ecrã', 'Watch several games at once': 'Ver vários jogos ao mesmo tempo', 'Choose channel': 'Escolher canal', '2 screens': '2 ecrãs', '4 screens': '4 ecrãs', 'OK: sound from this channel · OK again: change channel': 'OK: som deste canal · OK outra vez: trocar de canal', 'Each picture uses one connection of your IPTV account': 'Cada imagem usa uma ligação da tua conta de IPTV' });
 
 /* ---------- start ---------- */
 if (!S.set.nm2) { S.set.numberMode = 'favs'; S.set.nm2 = true; saveSet(); }
