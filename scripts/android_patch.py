@@ -188,6 +188,11 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.ActivityCallback;
+import com.getcapacitor.JSObject;
+import androidx.activity.result.ActivityResult;
+import android.speech.RecognizerIntent;
+import java.util.ArrayList;
 
 @CapacitorPlugin(name = "ExtPlayer")
 public class ExtPlayerPlugin extends Plugin {
@@ -216,6 +221,29 @@ public class ExtPlayerPlugin extends Plugin {
         i.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
         try { getContext().sendBroadcast(i); } catch (Exception ignored) { }
         call.resolve();
+    }
+
+    // Voice search: opens the system's voice screen (on a TV it listens through the remote's microphone)
+    // and returns what was said. No microphone permission is needed: the system voice app does the listening.
+    @PluginMethod
+    public void listen(PluginCall call) {
+        Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, call.getString("lang", "pt-PT"));
+        i.putExtra(RecognizerIntent.EXTRA_PROMPT, call.getString("prompt", ""));
+        i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        try { startActivityForResult(call, i, "voiceDone"); }
+        catch (Exception e) { call.reject("no voice", e); }
+    }
+
+    @ActivityCallback
+    private void voiceDone(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        Intent d = result.getData();
+        ArrayList<String> r = d == null ? null : d.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+        JSObject o = new JSObject();
+        o.put("text", r != null && !r.isEmpty() ? r.get(0) : "");
+        call.resolve(o);
     }
 }
 """)
