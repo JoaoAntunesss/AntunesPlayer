@@ -703,3 +703,4 @@ html.lite *{transition-duration:.08s!important}
   .nfep{grid-template-columns:clamp(180px,17vw,320px) minmax(0,1fr)}.nfet b{font-size:clamp(15px,1.25vw,20px)}.nfet span,.nfet small{font-size:clamp(13px,1.05vw,17px)}
 }
 #skipIntro{position:absolute;right:clamp(18px,3vw,48px);bottom:clamp(90px,16vh,170px);z-index:9;padding:clamp(10px,1.4vh,16px) clamp(18px,1.8vw,30px);font-weight:800;font-size:clamp(14px,1.2vw,20px);background:rgba(20,20,20,.72)!important;color:#fff!important;border:2px solid rgba(255,255,255,.75)!important;border-radius:6px!important;clip-path:none!important;gap:8px}#skipIntro:focus-visible{background:#fff!important;color:#000!important}
+#qMic{display:inline-grid;place-items:center;width:34px;height:34px;margin-left:4px;border-radius:50%;background:transparent;border:0;color:inherit;flex:none;cursor:pointer}#qMic .i{width:20px;height:20px}#qMic:hover,#qMic:focus-visible{background:rgba(255,255,255,.12)}
