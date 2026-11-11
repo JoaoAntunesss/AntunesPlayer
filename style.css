@@ -726,3 +726,5 @@ html.lite *{transition-duration:.08s!important}
 .mvbar{display:flex;align-items:center;gap:10px;padding:6px 10px;justify-content:flex-end}.mvbar small{margin-right:auto;font-size:12px}
 @media (max-width:600px){.mvbar small{display:none}}
 body.mvOn #bnav{display:none}
+
+.fxsort{padding-top:0!important}.fxsort .fxsep{flex:0 0 1px;background:rgba(255,255,255,.25);margin:4px 4px}

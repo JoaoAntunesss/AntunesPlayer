@@ -506,7 +506,7 @@ window.addEventListener('popstate', route);
 function tvFocus() { if (fsOn || dlg.open) return; const ae = document.activeElement; if (ae && ae !== document.body && ae.closest('.view') && ae.offsetParent) return; const v2 = $(`#v${S.view[0].toUpperCase() + S.view.slice(1)}`); const f = $('#list .ch.on', v2) || $('#list .ch', v2) || $('.hacts .btn', v2) || $('#list .pc', v2) || $('.tile', v2) || $('#dPlay', v2) || $('#dFav', v2) || $('button, [tabindex="0"]', v2); if (f) { f.focus({ preventScroll: true }); f.scrollIntoView({ block: 'nearest' }); } }
 // exit = the on-screen back arrow: always leaves the player. The 'hide the controls first' step is only for remotes/keyboards,
 // on a phone the tap focuses the arrow itself, so it used to hide the controls instead of going back.
-function back(exit) { if (dlg.open) { dlg.close(); return true; } if (MV.on) { mvClose(); return true; } if (fsOn && closeQuick() && !exit) return true; if (fsOn && !exit && !isTouch() && screenEl.classList.contains('show') && screenEl.contains(document.activeElement)) { hideOv(); return true; } if (S.view === 'browse' && S.mode !== 'live' && S.group !== GDEF[S.mode]) { S.group = GDEF[S.mode]; S.gsel[S.mode] = S.group; S.q = ''; $('#q').value = ''; renderBrowse(); $('#list').scrollTop = 0; return true; } if ((location.hash || '#home') !== '#home') { if (history.state && history.state.d > 0) history.back(); else go('home', true); return true; } return false; }
+function back(exit) { if (dlg.open) { dlg.close(); return true; } if (MV.on) { mvClose(); return true; } if (fsOn && closeQuick() && !exit) return true; if (fsOn && !exit && !isTouch() && screenEl.classList.contains('show') && screenEl.contains(document.activeElement)) { hideOv(); return true; } if (S.view === 'flix' && (S.flixCat || S.flixGenre || S.flixTab !== 'all')) { if (S.flixCat || S.flixGenre) { S.flixCat = null; S.flixGenre = ''; } else S.flixTab = 'all'; renderFlix(); const bx = $('#vFlix'); if (bx) bx.scrollTop = 0; return true; } if (S.view === 'browse' && S.mode !== 'live' && S.group !== GDEF[S.mode]) { S.group = GDEF[S.mode]; S.gsel[S.mode] = S.group; S.q = ''; $('#q').value = ''; renderBrowse(); $('#list').scrollTop = 0; return true; } if ((location.hash || '#home') !== '#home') { if (history.state && history.state.d > 0) history.back(); else go('home', true); return true; } return false; }
 
 /* ---------- full screen player ---------- */
 function enterFs() {
@@ -1262,8 +1262,12 @@ function lazyRows(box) {
   const sc = /(auto|scroll)/.test(getComputedStyle(box).overflowY) ? box : null; lazyIO = new IntersectionObserver(es => { if (es[0].isIntersecting) more(); }, { root: sc, rootMargin: '900px 0px' }); lazyIO.observe(sent);
 }
 function wireSeeAll(root) {
-  $$('[data-gen]', root).forEach(b => b.onclick = () => { S.flixGenre = S.flixGenre === b.dataset.gen && b.closest('.fxgen') ? '' : b.dataset.gen; renderFlix(); const bx = $('#vFlix'); if (bx) bx.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`.fxgen [data-gen="${S.flixGenre}"]`) || $('.fxgen [data-gen]'); if (f) f.focus(); }, 20); });
-  $$('.seeall:not([data-gen])', root).forEach(b => b.onclick = () => { const m = b.dataset.m; go(m === 'vod' ? 'movies' : 'series'); setTimeout(() => { if (b.dataset.g) { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } else if (b.dataset.sort) { S.sort[S.mode] = b.dataset.sort === 'top' ? 'rate' : 'new'; S.group = GDEF[S.mode] + '!'; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; }, 0); });
+  if (S.view === 'flix') $$('.seeall[data-sort]:not([data-g])', root).forEach(b => { b.classList.add('fxcat2'); });
+  $$('.seeall.fxcat2', root).forEach(b => b.onclick = () => { S.flixSort = b.dataset.sort === 'top' ? 'top' : 'new'; S.flixKind = b.dataset.m === 'series' ? 'series' : S.flixTab === 'all' && b.dataset.sort === 'new' ? 'all' : 'movies'; S.flixTab = 'catalog'; S.flixGenre = ''; S.flixCat = null; renderFlix(); const bx = $('#vFlix'); if (bx) bx.scrollTop = 0; });
+  $$('[data-gen]', root).forEach(b => b.onclick = () => { S.flixCat = null; S.flixGenre = S.flixGenre === b.dataset.gen && b.closest('.fxgen') ? '' : b.dataset.gen; renderFlix(); const bx = $('#vFlix'); if (bx) bx.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`.fxgen [data-gen="${S.flixGenre}"]`) || $('.fxgen [data-gen]'); if (f) f.focus(); }, 20); });
+  $$('.seeall[data-g]:not([data-gen])', root).forEach(b => { if (S.view === 'flix') b.classList.add('fxcat'); });
+  $$('.seeall.fxcat', root).forEach(b => b.onclick = () => { const sec = b.closest('section'), h = sec && $('h3', sec); S.flixCat = { m: b.dataset.m, g: b.dataset.g, label: h ? h.firstChild.textContent.trim() : '' }; S.flixGenre = ''; renderFlix(); const bx = $('#vFlix'); if (bx) bx.scrollTop = 0; });
+  $$('.seeall:not([data-gen]):not(.fxcat):not(.fxcat2)', root).forEach(b => b.onclick = () => { const m = b.dataset.m; go(m === 'vod' ? 'movies' : 'series'); setTimeout(() => { if (b.dataset.g) { S.group = b.dataset.g; S.gsel[S.mode] = S.group; } else if (b.dataset.sort) { S.sort[S.mode] = b.dataset.sort === 'top' ? 'rate' : 'new'; S.group = GDEF[S.mode] + '!'; } S.shown = 250; renderBrowse(); $('#list').scrollTop = 0; }, 0); });
 }
 // "Because you watched X": more from the same genre as the last thing watched, best rated first, nothing already seen
 function becauseRow(kinds, all) {
@@ -1319,15 +1323,12 @@ function genreGroups(all) { const m = {}; for (const c of all) for (const g of g
 // one row per genre with at least 4 titles, in the order of GENRES (Christmas goes to the end out of season)
 // a film whose main genre is this one comes before films that only have it as a side genre
 const genByMain = id => (a, b) => (genreOf(a).indexOf(id) > 0) - (genreOf(b).indexOf(id) > 0) || genSort(a, b);
-function genreRows(all) {
+function genreRows(all, used) {
   const m = genreGroups(all.filter(c => c.logo)), ids = GENRES.map(g => g[0]); if (!xmasSeason()) ids.push(ids.shift());
-  // like Netflix, each row shows mostly titles not shown in the rows above, so the rows do not all look the same
-  const used = new Set();
+  used = used || new Set();
   return ids.map(id => {
-    const list = (m[id] || []).slice().sort(genByMain(id)), fresh = list.filter(c => !used.has(c.key));
-    const pick = (fresh.length >= 8 ? fresh : fresh.concat(list.filter(c => used.has(c.key)))).slice(0, 24);
-    if (pick.length < 4) return null; pick.forEach(c => used.add(c.key));
-    return [t(GENRES.find(g => g[0] === id)[1]), pick, { gen: id }, list.length];
+    const list = (m[id] || []).slice().sort(genByMain(id)); if (list.length < 4) return null;
+    return [t(GENRES.find(g => g[0] === id)[1]), pickRow(list, 24, 'g:' + id, used), { gen: id }, list.length];
   }).filter(Boolean);
 }
 function genreChips(all) {
@@ -1353,45 +1354,88 @@ async function genEnrich() {
   // show the new rows if the user is still at the top of AntunesFlix and not in the middle of something
   const box = $('#vFlix'); if (got && S.view === 'flix' && box && box.scrollTop < 40 && !S.flixGenre && !(document.activeElement && box.contains(document.activeElement) && S.set.tv)) renderFlix();
 }
+/* ---------- variety and the full catalogue ----------
+   Rows rotate every day: each one picks from a wider pool of good titles (not always the same top 24),
+   and a title shown in one row is avoided in the next ones. "Catalogue" shows everything, a page at a time. */
+const dayKey = () => new Date().toISOString().slice(0, 10);
+function seeded(str) { let h = 1779033703 ^ str.length; for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; } return () => { h = Math.imul(h ^ h >>> 16, 2246822507); h = Math.imul(h ^ h >>> 13, 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; }; }
+function dayShuffle(list, salt) { const r = seeded(dayKey() + '|' + salt), a = list.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+// up to n titles from a list already ordered by quality: today's mix of its best part, preferring titles not shown above
+function pickRow(list, n, salt, used) {
+  const pool = dayShuffle(list.slice(0, Math.max(n * 4, 80)), salt), fresh = pool.filter(c => !used.has(c.key));
+  const pick = (fresh.length >= Math.min(n, 8) ? fresh : fresh.concat(pool.filter(c => used.has(c.key)))).slice(0, n);
+  pick.forEach(c => used.add(c.key)); return pick;
+}
+Object.assign(PT, { 'Catalogue': 'Catálogo', 'Newest': 'Mais recentes', 'Best rated': 'Melhor nota', 'All titles': 'Todos os títulos' });
+S.flixSort = 'new'; S.flixKind = 'all'; S.flixCat = null;
+const FX_SORTS = [['new', 'Newest'], ['top', 'Best rated'], ['az', 'A–Z']];
+function fxSorted(list) {
+  const k = S.flixSort, a = list.slice();
+  if (k === 'az') return a.sort((x, y) => (x.name || '').localeCompare(y.name || '', 'pt', { sensitivity: 'base' }));
+  if (k === 'top') return a.sort((x, y) => (y.rating || 0) - (x.rating || 0) || (y.added || 0) - (x.added || 0));
+  return a.sort((x, y) => (y.added || 0) - (x.added || 0));
+}
+// a grid of every title, 120 at a time as you scroll
+let gridRest = [], gridIO = null;
+function fxGridHtml(title, list, kindChips) {
+  const sorted = fxSorted(list); gridRest = sorted.slice(120);
+  const chips = `<nav class="fxtabs fxsort">${kindChips ? [['all', 'All'], ['movies', 'Movies'], ['series', 'Series']].map(x => `<button data-fk="${x[0]}" class="${S.flixKind === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('') + '<span class="fxsep"></span>' : ''}${FX_SORTS.map(x => `<button data-fs="${x[0]}" class="${S.flixSort === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}</nav>`;
+  return `<div class="rh fxgh"><h3>${esc(title)} <small>${fmtN(list.length)}</small></h3></div>` + chips + (list.length ? `<div class="fxgrid" id="fxGrid">${sorted.slice(0, 120).map(posterHtml).join('')}</div>${gridRest.length ? '<div class="fxmore" id="fxGridMore"></div>' : ''}` : `<div class="empty"><p>${t('Nothing found')}</p></div>`);
+}
+function fxGridWire(box) {
+  if (gridIO) gridIO.disconnect(); const sent = $('#fxGridMore', box), grid = $('#fxGrid', box); if (!sent || !grid) return;
+  const more = () => { const div = document.createElement('div'); div.innerHTML = gridRest.splice(0, 120).map(posterHtml).join(''); const items = [...div.children]; items.forEach(x => grid.appendChild(x)); wireItems(grid); if (!gridRest.length) { gridIO.disconnect(); sent.remove(); } };
+  if (!('IntersectionObserver' in window)) { while (gridRest.length) more(); return; }
+  const sc = /(auto|scroll)/.test(getComputedStyle(box).overflowY) ? box : null; gridIO = new IntersectionObserver(es => { if (es[0].isIntersecting) more(); }, { root: sc, rootMargin: '1200px 0px' }); gridIO.observe(sent);
+}
 function renderFlix() {
   const box = $('#vFlix'), tab = S.flixTab, kinds = FLIX_KINDS[tab] || FLIX_KINDS.all;
   const all = S.vis.filter(c => kinds.includes(c.kind)), withArt = all.filter(c => c.logo);
   const byRating = withArt.filter(c => c.rating > 0).sort((a, b) => b.rating - a.rating), recent = all.slice().sort((a, b) => (b.added || 0) - (a.added || 0));
   // the hero mixes what is new and what is best rated, like the Netflix billboard
   const pool = recent.filter(c => c.logo).slice(0, 30).filter(c => c.rating >= 6).concat(byRating.slice(0, 20)); const seen = {}, top = pool.filter(c => !seen[c.key] && (seen[c.key] = 1)).slice(0, 8);
-  const tabs = [['all', 'Home'], ['series', 'Series'], ['movies', 'Movies'], ['mylist', 'My list']];
+  const tabs = [['all', 'Home'], ['series', 'Series'], ['movies', 'Movies'], ['catalog', 'Catalogue'], ['mylist', 'My list']];
   let body = '';
-  if (tab === 'mylist') {
+  if (tab === 'catalog') {
+    const ck = FLIX_KINDS[S.flixKind] || FLIX_KINDS.all;
+    body = fxGridHtml(t('All titles'), S.vis.filter(c => ck.includes(c.kind)), true);
+  } else if (S.flixCat) {
+    const fc = S.flixCat, list = S.vis.filter(c => c.kind === fc.m && (c.group || '—') === fc.g.slice(2));
+    body = fxGridHtml(fc.label, list, false);
+  } else if (tab === 'mylist') {
     const mine = favList().filter(c => c.kind === 'vod' || c.kind === 'series');
     body = mine.length ? `<div class="fxgrid">${mine.map(posterHtml).join('')}</div>` : `<div class="empty"><p>${t('Your list is empty. Add films and series with the star.')}</p></div>`;
   } else if (S.flixGenre) {
-    const g = GENRES.find(x => x[0] === S.flixGenre), list = all.filter(c => genreOf(c).includes(S.flixGenre)).sort(genByMain(S.flixGenre));
-    body = `<div class="rh fxgh"><h3>${esc(t(g ? g[1] : ''))} <small>${fmtN(list.length)}</small></h3></div>` + (list.length ? `<div class="fxgrid">${list.slice(0, 600).map(posterHtml).join('')}</div>` : `<div class="empty"><p>${t('Nothing found')}</p></div>`);
+    const g = GENRES.find(x => x[0] === S.flixGenre), list = all.filter(c => genreOf(c).includes(S.flixGenre));
+    body = fxGridHtml(t(g ? g[1] : ''), list, false);
   } else {
     const cw = contFor(kinds), rows = [[t('My list'), favList().filter(c => kinds.includes(c.kind))]];
-    const t10 = byRating.slice(0, 10);
+    const t10 = byRating.slice(0, 10), used = new Set(t10.map(c => c.key));
     const byw = becauseRow(kinds, all); if (byw) rows.push(byw);
-    const rest = [[t('New on AntunesFlix'), recent.slice(0, 24), { sort: 'new', m: kinds.length > 1 ? 'vod' : kinds[0] }]];
-    if (kinds.includes('vod')) rest.push([t('Top rated films'), withArt.filter(c => c.kind === 'vod' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'vod', sort: 'top' }]);
-    if (kinds.includes('series')) rest.push([t('Top rated series'), withArt.filter(c => c.kind === 'series' && c.rating > 0).sort((a, b) => b.rating - a.rating).slice(0, 24), { m: 'series', sort: 'top' }]);
-    const gr = genreRows(all), xmasRow = xmasSeason() ? gr.find(r => r[2].gen === 'xmas') : null;
+    const rest = [[t('New on AntunesFlix'), pickRow(recent.filter(c => c.logo), 24, 'new', used), { sort: 'new', m: kinds.length > 1 ? 'vod' : kinds[0] }]];
+    if (kinds.includes('vod')) rest.push([t('Top rated films'), pickRow(byRating.filter(c => c.kind === 'vod'), 24, 'topv', used), { m: 'vod', sort: 'top' }]);
+    if (kinds.includes('series')) rest.push([t('Top rated series'), pickRow(byRating.filter(c => c.kind === 'series'), 24, 'tops', used), { m: 'series', sort: 'top' }]);
+    const gr = genreRows(all, used), xmasRow = xmasSeason() ? gr.find(r => r[2].gen === 'xmas') : null;
     if (xmasRow) rows.splice(1, 0, xmasRow); gr.filter(r => r !== xmasRow).forEach(r => rest.push(r));
     // the provider's own categories from both, taking turns
     const cv = kinds.includes('vod') ? catItems('vod').filter(x => x.id.indexOf('v:') === 0 && x.icon !== 'lock').map(g => ['vod', g]) : [], cs = kinds.includes('series') ? catItems('series').filter(x => x.id.indexOf('s:') === 0 && x.icon !== 'lock').map(g => ['series', g]) : [];
     const cats = []; for (let i = 0; i < Math.max(cv.length, cs.length) && cats.length < 120; i++) { if (cv[i]) cats.push(cv[i]); if (cs[i]) cats.push(cs[i]); }
     const byG = groupBy(all, c => c.kind + '|' + (c.group || '—'));
-    cats.forEach(([m, g]) => rest.push([g.label, (byG.get(m + '|' + g.id.slice(2)) || []).slice(0, 24), { m, g: g.id }, g.n]));
+    cats.forEach(([m, g]) => { const l = (byG.get(m + '|' + g.id.slice(2)) || []).filter(c => c.logo).sort(genSort); if (l.length) rest.push([g.label, pickRow(l, 24, 'c:' + g.id, used), { m, g: g.id, label: g.label }, g.n]); });
     const rowHtmlF = r => `<section class="hrow vrow"><div class="rh"><h3>${esc(r[0])}${r[3] ? ` <small>${fmtN(r[3])}</small>` : ''}</h3>${r[2] && r[2].gen ? `<button class="seeall" data-gen="${r[2].gen}">${t('See all')}</button>` : r[2] ? `<button class="seeall" data-m="${r[2].m}" ${r[2].g ? `data-g="${esc(r[2].g)}"` : ''} ${r[2].sort ? `data-sort="${r[2].sort}"` : ''}>${t('See all')}</button>` : ''}</div><div class="rail">${r[1].map(posterHtml).join('')}</div></section>`;
     body = (cw.length ? `<section class="hrow vrow cwrow"><div class="rh"><h3>${t('Continue watching')}</h3></div><div class="rail">${cw.map(cwHtml).join('')}</div></section>` : '') + rows.filter(r => r[1].length).map(rowHtmlF).join('') + (t10.length >= 5 ? top10Html(t10) : '');
     // only the first rows go in now; the others are added as you scroll (a big catalogue has 100+ genre rows)
     lazyRest = rest.filter(r => r[1].length); lazyHtml = rowHtmlF; body += lazyRest.splice(0, 8).map(rowHtmlF).join('') + (lazyRest.length ? '<div class="fxmore" id="fxMore"></div>' : '');
   }
-  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>${tab !== 'mylist' ? genreChips(all) : ''}` +
-    (tab !== 'mylist' && !S.flixGenre && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
+  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' || S.flixCat || S.flixGenre ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>${tab !== 'mylist' && tab !== 'catalog' ? genreChips(all) : ''}` +
+    (tab !== 'mylist' && tab !== 'catalog' && !S.flixGenre && !S.flixCat && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
   wireItems(box); wireCw(box); $('#fxS', box).onclick = () => openSearch('flix');
   const fr = $('#fxR', box); if (fr) fr.onclick = () => surprise(withArt);
   lazyRows(box); $('#fxH', box).onclick = () => go('home'); setTimeout(genEnrich, 3000);
-  $$('[data-ft]', box).forEach(b => b.onclick = () => { S.flixTab = b.dataset.ft; S.flixGenre = ''; renderFlix(); box.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`[data-ft="${S.flixTab}"]`, box); if (f) f.focus(); }, 20); });
+  fxGridWire(box);
+  $$('[data-fs]', box).forEach(b => b.onclick = () => { S.flixSort = b.dataset.fs; renderFlix(); if (S.set.tv) setTimeout(() => { const f = $(`[data-fs="${S.flixSort}"]`, box); if (f) f.focus(); }, 20); });
+  $$('[data-fk]', box).forEach(b => b.onclick = () => { S.flixKind = b.dataset.fk; renderFlix(); if (S.set.tv) setTimeout(() => { const f = $(`[data-fk="${S.flixKind}"]`, box); if (f) f.focus(); }, 20); });
+  $$('[data-ft]', box).forEach(b => b.onclick = () => { S.flixTab = b.dataset.ft; S.flixGenre = ''; S.flixCat = null; renderFlix(); box.scrollTop = 0; if (S.set.tv) setTimeout(() => { const f = $(`[data-ft="${S.flixTab}"]`, box); if (f) f.focus(); }, 20); });
   wireSeeAll(box);
   const slides = $$('.hs', box), dots = $$('.hdots button', box); let hi = 0; clearInterval(flixHeroT);
   const show = n => { hi = (n + slides.length) % slides.length; slides.forEach((x, i) => x.classList.toggle('on', i === hi)); dots.forEach((x, i) => x.classList.toggle('on', i === hi)); };
