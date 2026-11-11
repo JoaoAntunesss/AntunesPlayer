@@ -231,7 +231,7 @@ Object.assign(PT, { 'Colours': 'Cores', 'Normal': 'Normal', 'Swap red / blue': '
 async function play(c, isRetry) {
   if (!c) return; if (S.cur && S.cur.key !== c.key) S.last = S.cur.key; if (!isRetry) { retried = false; } if (S.cur && S.cur.key !== c.key) LS.set('ap.last', S.cur.key);
   S.cur = c; applyColor(c); LS.set('ap.cur', c.key); S.recent = [c.key].concat(S.recent.filter(k => k !== c.key)).slice(0, 30); LS.set('ap.recent', S.recent);
-  S.dbg = ''; stopRec(true); destroyPlayer(); $('#screen').classList.toggle('vod', c.kind !== 'live'); $('#msg').hidden = true; spin(true); showOsd(c); showInfo(c); updateFavBtn(); $$('#list .ch').forEach(r => r.classList.toggle('on', r.dataset.k === c.key));
+  S.dbg = ''; stopRec(true); destroyPlayer(); armStart(c, isRetry); $('#screen').classList.toggle('vod', c.kind !== 'live'); $('#msg').hidden = true; spin(true); showOsd(c); showInfo(c); updateFavBtn(); $$('#list .ch').forEach(r => r.classList.toggle('on', r.dataset.k === c.key));
   const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, url = proxied(cu), isHls = /m3u8/i.test(cu), isTs = (c.kind === 'live' || c.kind === 'catchup') && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu), ST = STAB[stabLevel(c)];
   try {
     if (isHls) {
@@ -248,6 +248,20 @@ async function play(c, isRetry) {
     if (c.kind === 'live' && NATIVE && Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.share) Capacitor.Plugins.ExtPlayer.share({ url: cu, name: c.name || '', ua: uaHdr()['User-Agent'] || '' }).catch(() => { }); // TV home screen background
   } catch (e) { showMsg(t('Could not play this'), whyHtml(c.url, false, String(e && e.message || e)), true); }
 }
+/* Start timeout: a channel that is off air (an event channel before or after the game, a dead stream) often answers
+   but never sends a picture, so the spinner turned forever. After 20 s without a first frame, say so and offer the next channel. */
+let startT = 0, startC = null;
+function armStart(c, isRetry) {
+  if (isRetry && startT && startC === c) return;   // a retry of the same channel keeps the first deadline
+  clearTimeout(startT); startT = 0; startC = c; if (!c || c.kind === 'vod' || c.kind === 'series') return;
+  startT = setTimeout(() => { startT = 0;
+    if (S.cur !== c || v.readyState >= 3 || !$('#msg').hidden) return;
+    destroyPlayer(); clearTimeout(stallT); stallT = null;   // stop the retries, or they would hide the message again
+    showMsg(t('This channel is not sending video right now'), esc(t('It may only broadcast during the event, or the server is down. Try again later or watch another channel.')) + (c.kind === 'live' ? `<br><button class="btn" id="mNext">${t('Next channel')}</button>` : ''), true);
+    const nx = $('#mNext'); if (nx) nx.onclick = () => zap(1);
+  }, 20000);
+}
+Object.assign(PT, { 'This channel is not sending video right now': 'Este canal não está a emitir agora', 'It may only broadcast during the event, or the server is down. Try again later or watch another channel.': 'Pode só emitir durante o evento, ou o servidor está em baixo. Tenta mais tarde ou vê outro canal.', 'Next channel': 'Canal seguinte' });
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 v.addEventListener('playing', () => { spin(false); $('#msg').hidden = true; if (v.animate && !RM && v.currentTime < 3) v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out' }); }); v.addEventListener('waiting', () => { if (S.cur) spin(true); armStall(); if (!waitT0 && v.currentTime > 2) waitT0 = Date.now(); });
 /* Live stall watchdog: if a live channel stays frozen, jump to the live edge (HLS) or reconnect (TS) instead of waiting forever. */
@@ -276,7 +290,7 @@ function armStall() {
     if (stallN < 4) armStall();
   }, STAB[stabLevel(S.cur)].wd);
 }
-v.addEventListener('playing', () => { clearTimeout(stallT); stallT = null; stallN = 0; retried = false; if (waitT0 && Date.now() - waitT0 > 1500) noteStall(); waitT0 = 0; }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url, proxied(S.cur.url) !== S.cur.url, (v.error ? 'media error ' + v.error.code + (v.error.message ? ' ' + v.error.message : '') : '') + (S.dbg ? ' · ' + S.dbg : '')), true); });
+v.addEventListener('playing', () => { clearTimeout(startT); startT = 0; clearTimeout(stallT); stallT = null; stallN = 0; retried = false; if (waitT0 && Date.now() - waitT0 > 1500) noteStall(); waitT0 = 0; }); v.addEventListener('error', () => { if (S.cur && v.getAttribute('src')) showMsg(t('Could not play this'), whyHtml(S.cur.url, proxied(S.cur.url) !== S.cur.url, (v.error ? 'media error ' + v.error.code + (v.error.message ? ' ' + v.error.message : '') : '') + (S.dbg ? ' · ' + S.dbg : '')), true); });
 function showOsd(c) { const o = $('#osd'); if (o && o.animate && !RM) o.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.22,1,.36,1)' }); const n = shownNum(c); $('#osdN').innerHTML = seg(n); $('#osdT').textContent = c.name; $('#osdS').textContent = c.group || ''; liveBar(c); if (fsOn) showOv(); }
 function liveBar(c) { const nn = c.kind === 'live' ? nowNext(c) : null; $('#liveBar').hidden = !(nn && nn.now); if (nn && nn.now) { $('#lbNow').innerHTML = `<b>${hm(nn.now.s)}</b> ${esc(nn.now.t)}`; $('#lbPb').style.width = Math.max(0, Math.min(100, Math.round((Date.now() - nn.now.s) / (nn.now.e - nn.now.s) * 100))) + '%'; $('#lbNext').innerHTML = nn.next ? `<b>${hm(nn.next.s)}</b> ${esc(nn.next.t)}` : ''; } }
 function showInfo(c) {
@@ -1330,9 +1344,10 @@ async function genEnrich() {
   try {
     for (const c of queue) {
       if (genDone >= 150 || S.srcId !== src) break;
-      if (S.cur && isVodNow()) { await new Promise(r => setTimeout(r, 5000)); continue; }
+      // while anything is playing, leave the server alone (busy IPTV servers slow the stream down)
+      while (S.cur && !v.paused && S.srcId === src) await new Promise(r => setTimeout(r, 5000));
       try { const d = await fetchJson(`${x.base}/player_api.php?username=${x.q(x.s.user)}&password=${x.q(x.s.pass)}&action=get_vod_info&vod_id=${x.q(c.vodId)}`); GEN[c.key] = (d && d.info && d.info.genre) || ''; if (GEN[c.key]) got++; genDone++; saveGen(); } catch (e) { genDone++; }
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 1200));
     }
   } finally { genBusy = false; }
   // show the new rows if the user is still at the top of AntunesFlix and not in the middle of something
