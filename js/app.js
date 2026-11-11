@@ -428,7 +428,8 @@ const openTracks = () => {
 $('#cTrk').onclick = openTracks;
 /* ---------- icons ---------- */
 const IC = {
-  back: '<path d="M15 5l-7 7 7 7"/>', tv: '<rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M8 2.5l4 3.5 4-3.5"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>', tv: '<rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M8 2.5l4 3.5 4-3.5"/>',
   film: '<rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M7.5 3.5v17M16.5 3.5v17M3 8.5h4.5M3 15.5h4.5M16.5 8.5H21M16.5 15.5H21"/>',
   series: '<rect x="2.5" y="7.5" width="15" height="12" rx="2.5"/><path d="M6.5 4.5h12a3 3 0 013 3v8"/><path d="M8.5 11v5l4-2.5z" fill="currentColor" stroke="none"/>',
   guide: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M9 9.5V20M15 9.5V20"/>',
@@ -939,6 +940,18 @@ function listsDialog() {
 /* ---------- wiring ---------- */
 [['#bBack', 'back'], ['#bSearch', 'search'], ['#bGuide', 'guide'], ['#bSet', 'gear'], ['#qWrap .si', 'search'], ['#pExpand', 'expand'], ['#cExit', 'back'], ['#cBack', 'rew10'], ['#cFwd', 'fwd10'], ['#cPlay', 'pause'], ['#cPrev', 'skp'], ['#cNext', 'skn'], ['#cTrk', 'cc'], ['#cAsp', 'aspect'], ['#cRec', 'rec'], ['#cMute', 'vol'], ['#cInfo', 'info'], ['#cMore', 'dots'], ['#cpPrev', 'left'], ['#cpNext', 'right'], ['#csClose', 'close'], ['#cList i', 'stack']].forEach(([s, n]) => { $(s).innerHTML = ic(n); });
 $('#bBack').onclick = () => back(); $('#bSearch').onclick = () => openSearch(S.view === 'flix' ? 'flix' : 'all'); $('#bGuide').onclick = openGuide; $('#bSet').onclick = settingsDialog; $('#logo').onclick = () => go('home');
+/* ---------- voice search: the microphone button in the search box (on a TV, the system's voice screen with the remote's mic) ---------- */
+const voiceNative = () => NATIVE && Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.listen;
+const VoiceRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+async function voiceSearch() {
+  const done = txt => { txt = (txt || '').trim(); if (!txt) return; if (S.view !== 'search' && S.view !== 'browse') openSearch(); $('#q').value = txt; S.q = txt; S.shown = 250; S.view === 'search' ? renderSearch() : renderList(); };
+  const lang = LANG === 'pt' ? 'pt-PT' : 'en-US', fail = () => toast(t('Voice search is not available on this device'));
+  if (voiceNative()) { try { const r = await Capacitor.Plugins.ExtPlayer.listen({ lang, prompt: t('Say what you want to watch') }); done(r && r.text); } catch (e) { fail(); } return; }
+  if (!VoiceRec) { fail(); return; }
+  try { const rec = new VoiceRec(); rec.lang = lang; rec.interimResults = false; rec.maxAlternatives = 1; rec.onresult = e => done(e.results[0][0].transcript); rec.onerror = fail; rec.start(); toast(t('Listening…')); } catch (e) { fail(); }
+}
+if (voiceNative() || VoiceRec) { const mb = document.createElement('button'); mb.type = 'button'; mb.id = 'qMic'; mb.setAttribute('aria-label', t('Voice search')); mb.innerHTML = ic('mic'); $('#qWrap').appendChild(mb); mb.onclick = e => { e.preventDefault(); e.stopPropagation(); voiceSearch(); }; }
+Object.assign(PT, { 'Voice search': 'Pesquisa por voz', 'Say what you want to watch': 'Diz o que queres ver', 'Listening…': 'A ouvir…', 'Voice search is not available on this device': 'A pesquisa por voz não está disponível neste aparelho' });
 let qT; $('#q').oninput = e => { S.q = e.target.value; S.shown = 250; clearTimeout(qT); qT = setTimeout(() => S.view === 'search' ? renderSearch() : renderList(), 150); };
 $('#cFav').onclick = () => toggleFav(S.cur); $('#cPrev').onclick = () => zap(-1); $('#cNext').onclick = () => zap(1); $('#cRec').onclick = toggleRec;
 $('#cMute').onclick = () => { v.muted = !v.muted; $('#cMute').innerHTML = ic(v.muted ? 'mute' : 'vol'); };
