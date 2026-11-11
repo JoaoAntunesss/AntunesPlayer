@@ -728,3 +728,4 @@ html.lite *{transition-duration:.08s!important}
 body.mvOn #bnav{display:none}
 
 .fxsort{padding-top:0!important}.fxsort .fxsep{flex:0 0 1px;background:rgba(255,255,255,.25);margin:4px 4px}
+.po .rt.imdb{background:#f5c518;color:#000}.fxnote{padding:0 20px 4px;margin:0;font-size:13px}

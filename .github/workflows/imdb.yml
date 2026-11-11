@@ -1,0 +1,24 @@
+name: IMDb ratings
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 3 * *'   # once a month
+  push:
+    branches: [main]
+    paths: ['scripts/imdb.py', '.github/workflows/imdb.yml']
+permissions:
+  contents: write
+jobs:
+  imdb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python scripts/imdb.py
+      - name: Save data/imdb.json
+        run: |
+          git config user.name "João Antunes"
+          git config user.email "j.p.r.n.antunes@gmail.com"
+          git add data/imdb.json
+          git diff --cached --quiet || (git commit -m "Notas do IMDb atualizadas" && git push)
