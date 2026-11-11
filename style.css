@@ -704,3 +704,11 @@ html.lite *{transition-duration:.08s!important}
 }
 #skipIntro{position:absolute;right:clamp(18px,3vw,48px);bottom:clamp(90px,16vh,170px);z-index:9;padding:clamp(10px,1.4vh,16px) clamp(18px,1.8vw,30px);font-weight:800;font-size:clamp(14px,1.2vw,20px);background:rgba(20,20,20,.72)!important;color:#fff!important;border:2px solid rgba(255,255,255,.75)!important;border-radius:6px!important;clip-path:none!important;gap:8px}#skipIntro:focus-visible{background:#fff!important;color:#000!important}
 #qMic{display:inline-grid;place-items:center;width:34px;height:34px;margin-left:4px;border-radius:50%;background:transparent;border:0;color:inherit;flex:none;cursor:pointer}#qMic .i{width:20px;height:20px}#qMic:hover,#qMic:focus-visible{background:rgba(255,255,255,.12)}
+/* Fit every screen and orientation: the shortcuts never spill over the account box, and the AntunesFlix title fits narrow phones */
+.minis>*{min-width:0}.mini span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media (orientation:landscape) and (max-height:540px){
+  .minis{grid-template-columns:repeat(3,1fr)}.mini span{white-space:nowrap}
+  .hgrid{grid-template-rows:auto auto}.tile{min-height:140px}.acct{overflow:hidden;gap:10px}.hprof{margin-top:0}
+}
+@media (max-width:1180px) and (min-height:541px){.acct .hprof{width:auto;margin-top:0;flex:0 0 auto}}
+@media (max-width:420px){.fxlogo{font-size:clamp(20px,6.4vw,30px);white-space:nowrap;flex:0 1 auto;min-width:0}.fxbar .gap{flex:1;min-width:4px}}
