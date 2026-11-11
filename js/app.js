@@ -611,7 +611,7 @@ $('#cMore').onclick = () => {
   openDlg(`<h2>${t('More')}</h2>${isVodNow() ? `<label>${t('Speed')}</label><div class="tabs">${sp.map(x => `<button data-sp="${x}" class="${v.playbackRate === x ? 'on' : ''}">${x}×</button>`).join('')}</div>` : ''}
   <label>${t('Picture size')}</label><div class="tabs">${ASP.map((x, i) => `<button data-as="${i}" class="${aspI === i ? 'on' : ''}">${t(x[1])}</button>`).join('')}</div>
   <label>${t('Colours')} <small class="mut">${t('Colours wrong? Try the options below (saved for this channel).')}</small></label><div class="tabs">${['Normal', 'Swap red / blue', 'Compatible'].map((x, i) => `<button data-cf="${i}" class="${((S.cur && COLFIX[S.cur.key]) || 0) === i ? 'on' : ''}">${t(x)}</button>`).join('')}</div>
-  <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button><button class="btn" id="mMv">${ic('stack')} ${t('Multi-screen')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<label>${t('Sleep timer')}${sleepAt ? ' · ' + sleepLeft() + ' ' + t('min') : ''}</label><div class="tabs">${[0, 15, 30, 60, 90, 120].map(m => `<button data-sl="${m}" class="${(!sleepAt && !m) ? 'on' : ''}">${m ? m + ' ' + t('min') : t('Off ').trim()}</button>`).join('')}</div>
+  <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button><button class="btn" id="mMv">${ic('stack')} ${t('Multi-screen')}</button>` : ''}${recNative() ? `<button class="btn" id="mRecs">${ic('clock')} ${t('Scheduled recordings')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<label>${t('Sleep timer')}${sleepAt ? ' · ' + sleepLeft() + ' ' + t('min') : ''}</label><div class="tabs">${[0, 15, 30, 60, 90, 120].map(m => `<button data-sl="${m}" class="${(!sleepAt && !m) ? 'on' : ''}">${m ? m + ' ' + t('min') : t('Off ').trim()}</button>`).join('')}</div>
   <div class="row" style="justify-content:flex-start"><button class="btn" id="mInfo">${ic('signal')} ${t('Stream info')}</button><button class="btn" id="mExt">${ic('ext')} ${NATIVE ? t('Open in another player') : t('Copy link')}</button></div>
   <div class="row" style="justify-content:space-between"><button class="btn" id="mSet">${ic('gear')} ${t('Settings')}</button><button class="btn p" id="dx">OK</button></div>`);
   $('#dx').onclick = () => dlg.close(); $('#mSet').onclick = settingsDialog; $('#mInfo').onclick = streamInfo; $('#mExt').onclick = () => { dlg.close(); openElsewhere(); };
@@ -622,6 +622,7 @@ $('#cMore').onclick = () => {
   const p = $('#mPip'); if (p) p.onclick = () => { dlg.close(); try { v.requestPictureInPicture(); } catch (e) { } };
   const r = $('#mRec'); if (r) r.onclick = () => { dlg.close(); toggleRec(); };
   const mm = $('#mMv'); if (mm) mm.onclick = () => { const c = S.cur; dlg.close(); openMulti([c]); };
+  const mr = $('#mRecs'); if (mr) mr.onclick = recsDialog;
 };
 
 /* ---------- header ---------- */
@@ -1075,8 +1076,9 @@ const saveRem = () => LS.set('ap.rem', REM);
 const remIdx = (c, p) => REM.findIndex(r => r.k === c.key && r.s === p.s);
 function progDialog(c, p) {
   const has = remIdx(c, p) > -1, d = new Date(p.s);
-  openDlg(`<h2>${ic('bell')} ${esc(p.t)}</h2><p class="mut">${esc(c.name)} · ${d.toLocaleDateString(LOC, { weekday: 'short', day: 'numeric', month: 'short' })} ${hm(p.s)} – ${hm(p.e)}</p>${p.d ? `<p>${esc(p.d)}</p>` : ''}<div class="row"><button class="btn" id="pgW">${ic('play')} ${t('Watch channel now')}</button><button class="btn p" id="pgR">${ic('bell')} ${has ? t('Cancel reminder') : t('Remind me')}</button></div>`);
+  openDlg(`<h2>${ic('bell')} ${esc(p.t)}</h2><p class="mut">${esc(c.name)} · ${d.toLocaleDateString(LOC, { weekday: 'short', day: 'numeric', month: 'short' })} ${hm(p.s)} – ${hm(p.e)}</p>${p.d ? `<p>${esc(p.d)}</p>` : ''}<div class="row"><button class="btn" id="pgW">${ic('play')} ${t('Watch channel now')}</button>${recNative() && c.kind === 'live' && p.e > Date.now() ? `<button class="btn" id="pgRec">${ic('rec')} ${RECS.some(r => r.id === recId(c, p)) ? t('Cancel recording') : t('Record')}</button>` : ''}<button class="btn p" id="pgR">${ic('bell')} ${has ? t('Cancel reminder') : t('Remind me')}</button></div>`);
   $('#pgW').onclick = () => { dlg.close(); if (S.view === 'browse' && S.mode === 'live') play(c); else { go('live'); setTimeout(() => play(c), 30); } };
+  const pr = $('#pgRec'); if (pr) pr.onclick = () => { dlg.close(); recToggle(c, p); };
   $('#pgR').onclick = () => { const i = remIdx(c, p); if (i > -1) REM.splice(i, 1); else { REM.push({ k: c.key, s: p.s, t: p.t, n: c.name }); toast(t('Reminder set') + ' · ' + hm(p.s)); } saveRem(); dlg.close(); };
 }
 function checkReminders() {
@@ -1834,6 +1836,32 @@ function openMulti(chs) {
 }
 function mvClose() { MV.cells.forEach(mvStop); MV.on = false; const box = $('#multi'); if (box) { box.hidden = true; box.innerHTML = ''; } document.body.classList.remove('mvOn'); render(); }
 Object.assign(PT, { 'Multi-screen': 'Multi-ecrã', 'Watch several games at once': 'Ver vários jogos ao mesmo tempo', 'Choose channel': 'Escolher canal', '2 screens': '2 ecrãs', '4 screens': '4 ecrãs', 'OK: sound from this channel · OK again: change channel': 'OK: som deste canal · OK outra vez: trocar de canal', 'Each picture uses one connection of your IPTV account': 'Cada imagem usa uma ligação da tua conta de IPTV' });
+
+/* ---------- scheduled recording (Android app): records a programme from the TV guide, even with the app closed ----------
+   The recording runs in the background on the device (Rec / RecService) and is saved in Movies / AntunesPlayer. */
+const recNative = () => NATIVE && Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.recSchedule;
+let RECS = LS.get('ap.recs', []);
+const saveRecs = () => LS.set('ap.recs', RECS);
+const recId = (c, p) => 'r' + hash(c.key + '|' + p.s);
+const recUrl = c => (c.sid && /\.m3u8(\?|$)/i.test(c.url) ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url); // Xtream: the direct stream is easier to save
+async function recSync() { if (!recNative()) return; try { const r = await Capacitor.Plugins.ExtPlayer.recList(); RECS = (r && r.list) || []; saveRecs(); } catch (e) { } }
+async function recToggle(c, p) {
+  const id = recId(c, p), has = RECS.some(r => r.id === id);
+  try {
+    if (has) { await Capacitor.Plugins.ExtPlayer.recCancel({ id }); RECS = RECS.filter(r => r.id !== id); toast(t('Recording cancelled')); }
+    else { const r = { id, url: recUrl(c), ua: uaHdr()['User-Agent'] || '', name: `${p.t} - ${c.name}`, start: p.s, end: p.e + 120e3 }; await Capacitor.Plugins.ExtPlayer.recSchedule(r); RECS.push(r); toast(t('Recording scheduled') + ' · ' + hm(p.s)); }
+    saveRecs();
+  } catch (e) { toast(t('Could not schedule the recording')); }
+}
+async function recsDialog() {
+  await recSync();
+  const n = Date.now(), L = RECS.filter(r => r.end > n).sort((a, b) => a.start - b.start), day = s => new Date(s).toLocaleDateString(LOC, { weekday: 'short', day: 'numeric', month: 'short' });
+  openDlg(`<h2>${ic('rec')} ${t('Scheduled recordings')}</h2><p class="mut">${t('Saved in Movies / AntunesPlayer on this device. Each recording uses one connection of your IPTV account.')}</p>${L.length ? `<div class="catlist">${L.map((r, i) => `<button data-rc="${i}"><span><b>${r.start <= n ? `<i class="splive">${t('Recording')}</i> ` : ''}${day(r.start)} ${hm(r.start)}–${hm(r.end - 120e3)}</b> ${esc(r.name)}<small class="mut"> · ${t('Cancel')}</small></span></button>`).join('')}</div>` : `<p>${t('Nothing scheduled. Open a programme in the TV guide or in Games and choose Record.')}</p>`}<div class="row"><button class="btn p" id="dx">OK</button></div>`);
+  $('#dx').onclick = () => dlg.close();
+  $$('[data-rc]', dlg).forEach(b => b.onclick = async () => { const r = L[+b.dataset.rc]; try { await Capacitor.Plugins.ExtPlayer.recCancel({ id: r.id }); } catch (e) { } RECS = RECS.filter(x => x.id !== r.id); saveRecs(); toast(t('Recording cancelled')); recsDialog(); });
+}
+recSync();
+Object.assign(PT, { 'Record': 'Gravar', 'Cancel recording': 'Cancelar gravação', 'Recording scheduled': 'Gravação agendada', 'Recording cancelled': 'Gravação cancelada', 'Could not schedule the recording': 'Não foi possível agendar a gravação', 'Scheduled recordings': 'Gravações agendadas', 'Recording': 'A gravar', 'Saved in Movies / AntunesPlayer on this device. Each recording uses one connection of your IPTV account.': 'Ficam guardadas em Filmes / AntunesPlayer neste aparelho. Cada gravação usa uma ligação da tua conta de IPTV.', 'Nothing scheduled. Open a programme in the TV guide or in Games and choose Record.': 'Nada agendado. Abre um programa no Guia de TV ou em Jogos e escolhe Gravar.' });
 
 /* ---------- start ---------- */
 if (!S.set.nm2) { S.set.numberMode = 'favs'; S.set.nm2 = true; saveSet(); }
