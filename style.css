@@ -682,3 +682,24 @@ html.lite *{transition-duration:.08s!important}
 .catlist .oslang{margin:10px 6px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .splive{font-style:normal;font-size:11px;font-weight:800;background:#e50914;color:#fff;border-radius:4px;padding:1px 6px;margin-right:4px}.sports button span{display:block}
 .hprof{margin-top:8px;width:100%;justify-content:flex-start;gap:8px}.pfav{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:14px;color:#fff;font-weight:800;font-size:28px;text-shadow:0 1px 2px rgba(0,0,0,.4)}.pfav.sm{width:26px;height:26px;border-radius:7px;font-size:14px}.profs{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:14px 0}.prof{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;border-radius:14px;background:transparent;border:2px solid transparent;min-width:110px}.prof.on,.prof:focus-visible{border-color:var(--acc)}.prof small{opacity:.7}.pfc{width:34px;height:34px;border-radius:50%;border:3px solid transparent}.pfc.on{border-color:#fff}
+/* AntunesFlix title page on a TV or any landscape screen: the picture fills the screen and the details sit on the left,
+   like Netflix on a TV; sizes follow the screen so it looks the same on a small TV, a 4K TV or a tablet */
+@media (min-width:700px) and (min-aspect-ratio:4/3){
+  body.fx[data-view=detail] #vDetail{padding-top:0}
+  .nfd{position:relative}
+  .nfhero{position:absolute;top:0;left:0;right:0;height:100vh;max-height:none!important;aspect-ratio:auto}
+  .nfhero::after{background:linear-gradient(90deg,#000 0,rgba(0,0,0,.88) 28%,rgba(0,0,0,.45) 58%,rgba(0,0,0,.12) 82%),linear-gradient(transparent 50%,#000 97%)}
+  .nfcircle{display:none}
+  .nfbody{position:relative;z-index:1;max-width:none;padding:0 4.5vw 40px}
+  .nftop{min-height:100vh;display:flex;flex-direction:column;justify-content:flex-end;max-width:min(50vw,820px);padding:clamp(70px,14vh,160px) 0 5vh}
+  .nftop h2{font-size:clamp(30px,4.4vw,72px);margin:0 0 1.4vh}
+  .nfmeta{font-size:clamp(14px,1.25vw,20px);margin-bottom:2vh}
+  .nfbig{width:auto;display:inline-flex;align-self:flex-start;padding:clamp(10px,1.5vh,18px) clamp(28px,3.2vw,56px);font-size:clamp(16px,1.45vw,24px)}.nfbig .i{width:clamp(20px,1.7vw,30px);height:clamp(20px,1.7vw,30px)}
+  .nfprog{max-width:min(36vw,520px)}
+  .nfplot{font-size:clamp(15px,1.35vw,22px);margin:2vh 0 1vh;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .nfsmall{font-size:clamp(13px,1.05vw,17px);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .nfacts{margin:2.4vh 0 0;gap:clamp(24px,2.6vw,44px)}.nfacts button{font-size:clamp(12px,1vw,16px)}.nfacts .i{width:clamp(24px,2vw,36px);height:clamp(24px,2vw,36px)}
+  .nftabs{margin-top:0}.nftabs button{font-size:clamp(15px,1.3vw,21px)}
+  .nfep{grid-template-columns:clamp(180px,17vw,320px) minmax(0,1fr)}.nfet b{font-size:clamp(15px,1.25vw,20px)}.nfet span,.nfet small{font-size:clamp(13px,1.05vw,17px)}
+}
+#skipIntro{position:absolute;right:clamp(18px,3vw,48px);bottom:clamp(90px,16vh,170px);z-index:9;padding:clamp(10px,1.4vh,16px) clamp(18px,1.8vw,30px);font-weight:800;font-size:clamp(14px,1.2vw,20px);background:rgba(20,20,20,.72)!important;color:#fff!important;border:2px solid rgba(255,255,255,.75)!important;border-radius:6px!important;clip-path:none!important;gap:8px}#skipIntro:focus-visible{background:#fff!important;color:#000!important}
