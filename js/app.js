@@ -1389,6 +1389,34 @@ function nextUpTick() {
 }
 v.addEventListener('timeupdate', nextUpTick);
 
+/* ---------- skip intro: the app learns where each series' opening ends from where you jump forward at the start of an
+   episode (one long jump or several quick ones), and then offers "Skip intro" in the other episodes, like Netflix ---------- */
+const INTRO = LS.get('ap.intro', {});
+let introLastT = 0, introChain = null, introOff = '', introSelf = false;
+function introTick() {
+  let b = $('#skipIntro'); const c = S.cur, w = c && c.ser && INTRO[c.ser], tt = v.currentTime;
+  const on = !!w && isVodNow() && introOff !== c.key && w.e - w.s >= 15 && tt >= w.s && tt < w.e - 2;
+  if (!on) { if (b && !b.hidden) b.hidden = true; return; }
+  if (!b) { b = document.createElement('button'); b.id = 'skipIntro'; b.className = 'btn'; b.hidden = true; screenEl.appendChild(b); }
+  if (!b.hidden) return;
+  b.innerHTML = `${ic('fwd')} ${t('Skip intro')}`; b.hidden = false;
+  b.onclick = () => { introSelf = true; introOff = c.key; b.hidden = true; v.currentTime = w.e; };
+  if (S.set.tv) b.focus({ preventScroll: true });
+}
+v.addEventListener('timeupdate', () => { if (!v.seeking) introLastT = v.currentTime; introTick(); });
+v.addEventListener('seeked', () => {
+  const c = S.cur, to = v.currentTime, from = introLastT, now = Date.now(); introLastT = to;
+  if (introSelf) { introSelf = false; introChain = null; return; }
+  if (!c || !c.ser || !isVodNow() || to <= from) { introChain = null; return; }
+  introChain = introChain && introChain.ser === c.ser && now - introChain.t < 5000 && Math.abs(from - introChain.to) < 4 ? Object.assign(introChain, { to, t: now }) : { ser: c.ser, from, to, t: now, base: INTRO[c.ser] };
+  const x = introChain, len = x.to - x.from;
+  if (x.from < 300 && x.to < 480 && len >= 15 && len <= 200) {
+    const o = x.base, s0 = Math.max(0, Math.round(x.from) - 2), e0 = Math.round(x.to);
+    INTRO[c.ser] = o ? { s: Math.round((o.s + s0) / 2), e: Math.round((o.e + e0) / 2) } : { s: s0, e: e0 }; LS.set('ap.intro', INTRO); introOff = c.key;
+  }
+});
+Object.assign(PT, { 'Skip intro': 'Saltar intro' });
+
 /* ---------- AntunesFlix, round 2: intro, Netflix-style continue cards, title page ---------- */
 Object.assign(PT, { 'Details and more': 'Detalhes e mais', 'Remove from row': 'Remover da faixa', 'left': 'restantes', 'Cast': 'Com', 'Director': 'Realizador', 'Episodes': 'Episódios', 'More like this': 'Títulos semelhantes', 'Trailer': 'Trailer', 'Watch series': 'Ver série', 'Rate': 'Classificar', 'Continue': 'Continuar' });
 // intro: our own red "A" monogram with light streaks (shown when AntunesFlix opens)
@@ -1428,13 +1456,13 @@ function renderFxDetail(c) {
   const prog = !c.seriesId && pos && dur ? `<div class="nfprog"><div><i style="width:${Math.min(100, Math.round(pos / dur * 100))}%"></i></div><small>${fmtLeft(dur - pos)}</small></div>` : x && x.resume ? `<div class="nfprog"><div><i style="width:${Math.min(100, Math.round(x.resume / (DUR[x.ep.key] || x.ep.dur || 2700) * 100))}%"></i></div><small>${epLabel(x.ep)} · ${fmtLeft((DUR[x.ep.key] || x.ep.dur || 2700) - x.resume)}</small></div>` : '';
   const similar = S.vis.filter(o => o.kind === c.kind && o.key !== c.key && o.group === c.group && o.logo).slice(0, 18);
   const tab = c.seriesId && seasons.length ? (S.fxTabD || 'eps') : 'sim', trailer = i.youtube_trailer || i.trailer || '';
-  box.innerHTML = `<div class="nfd"><div class="nfhero" style="${back ? `background-image:url('${esc(back).replace(/'/g, '%27')}')` : ''}"><button class="nfcircle" id="nfP" aria-label="${t('Play')}">${ic('play')}</button></div><div class="nfbody">
+  box.innerHTML = `<div class="nfd"><div class="nfhero" style="${back ? `background-image:url('${esc(back).replace(/'/g, '%27')}')` : ''}"><button class="nfcircle" id="nfP" aria-label="${t('Play')}">${ic('play')}</button></div><div class="nfbody"><div class="nftop">
     <h2>${esc(c.name)}</h2><div class="nfmeta">${[year, i.duration || (dur ? Math.round(dur / 60) + ' min' : ''), seasons.length ? seasons.length + ' ' + (seasons.length > 1 ? t('Seasons') : t('Season')) : '', rating ? '★ ' + rating.toFixed(1) : ''].filter(Boolean).map(s => `<span>${esc(s)}</span>`).join('')}</div>
     ${main}${prog}
     ${S.dinfo == null ? `<p class="mut">${t('Loading…')}</p>` : (i.plot || i.description) ? `<p class="nfplot">${esc(i.plot || i.description)}</p>` : ''}
     ${i.cast ? `<p class="nfsmall"><b>${t('Cast')}:</b> ${esc(i.cast)}</p>` : ''}${i.director ? `<p class="nfsmall"><b>${t('Director')}:</b> ${esc(i.director)}</p>` : ''}${i.genre ? `<p class="nfsmall">${esc(i.genre)}</p>` : ''}
     <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}${trailer ? `<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>` : ''}</div>
-    <div class="nftabs">${c.seriesId && seasons.length ? `<button data-dt="eps" class="${tab === 'eps' ? 'on' : ''}">${t('Episodes')}</button>` : ''}<button data-dt="sim" class="${tab === 'sim' ? 'on' : ''}">${t('More like this')}</button></div>
+    </div><div class="nftabs">${c.seriesId && seasons.length ? `<button data-dt="eps" class="${tab === 'eps' ? 'on' : ''}">${t('Episodes')}</button>` : ''}<button data-dt="sim" class="${tab === 'sim' ? 'on' : ''}">${t('More like this')}</button></div>
     ${tab === 'eps' ? `${seasons.length > 1 ? `<select class="nfsel" id="nfSn">${seasons.map(s => `<option value="${esc(s)}" ${s === sn ? 'selected' : ''}>${t('Season')} ${esc(s)}</option>`).join('')}</select>` : ''}<div class="nfeps">${(S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key], dn = DUR[ep.key] || ep.dur || 2700, img = e.info && e.info.movie_image; return `<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round(ps / dn * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>`; }).join('')}</div>` : `<div class="fxgrid nfsim">${similar.map(posterHtml).join('') || `<p class="mut">—</p>`}</div>`}
   </div></div>`;
   const play = () => { if (c.seriesId) { const r = serResume(c); if (r) enterFsFor(r.ep); } else enterFsFor(c); };
