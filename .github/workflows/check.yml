@@ -1,0 +1,18 @@
+name: Check code
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Sources are formatted (Prettier)
+        run: npx --yes prettier@3.3.3 --check "src/*.js"
+      - name: js/app.js is built from src/
+        run: node scripts/build-app.mjs --check
+      - name: js/app.js parses
+        run: node --check js/app.js

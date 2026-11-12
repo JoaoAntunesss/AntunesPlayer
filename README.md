@@ -51,7 +51,46 @@ Browsers are stricter than VLC or Kodi:
 ## Host it
 Any static host works: GitHub Pages (branch `main`, root) or Firebase Hosting (`firebase deploy`).
 
+## Code layout
+The app is plain JavaScript with no framework. The source is split by feature in `src/` (formatted with Prettier):
+
+| File | What it does |
+|---|---|
+| `src/00-core.js` | helpers, translations, storage, app state |
+| `src/01-playlist.js` | M3U parser and XMLTV TV guide |
+| `src/02-sources.js` | playlists, favourites import/export, TV detection |
+| `src/03-player.js` | video player (hls.js, mpegts.js), browser recording |
+| `src/04-dialogs.js` | dialogs and settings |
+| `src/05-player-extras.js` | pause, seek, resume, audio/subtitle tracks, picture size |
+| `src/06-icons.js` | SVG icon set |
+| `src/07-navigation.js` | screens and full screen |
+| `src/08-player-chrome.js` | on-screen controls, gestures, channel panel |
+| `src/09-home.js` | header, home screen, lists |
+| `src/10-browse.js` | live TV, films and series lists |
+| `src/11-detail.js` | film and series pages |
+| `src/12-favourites-guide.js` | favourites, TV guide, playlist manager, wiring |
+| `src/13-remote.js` | voice search, TV remote and keyboard |
+| `src/14-updates-extras.js` | app updates, sleep timer, reminders, stream info |
+| `src/15-sports.js` | games agenda from the TV guide |
+| `src/16-subtitles.js` | online subtitles (OpenSubtitles) |
+| `src/17-antunesflix.js` | AntunesFlix home and genre rows |
+| `src/18-cast-downloads.js` | Chromecast and offline downloads |
+| `src/19-flix-extras.js` | trailers, On now, new episodes, statistics |
+| `src/20-tutorial.js` | first-run tutorial |
+| `src/21-imdb-catalogue.js` | IMDb ratings, daily rows, full catalogue |
+| `src/22-skip-intro.js` | skip intro |
+| `src/23-flix-detail.js` | AntunesFlix intro and title page |
+| `src/24-colours.js` | colour themes |
+| `src/25-cloud-sync.js` | Google sign-in and encrypted sync |
+| `src/26-profiles.js` | profiles and kids profile |
+| `src/27-multiscreen.js` | 2 or 4 channels at once |
+| `src/28-recording.js` | scheduled recordings (Android) |
+| `src/29-start.js` | start-up |
+
+`node scripts/build-app.mjs` joins them, in order, into `js/app.js`, the file the web, Android and Windows versions load. They share one private scope, so there are no imports between files. CI checks that `js/app.js` is up to date and that `src/` is formatted. The native Android parts (background recording, downloads, Chromecast, the TV home-screen channel) are in `scripts/android_patch.py`, which adds them to the Capacitor project at build time.
+
 ## Run locally
+    node scripts/build-app.mjs     # after editing src/
     python3 -m http.server 8790    # then open http://localhost:8790
 
 ## Credits

@@ -1,4 +1,5 @@
 // Copies the web app into ./www for Capacitor (no service worker inside the app) and minifies our own JS/CSS.
+await import('./build-app.mjs'); // js/app.js from src/
 import { cpSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 rmSync('www', { recursive: true, force: true }); mkdirSync('www', { recursive: true });
 for (const f of ['index.html', 'style.css', 'manifest.json', 'icon-192.png', 'icon-512.png', 'js', 'fonts', 'data']) if (existsSync(f)) cpSync(f, 'www/' + f, { recursive: true });

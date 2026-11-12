@@ -2,8 +2,10 @@
   "name": "antunesplayer",
   "version": "1.0.0",
   "private": true,
-  "description": "AntunesPlayer \u2014 IPTV player (web + Android APK via Capacitor)",
+  "description": "AntunesPlayer — IPTV player (web + Android APK via Capacitor)",
   "scripts": {
+    "build": "node scripts/build-app.mjs",
+    "format": "npx prettier@3.3.3 --write \"src/*.js\"",
     "www": "node scripts/prepare-www.mjs"
   },
   "dependencies": {
