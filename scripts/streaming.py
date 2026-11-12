@@ -12,7 +12,7 @@ REGION = 'PT'
 API = 'https://api.themoviedb.org/3'
 SERVICES = [  # our id, how TMDB names it
     ('p-netflix', r'^netflix'), ('p-hbo', r'^(hbo ?max|max)$'), ('p-disney', r'^disney'),
-    ('p-prime', r'^amazon prime video$'), ('p-apple', r'^apple tv( ?\+| plus)$'), ('p-sky', r'^skyshowtime'),
+    ('p-prime', r'^amazon prime video$'), ('p-sky', r'^skyshowtime'),
     ('p-filmin', r'^filmin'), ('p-paramount', r'^paramount'),
 ]
 
@@ -42,6 +42,10 @@ for kind in ('movie', 'tv'):
         for ours, pat in SERVICES:
             if re.search(pat, name):
                 ids.setdefault(ours, set()).add(p['provider_id'])
+# Apple's subscription service is "Apple TV" since 2025, the same name as its rental store: use its id (350)
+for kind in ('movie', 'tv'):
+    if any(p['provider_id'] == 350 for p in get(f'/watch/providers/{kind}', watch_region=REGION)['results']):
+        ids['p-apple'] = {350}
 print({k: sorted(v) for k, v in ids.items()})
 
 titles = {}  # (kind, tmdb id) -> row

@@ -8765,7 +8765,7 @@ var PLATS = [
   ['p-hbo', 'On HBO Max', /\bhbo\b/i],
   ['p-disney', 'On Disney+', /disney/i],
   ['p-prime', 'On Prime Video', /prime ?video|amazon/i],
-  ['p-apple', 'On Apple TV+', /apple ?tv/i],
+  ['p-apple', 'On Apple TV', /apple ?tv/i],
   ['p-sky', 'On SkyShowtime', /skyshowtime/i],
   ['p-filmin', 'On Filmin', /filmin/i],
   ['p-paramount', 'On Paramount+', /paramount/i]
@@ -8779,7 +8779,7 @@ Object.assign(PT, {
   'On HBO Max': 'Na HBO Max',
   'On Disney+': 'No Disney+',
   'On Prime Video': 'No Prime Video',
-  'On Apple TV+': 'Na Apple TV+',
+  'On Apple TV': 'Na Apple TV',
   'On SkyShowtime': 'Na SkyShowtime',
   'On Filmin': 'Na Filmin',
   'On Paramount+': 'No Paramount+'
