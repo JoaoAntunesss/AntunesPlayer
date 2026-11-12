@@ -1,0 +1,7 @@
+# app.js is hand-written code with long lines, not a generated/minified file
+js/app.js linguist-generated=false linguist-detectable=true
+# third-party libraries
+js/*.min.js linguist-vendored
+js/vendor/** linguist-vendored
+# built monthly from IMDb data
+data/** linguist-generated
