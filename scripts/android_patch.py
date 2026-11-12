@@ -269,6 +269,85 @@ public class ExtPlayerPlugin extends Plugin {
         try { o.put("list", new com.getcapacitor.JSArray(Rec.all(getContext()).toString())); } catch (Exception e) { }
         call.resolve(o);
     }
+
+    // Downloads (see Dl / DlService): films and episodes saved inside the app to watch offline
+    @PluginMethod
+    public void dlStart(PluginCall call) {
+        try {
+            org.json.JSONObject d = new org.json.JSONObject();
+            for (String k : new String[] { "id", "key", "url", "ua", "name", "ext", "logo", "ser" }) d.put(k, call.getString(k, ""));
+            Dl.start(getContext(), d);
+            if (android.os.Build.VERSION.SDK_INT >= 33 && getContext().checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED && getActivity() != null)
+                getActivity().requestPermissions(new String[] { "android.permission.POST_NOTIFICATIONS" }, 78);
+            call.resolve();
+        } catch (Exception e) { call.reject("dl", e); }
+    }
+
+    @PluginMethod
+    public void dlList(PluginCall call) {
+        JSObject o = new JSObject();
+        try { o.put("list", new com.getcapacitor.JSArray(Dl.all(getContext()).toString())); } catch (Exception e) { }
+        call.resolve(o);
+    }
+
+    @PluginMethod
+    public void dlStop(PluginCall call) { DlService.STOP.add(call.getString("id", "")); call.resolve(); }
+
+    @PluginMethod
+    public void dlDelete(PluginCall call) { String id = call.getString("id", ""); DlService.STOP.add(id); Dl.delete(getContext(), id); call.resolve(); }
+
+    // Chromecast: the system's device picker, then the stream is played by the Chromecast itself
+    @PluginMethod
+    public void cast(final PluginCall call) {
+        final android.app.Activity a = getActivity();
+        if (a == null) { call.reject("no activity"); return; }
+        a.runOnUiThread(new Runnable() { public void run() {
+            try {
+                final com.google.android.gms.cast.framework.CastContext cc = com.google.android.gms.cast.framework.CastContext.getSharedInstance(a);
+                final com.google.android.gms.cast.framework.SessionManager sm = cc.getSessionManager();
+                com.google.android.gms.cast.framework.CastSession cur = sm.getCurrentCastSession();
+                if (cur != null && cur.isConnected()) { castLoad(cur, call); return; }
+                final boolean[] settled = { false };
+                final com.google.android.gms.cast.framework.SessionManagerListener<com.google.android.gms.cast.framework.CastSession>[] L = new com.google.android.gms.cast.framework.SessionManagerListener[1];
+                L[0] = new com.google.android.gms.cast.framework.SessionManagerListener<com.google.android.gms.cast.framework.CastSession>() {
+                    void end(com.google.android.gms.cast.framework.CastSession s, boolean ok) { if (settled[0]) return; settled[0] = true; sm.removeSessionManagerListener(L[0], com.google.android.gms.cast.framework.CastSession.class); if (ok) castLoad(s, call); else call.reject("cast failed"); }
+                    @Override public void onSessionStarted(com.google.android.gms.cast.framework.CastSession s, String id) { end(s, true); }
+                    @Override public void onSessionResumed(com.google.android.gms.cast.framework.CastSession s, boolean w) { end(s, true); }
+                    @Override public void onSessionStartFailed(com.google.android.gms.cast.framework.CastSession s, int e) { end(s, false); }
+                    @Override public void onSessionResumeFailed(com.google.android.gms.cast.framework.CastSession s, int e) { end(s, false); }
+                    @Override public void onSessionStarting(com.google.android.gms.cast.framework.CastSession s) { }
+                    @Override public void onSessionEnding(com.google.android.gms.cast.framework.CastSession s) { }
+                    @Override public void onSessionEnded(com.google.android.gms.cast.framework.CastSession s, int e) { }
+                    @Override public void onSessionResuming(com.google.android.gms.cast.framework.CastSession s, String id) { }
+                    @Override public void onSessionSuspended(com.google.android.gms.cast.framework.CastSession s, int r) { }
+                };
+                sm.addSessionManagerListener(L[0], com.google.android.gms.cast.framework.CastSession.class);
+                androidx.mediarouter.app.MediaRouteChooserDialog d = new androidx.mediarouter.app.MediaRouteChooserDialog(a);
+                d.setRouteSelector(cc.getMergedSelector());
+                d.setOnCancelListener(new android.content.DialogInterface.OnCancelListener() { public void onCancel(android.content.DialogInterface x) {
+                    if (settled[0]) return; settled[0] = true; sm.removeSessionManagerListener(L[0], com.google.android.gms.cast.framework.CastSession.class); JSObject o = new JSObject(); o.put("ok", false); call.resolve(o); } });
+                d.show();
+            } catch (Exception e) { call.reject("cast", e); }
+        } });
+    }
+
+    private void castLoad(com.google.android.gms.cast.framework.CastSession s, PluginCall call) {
+        try {
+            com.google.android.gms.cast.MediaMetadata md = new com.google.android.gms.cast.MediaMetadata(com.google.android.gms.cast.MediaMetadata.MEDIA_TYPE_MOVIE);
+            md.putString(com.google.android.gms.cast.MediaMetadata.KEY_TITLE, call.getString("title", ""));
+            String img = call.getString("image", ""); if (img != null && !img.isEmpty()) md.addImage(new com.google.android.gms.common.images.WebImage(Uri.parse(img)));
+            boolean live = Boolean.TRUE.equals(call.getBoolean("live", false));
+            com.google.android.gms.cast.MediaInfo mi = new com.google.android.gms.cast.MediaInfo.Builder(call.getString("url", ""))
+                .setContentType(call.getString("type", "video/mp4"))
+                .setStreamType(live ? com.google.android.gms.cast.MediaInfo.STREAM_TYPE_LIVE : com.google.android.gms.cast.MediaInfo.STREAM_TYPE_BUFFERED)
+                .setMetadata(md).build();
+            com.google.android.gms.cast.framework.media.RemoteMediaClient rm = s.getRemoteMediaClient();
+            if (rm == null) { call.reject("no media client"); return; }
+            Integer pos = call.getInt("pos", 0);
+            rm.load(new com.google.android.gms.cast.MediaLoadRequestData.Builder().setMediaInfo(mi).setAutoplay(true).setCurrentTime(pos == null ? 0 : pos * 1000L).build());
+            JSObject o = new JSObject(); o.put("ok", true); call.resolve(o);
+        } catch (Exception e) { call.reject("cast load", e); }
+    }
 }
 """)
 print('external player plugin written')
@@ -538,3 +617,179 @@ public class RecService extends Service {
 }
 ''')
 print('scheduled recordings added')
+
+# Chromecast: Google Cast framework + the media route picker
+gs = open(g, encoding='utf-8').read()
+if 'play-services-cast-framework' not in gs:
+    gs = re.sub(r'dependencies\s*\{', "dependencies {\n    implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'\n    implementation 'androidx.mediarouter:mediarouter:1.7.0'", gs, count=1)
+    open(g, 'w', encoding='utf-8').write(gs)
+open(jd + 'CastOpts.java', 'w', encoding='utf-8').write("""package com.antunes.player;
+
+import android.content.Context;
+import com.google.android.gms.cast.CastMediaControlIntent;
+import com.google.android.gms.cast.framework.CastOptions;
+import com.google.android.gms.cast.framework.OptionsProvider;
+import com.google.android.gms.cast.framework.SessionProvider;
+import java.util.List;
+
+/** Chromecast: plays on Google's default media receiver. */
+public class CastOpts implements OptionsProvider {
+    @Override public CastOptions getCastOptions(Context c) { return new CastOptions.Builder().setReceiverApplicationId(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID).build(); }
+    @Override public List<SessionProvider> getAdditionalSessionProviders(Context c) { return null; }
+}
+""")
+s2 = open(m, encoding='utf-8').read()
+if 'OPTIONS_PROVIDER_CLASS_NAME' not in s2:
+    s2 = s2.replace('</application>', '        <meta-data android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME" android:value="com.antunes.player.CastOpts" />\n        <service android:name=".DlService" android:exported="false" android:foregroundServiceType="dataSync" />\n    </application>', 1)
+    open(m, 'w', encoding='utf-8').write(s2)
+with open('android/app/proguard-rules.pro', 'a', encoding='utf-8') as f:
+    f.write('\n-keep class com.antunes.player.CastOpts { *; }\n-keep class com.antunes.player.DlService { *; }\n')
+print('chromecast added')
+
+# Downloads: copied to the app's own Movies folder (resumable), shown in AntunesFlix -> Downloads, played offline
+open(jd + 'Dl.java', 'w', encoding='utf-8').write(r"""package com.antunes.player;
+
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.os.Environment;
+import java.io.File;
+import java.util.Iterator;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+/** The list of downloads (state, size, file), kept in SharedPreferences. */
+public class Dl {
+    static SharedPreferences prefs(Context c) { return c.getSharedPreferences("dl", Context.MODE_PRIVATE); }
+    static File dir(Context c) { File d = new File(c.getExternalFilesDir(Environment.DIRECTORY_MOVIES), "Downloads"); d.mkdirs(); return d; }
+    static synchronized JSONObject get(Context c, String id) { try { String s = prefs(c).getString(id, null); return s == null ? null : new JSONObject(s); } catch (Exception e) { return null; } }
+    static synchronized void put(Context c, JSONObject d) { prefs(c).edit().putString(d.optString("id"), d.toString()).apply(); }
+    static synchronized JSONArray all(Context c) {
+        JSONArray a = new JSONArray();
+        for (Object v : prefs(c).getAll().values()) { try { JSONObject d = new JSONObject(String.valueOf(v)); if ("run".equals(d.optString("state")) && !DlService.ACTIVE.contains(d.optString("id"))) d.put("state", "stop"); a.put(d); } catch (Exception ignored) { } }
+        return a;
+    }
+    static void start(Context c, JSONObject d) throws Exception {
+        String id = d.optString("id"); JSONObject old = get(c, id);
+        String ext = d.optString("ext", "mp4").replaceAll("[^a-z0-9]", ""); if (ext.isEmpty()) ext = "mp4";
+        d.put("path", new File(dir(c), id + "." + ext).getAbsolutePath()); d.put("state", "run"); d.put("at", System.currentTimeMillis());
+        d.put("size", old != null ? old.optLong("size") : 0); d.put("total", old != null ? old.optLong("total") : 0);
+        put(c, d); DlService.STOP.remove(id);
+        Intent s = new Intent(c, DlService.class).putExtra("id", id);
+        if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(s); else c.startService(s);
+    }
+    static synchronized void delete(Context c, String id) { JSONObject d = get(c, id); if (d != null) { try { new File(d.optString("path")).delete(); } catch (Exception ignored) { } } prefs(c).edit().remove(id).apply(); }
+}
+""")
+open(jd + 'DlService.java', 'w', encoding='utf-8').write(r"""package com.antunes.player;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.content.Intent;
+import android.content.pm.ServiceInfo;
+import android.net.wifi.WifiManager;
+import android.os.Build;
+import android.os.IBinder;
+import android.os.PowerManager;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import org.json.JSONObject;
+
+/** Downloads a film or episode to the app's folder, resuming where it stopped if the connection drops. */
+public class DlService extends Service {
+    static final Set<String> STOP = Collections.synchronizedSet(new HashSet<String>());
+    static final Set<String> ACTIVE = Collections.synchronizedSet(new HashSet<String>());
+    private PowerManager.WakeLock wake; private WifiManager.WifiLock wifi;
+
+    @Override public IBinder onBind(Intent i) { return null; }
+
+    private Notification note(String title, String text, int pct, boolean ongoing) {
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        Notification.Builder b;
+        if (Build.VERSION.SDK_INT >= 26) { if (nm != null && nm.getNotificationChannel("dl") == null) nm.createNotificationChannel(new NotificationChannel("dl", "Downloads", NotificationManager.IMPORTANCE_LOW)); b = new Notification.Builder(this, "dl"); }
+        else b = new Notification.Builder(this);
+        b.setSmallIcon(getApplicationInfo().icon).setContentTitle(title).setContentText(text).setOngoing(ongoing).setOnlyAlertOnce(true);
+        if (pct >= 0) b.setProgress(100, pct, false);
+        return b.build();
+    }
+
+    @Override public int onStartCommand(Intent in, int flags, int startId) {
+        Notification n = note("AntunesPlayer", "A descarregar…", 0, true);
+        if (Build.VERSION.SDK_INT >= 29) startForeground(4343, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); else startForeground(4343, n);
+        final String id = in == null ? null : in.getStringExtra("id");
+        final JSONObject d = id == null ? null : Dl.get(this, id);
+        if (d == null || ACTIVE.contains(id)) { finishIfIdle(); return START_NOT_STICKY; }
+        synchronized (this) {
+            if (ACTIVE.isEmpty()) {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE); if (pm != null) { wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "antunes:dl"); wake.acquire(8 * 3600 * 1000L); }
+                WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE); if (wm != null) { wifi = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "antunes:dl"); wifi.acquire(); }
+            }
+            ACTIVE.add(id);
+        }
+        new Thread(new Runnable() { public void run() { try { fetch(d); } finally { ACTIVE.remove(id); finishIfIdle(); } } }).start();
+        return START_NOT_STICKY;
+    }
+
+    private synchronized void finishIfIdle() {
+        if (!ACTIVE.isEmpty()) return;
+        try { if (wake != null && wake.isHeld()) wake.release(); } catch (Exception ignored) { }
+        try { if (wifi != null && wifi.isHeld()) wifi.release(); } catch (Exception ignored) { }
+        stopForeground(true); stopSelf();
+    }
+
+    private void fetch(JSONObject d) {
+        String id = d.optString("id"), name = d.optString("name"); File f = new File(d.optString("path"));
+        long done = f.exists() ? f.length() : 0, total = d.optLong("total"); int fails = 0; long lastSave = 0; byte[] b = new byte[1 << 16];
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        while (!STOP.contains(id) && fails < 30 && (total == 0 || done < total)) {
+            HttpURLConnection c = null; boolean got = false;
+            try {
+                String u = d.optString("url");
+                for (int hop = 0; hop < 6; hop++) {
+                    c = (HttpURLConnection) new URL(u).openConnection(); c.setConnectTimeout(15000); c.setReadTimeout(30000); c.setInstanceFollowRedirects(false);
+                    String ua = d.optString("ua"); if (!ua.isEmpty()) c.setRequestProperty("User-Agent", ua);
+                    if (done > 0) c.setRequestProperty("Range", "bytes=" + done + "-");
+                    int code = c.getResponseCode();
+                    if (code >= 300 && code < 400 && c.getHeaderField("Location") != null) { u = new URL(new URL(u), c.getHeaderField("Location")).toString(); c.disconnect(); continue; }
+                    break;
+                }
+                int code = c.getResponseCode();
+                if (code == 416) { break; }
+                if (code >= 400) throw new Exception("HTTP " + code);
+                boolean append = code == 206 && done > 0; if (!append) done = 0;
+                long len = -1; try { len = Long.parseLong(c.getHeaderField("Content-Length")); } catch (Exception ignored) { } if (len > 0) total = done + len;
+                d.put("total", total); d.put("state", "run"); Dl.put(this, d);
+                InputStream in = c.getInputStream(); FileOutputStream out = new FileOutputStream(f, append);
+                try {
+                    int r; while (!STOP.contains(id) && (r = in.read(b)) > 0) {
+                        out.write(b, 0, r); done += r; got = true;
+                        long now = System.currentTimeMillis();
+                        if (now - lastSave > 1500) { lastSave = now; d.put("size", done); Dl.put(this, d); if (nm != null) nm.notify(4343, note(name, (total > 0 ? (done * 100 / total) + "%" : (done >> 20) + " MB"), total > 0 ? (int) (done * 100 / total) : -1, true)); }
+                    }
+                } finally { try { out.close(); } catch (Exception ignored) { } try { in.close(); } catch (Exception ignored) { } }
+                if (total == 0 && got && !STOP.contains(id)) { total = done; break; }
+            } catch (Exception e) { }
+            finally { if (c != null) c.disconnect(); }
+            if (got) fails = 0; else fails++;
+            if (!STOP.contains(id) && (total == 0 || done < total)) { try { Thread.sleep(got ? 500 : 3000); } catch (InterruptedException e) { break; } }
+        }
+        try {
+            if (Dl.get(this, id) == null) { f.delete(); return; } // deleted meanwhile
+            d.put("size", done); d.put("total", total);
+            d.put("state", STOP.contains(id) ? "stop" : (total > 0 && done >= total) ? "ok" : "err"); Dl.put(this, d);
+            if (nm != null && !STOP.contains(id)) nm.notify(id.hashCode(), note(name, "ok".equals(d.optString("state")) ? "Descarregado. Vê em AntunesFlix → Descarregados." : "Não foi possível descarregar.", -1, false));
+        } catch (Exception ignored) { }
+        STOP.remove(id);
+    }
+}
+""")
+print('downloads added')

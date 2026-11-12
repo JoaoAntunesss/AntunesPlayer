@@ -232,7 +232,7 @@ async function play(c, isRetry) {
   if (!c) return; if (S.cur && S.cur.key !== c.key) S.last = S.cur.key; if (!isRetry) { retried = false; } if (S.cur && S.cur.key !== c.key) LS.set('ap.last', S.cur.key);
   S.cur = c; applyColor(c); LS.set('ap.cur', c.key); S.recent = [c.key].concat(S.recent.filter(k => k !== c.key)).slice(0, 30); LS.set('ap.recent', S.recent);
   S.dbg = ''; stopRec(true); destroyPlayer(); armStart(c, isRetry); $('#screen').classList.toggle('vod', c.kind !== 'live'); $('#msg').hidden = true; spin(true); showOsd(c); showInfo(c); updateFavBtn(); $$('#list .ch').forEach(r => r.classList.toggle('on', r.dataset.k === c.key));
-  const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, url = proxied(cu), isHls = /m3u8/i.test(cu), isTs = (c.kind === 'live' || c.kind === 'catchup') && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu), ST = STAB[stabLevel(c)];
+  const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url, url = c.local ? cu : proxied(cu), isHls = /m3u8/i.test(cu), isTs = (c.kind === 'live' || c.kind === 'catchup') && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu), ST = STAB[stabLevel(c)];
   try {
     if (isHls) {
       if (!window.Hls && (NATIVE || !v.canPlayType('application/vnd.apple.mpegurl'))) await loadScript('js/hls.min.js'); // in the app, hls.js + native HTTP is more reliable than the WebView's own HLS
@@ -443,6 +443,7 @@ $('#cTrk').onclick = openTracks;
 /* ---------- icons ---------- */
 const IC = {
   back: '<path d="M15 5l-7 7 7 7"/>',
+  cast: '<path d="M3 8V6.5A2.5 2.5 0 015.5 4h13A2.5 2.5 0 0121 6.5v11a2.5 2.5 0 01-2.5 2.5H14"/><path d="M3 12a8 8 0 018 8M3 16a4 4 0 014 4"/><circle cx="3.5" cy="19.5" r=".6"/>', dl: '<path d="M12 4v11m-5-5l5 5 5-5M5 20h14"/>', chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', now: '<rect x="3" y="5" width="18" height="13" rx="2"/><path d="M7 21h10M10 9l5 2.5-5 2.5z"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>', tv: '<rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M8 2.5l4 3.5 4-3.5"/>',
   film: '<rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M7.5 3.5v17M16.5 3.5v17M3 8.5h4.5M3 15.5h4.5M16.5 8.5H21M16.5 15.5H21"/>',
   series: '<rect x="2.5" y="7.5" width="15" height="12" rx="2.5"/><path d="M6.5 4.5h12a3 3 0 013 3v8"/><path d="M8.5 11v5l4-2.5z" fill="currentColor" stroke="none"/>',
@@ -626,6 +627,7 @@ $('#cMore').onclick = () => {
   <label>${t('Picture size')}</label><div class="tabs">${ASP.map((x, i) => `<button data-as="${i}" class="${aspI === i ? 'on' : ''}">${t(x[1])}</button>`).join('')}</div>
   <label>${t('Colours')} <small class="mut">${t('Colours wrong? Try the options below (saved for this channel).')}</small></label><div class="tabs">${['Normal', 'Swap red / blue', 'Compatible'].map((x, i) => `<button data-cf="${i}" class="${((S.cur && COLFIX[S.cur.key]) || 0) === i ? 'on' : ''}">${t(x)}</button>`).join('')}</div>
   <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button><button class="btn" id="mMv">${ic('stack')} ${t('Multi-screen')}</button>` : ''}${recNative() ? `<button class="btn" id="mRecs">${ic('clock')} ${t('Scheduled recordings')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<label>${t('Sleep timer')}${sleepAt ? ' · ' + sleepLeft() + ' ' + t('min') : ''}</label><div class="tabs">${[0, 15, 30, 60, 90, 120].map(m => `<button data-sl="${m}" class="${(!sleepAt && !m) ? 'on' : ''}">${m ? m + ' ' + t('min') : t('Off ').trim()}</button>`).join('')}</div>
+  ${castable() || (dlNative() && isVodNow() && !(S.cur && S.cur.local)) ? `<div class="row" style="justify-content:flex-start">${castable() ? `<button class="btn" id="mCast">${ic('cast')} ${t('Send to TV (Chromecast)')}</button>` : ''}${dlNative() && isVodNow() && !(S.cur && S.cur.local) ? `<button class="btn" id="mDl">${ic('dl')} ${t('Download')}</button>` : ''}</div>` : ''}
   <div class="row" style="justify-content:flex-start"><button class="btn" id="mInfo">${ic('signal')} ${t('Stream info')}</button><button class="btn" id="mExt">${ic('ext')} ${NATIVE ? t('Open in another player') : t('Copy link')}</button></div>
   <div class="row" style="justify-content:space-between"><button class="btn" id="mSet">${ic('gear')} ${t('Settings')}</button><button class="btn p" id="dx">OK</button></div>`);
   $('#dx').onclick = () => dlg.close(); $('#mSet').onclick = settingsDialog; $('#mInfo').onclick = streamInfo; $('#mExt').onclick = () => { dlg.close(); openElsewhere(); };
@@ -637,6 +639,8 @@ $('#cMore').onclick = () => {
   const r = $('#mRec'); if (r) r.onclick = () => { dlg.close(); toggleRec(); };
   const mm = $('#mMv'); if (mm) mm.onclick = () => { const c = S.cur; dlg.close(); openMulti([c]); };
   const mr = $('#mRecs'); if (mr) mr.onclick = recsDialog;
+  const mc = $('#mCast'); if (mc) mc.onclick = () => { dlg.close(); castCur(); };
+  const md = $('#mDl'); if (md) md.onclick = () => { dlg.close(); dlStart(S.cur); };
 };
 
 /* ---------- header ---------- */
@@ -686,6 +690,8 @@ function renderHome() {
       <button class="mini" data-go="fav">${ic('star')}<span>${t('Favourites')}</span><small>${favList().length}</small></button>
       <button class="mini" data-go="search">${ic('search')}<span>${t('Search')}</span></button>
       <button class="mini" data-go="lists">${ic('stack')}<span>${t('Playlists')}</span><small>${S.sources.length}</small></button>
+      <button class="mini" data-go="now">${ic('now')}<span>${t('On now')}</span></button>
+      <button class="mini" data-go="stats">${ic('chart')}<span>${t('Statistics')}</span></button>
       <button class="mini" data-go="settings">${ic('gear')}<span>${t('Settings')}</span></button>
     </div>
     <div class="acct"><div class="ah">${ic('user')}<div><b>${esc(src.name || '')}</b><small>${src.type === 'xtream' ? 'Xtream' : 'M3U'}${a && a.status ? ' · ' + esc(a.status) : ''}</small></div><button class="ib" id="hRef" aria-label="${t('Refresh')}">${ic('refresh')}</button></div><button class="btn hprof" id="hProf"><span class="pfav sm" style="background:${profCur().color}">${esc(profCur().name.charAt(0).toUpperCase())}</span> ${esc(profCur().name)}${kidsOn() ? ` · ${t('Kids')}` : ''}</button>
@@ -694,7 +700,7 @@ function renderHome() {
   </div>
   ${cont.length ? `<section class="hrow"><h3>${t('Continue watching')}</h3><div class="rail">${cont.map(posterHtml).join('')}</div></section>` : ''}
   ${rec.length ? `<section class="hrow"><h3>${t('Recent channels')}</h3><div class="rail chrail">${rec.map(c => `<button class="chc" data-k="${c.key}">${logoHtml(c)}<b>${seg(shownNum(c))}</b><span>${esc(c.name)}</span></button>`).join('')}</div></section>` : ''}`;
-  $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'sports') sportsDialog(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else if (g === 'search') openSearch('all'); else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
+  $$('[data-go]', box).forEach(b => b.onclick = () => { const g = b.dataset.go; if (g === 'guide') openGuide(); else if (g === 'now') nowDialog(); else if (g === 'stats') statsDialog(); else if (g === 'sports') sportsDialog(); else if (g === 'lists') listsDialog(); else if (g === 'settings') settingsDialog(); else if (g === 'fav') { S.gsel.live = 'fav'; go('live'); } else if (g === 'search') openSearch('all'); else go(g); }); $$('[data-go2]', box).forEach(x => x.onclick = e => { e.stopPropagation(); S.fx = true; go(x.dataset.go2); });
   $('#hRef').onclick = () => selectSource(S.srcId, true); $('#hProf').onclick = () => profilesDialog();
   if (!ld && (M + Se + L) > 0) tourMaybe('home');
   wireItems(box);
@@ -709,7 +715,7 @@ function rowHtml(c) {
 }
 function posterHtml(c) {
   const pos = c.cont ? c.cpos : POS[c.key], ini = esc((c.name || '?').charAt(0)), fav = S.favs.includes(c.key);
-  return `<div class="pc" tabindex="0" data-k="${c.key}"${c.cont ? ` data-cont="${esc(c.ser)}"` : ''}><div class="po">${c.logo ? `<img loading="lazy" decoding="async" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${ini}</span>${imdbOf(c) ? `<i class="rt imdb">IMDb ${c._im.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : c.rating ? `<i class="rt">${c.rating.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : ''}${fav ? `<i class="fv">${ic('starF')}</i>` : ''}${pos ? `<div class="pp"><i style="width:${Math.min(100, Math.round(pos / ((c.cont ? c.cdur : DUR[c.key]) || c.dur || 5400) * 100))}%"></i></div>` : ''}${SEEN[c.key] && !pos && !c.cont ? `<i class="seen">${ic('check')}</i>` : ''}${c.cont && c.clabel ? `<i class="nxt ${pos ? 'up' : ''}">${esc(c.clabel)}</i>` : ''}</div><b>${esc(c.name)}</b></div>`;
+  return `<div class="pc" tabindex="0" data-k="${c.key}"${c.cont ? ` data-cont="${esc(c.ser)}"` : ''}><div class="po">${c.logo ? `<img loading="lazy" decoding="async" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<span class="lg">${ini}</span>${imdbOf(c) ? `<i class="rt imdb">IMDb ${c._im.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : c.rating ? `<i class="rt">${c.rating.toFixed(1).replace('.', LANG === 'pt' ? ',' : '.')}</i>` : ''}${fav ? `<i class="fv">${ic('starF')}</i>` : ''}${NEWEP && NEWEP[c.key] ? `<i class="newep">${NEWEP[c.key].n > 1 ? NEWEP[c.key].n + ' ' + t('new') : t('New')}</i>` : ''}${pos ? `<div class="pp"><i style="width:${Math.min(100, Math.round(pos / ((c.cont ? c.cdur : DUR[c.key]) || c.dur || 5400) * 100))}%"></i></div>` : ''}${SEEN[c.key] && !pos && !c.cont ? `<i class="seen">${ic('check')}</i>` : ''}${c.cont && c.clabel ? `<i class="nxt ${pos ? 'up' : ''}">${esc(c.clabel)}</i>` : ''}</div><b>${esc(c.name)}</b></div>`;
 }
 function wireItems(box) {
   $$('.ch', box).forEach(r => {
@@ -1355,6 +1361,134 @@ async function genEnrich() {
   // show the new rows if the user is still at the top of AntunesFlix and not in the middle of something
   const box = $('#vFlix'); if (got && S.view === 'flix' && box && box.scrollTop < 40 && !S.flixGenre && !(document.activeElement && box.contains(document.activeElement) && S.set.tv)) renderFlix();
 }
+/* ---------- send to the TV (Chromecast). In the Android app the system's device picker (ExtPlayer.cast);
+   in Chrome, Google's Cast sender. Live Xtream channels are sent as HLS, which the Chromecast plays. ---------- */
+Object.assign(PT, { 'Send to TV (Chromecast)': 'Enviar para a TV (Chromecast)', 'Looking for TVs…': 'A procurar TVs…', 'Playing on the TV': 'A dar na TV', 'No Chromecast found on this network': 'Nenhum Chromecast encontrado nesta rede', 'This cannot be sent to the TV': 'Isto não pode ser enviado para a TV', 'On now': 'Agora na TV', 'Statistics': 'Estatísticas', 'Downloads': 'Descarregados', 'Download': 'Descarregar', 'Downloaded': 'Descarregado', 'Downloading…': 'A descarregar…', 'Download started. Follow it in AntunesFlix → Downloads.': 'Começou a descarregar. Acompanha em AntunesFlix → Descarregados.', 'Nothing downloaded yet. Open a film and tap Download, or use More → Download while watching.': 'Ainda não descarregaste nada. Abre um filme e toca em Descarregar, ou usa Mais → Descarregar enquanto vês.', 'Delete download': 'Apagar', 'Failed': 'Falhou', 'Stopped': 'Parado', 'Try again': 'Tentar de novo', 'Stop': 'Parar', 'New episodes': 'Episódios novos', 'new': 'novos', 'New': 'Novo', 'New episodes of': 'Há episódios novos de', 'Open on YouTube': 'Abrir no YouTube', 'Search the trailer on YouTube': 'Procurar o trailer no YouTube', 'No trailer from the provider for this title.': 'O fornecedor não tem trailer para este título.' });
+var castable = () => !!S.cur && !S.cur.local && (NATIVE ? !!(Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.cast) : !DESKTOP && /Chrome\//.test(navigator.userAgent) && !/Edg\/|OPR\//.test(navigator.userAgent));
+function castUrl(c) {
+  let u = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : (c.url || ''); if (!/^https?:/.test(u)) return '';
+  if (c.kind === 'live' && /\/live\/[^?]+\.ts(\?|$)/.test(u)) u = u.replace(/\.ts(\?|$)/, '.m3u8$1');
+  return u;
+}
+const castType = u => /\.m3u8(\?|$)/i.test(u) ? 'application/x-mpegURL' : /\.mkv(\?|$)/i.test(u) ? 'video/x-matroska' : /\.webm(\?|$)/i.test(u) ? 'video/webm' : /\.ts(\?|$)/i.test(u) ? 'video/mp2t' : 'video/mp4';
+let castP = null;
+function castWebLoad() {
+  return castP || (castP = new Promise((ok, ko) => {
+    if (window.cast && cast.framework) { ok(); return; }
+    window.__onGCastApiAvailable = a => a ? ok() : ko(new Error('nocast'));
+    const sc = document.createElement('script'); sc.src = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1'; sc.onerror = () => ko(new Error('load')); document.head.appendChild(sc);
+    setTimeout(() => ko(new Error('timeout')), 12000);
+  }).catch(e => { castP = null; throw e; }));
+}
+async function castCur() {
+  const c = S.cur; if (!c) return; const url = castUrl(c); if (!url) { toast(t('This cannot be sent to the TV')); return; }
+  const live = c.kind === 'live', m = { url, type: castType(url), title: c.name || '', image: /^https?:/.test(c.logo || '') ? c.logo : '', live, pos: live ? 0 : Math.floor(v.currentTime || 0) };
+  if (NATIVE) {
+    try { toast(t('Looking for TVs…')); const r = await Capacitor.Plugins.ExtPlayer.cast(m); if (r && r.ok) { v.pause(); toast(t('Playing on the TV')); } }
+    catch (e) { toast(t('No Chromecast found on this network')); } return;
+  }
+  try {
+    await castWebLoad(); const ctx = cast.framework.CastContext.getInstance();
+    ctx.setOptions({ receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
+    if (!ctx.getCurrentSession()) await ctx.requestSession();
+    const ses = ctx.getCurrentSession(), mi = new chrome.cast.media.MediaInfo(m.url, m.type);
+    mi.streamType = live ? chrome.cast.media.StreamType.LIVE : chrome.cast.media.StreamType.BUFFERED;
+    mi.metadata = new chrome.cast.media.GenericMediaMetadata(); mi.metadata.title = m.title; if (m.image) mi.metadata.images = [new chrome.cast.Image(m.image)];
+    const rq = new chrome.cast.media.LoadRequest(mi); rq.currentTime = m.pos; await ses.loadMedia(rq); v.pause(); toast(t('Playing on the TV'));
+  } catch (e) { if (e === 'cancel' || (e && e.code === 'cancel')) return; toast(t('No Chromecast found on this network')); }
+}
+// a cast button next to the others at the top of the player
+(() => { const b = document.createElement('button'); b.className = 'ob'; b.id = 'cCast'; b.setAttribute('aria-label', 'Chromecast'); b.innerHTML = ic('cast'); b.onclick = e => { e.stopPropagation(); castCur(); }; const ref = $('#cMore'); if (ref) ref.before(b); const upd = () => { b.hidden = !castable(); }; v.addEventListener('loadstart', upd); upd(); })();
+
+/* ---------- downloads (Android app): films and episodes saved inside the app, to watch offline ---------- */
+var dlNative = () => NATIVE && !!(Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.dlStart);
+var DLS = {}, dlT = 0;
+async function dlSync() { if (!dlNative()) return; try { const r = await Capacitor.Plugins.ExtPlayer.dlList(); DLS = {}; ((r && r.list) || []).forEach(d => DLS[d.key] = d); } catch (e) { } }
+async function dlStart(c) {
+  if (!c || !c.url || !dlNative()) return; const ext = (/\.(mp4|mkv|avi|mov|webm|ts)(\?|$)/i.exec(c.url) || [, 'mp4'])[1].toLowerCase();
+  const base = c.ser && S.byKey[c.ser] ? S.byKey[c.ser] : c;
+  try { await Capacitor.Plugins.ExtPlayer.dlStart({ id: 'd' + Math.abs(hash(c.key)), key: c.key, url: c.url, ua: uaHdr()['User-Agent'] || '', name: c.name || '', ext, logo: base.logo || '', ser: c.ser || '' }); toast(t('Download started. Follow it in AntunesFlix → Downloads.')); await dlSync(); dlPoll(); }
+  catch (e) { toast(t('Failed')); }
+}
+function dlPoll() { clearTimeout(dlT); const run = Object.values(DLS).some(d => d.state === 'run'); if (!run) return; dlT = setTimeout(async () => { await dlSync(); if (S.view === 'flix' && S.flixTab === 'dl') renderFlix(); dlPoll(); }, 2000); }
+const fmtMB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1).replace('.', LANG === 'pt' ? ',' : '.') + ' GB' : Math.round(b / 1048576) + ' MB';
+function dlHtml() {
+  const L = Object.values(DLS).sort((a, b) => (b.at || 0) - (a.at || 0)); dlPoll();
+  if (!L.length) return `<div class="empty"><p>${t('Nothing downloaded yet. Open a film and tap Download, or use More → Download while watching.')}</p></div>`;
+  return `<div class="dlist">${L.map(d => { const pct = d.total ? Math.min(100, Math.round(d.size / d.total * 100)) : 0, st = d.state === 'ok' ? fmtMB(d.size) : d.state === 'run' ? `${t('Downloading…')} ${d.total ? pct + '%' : fmtMB(d.size)}` : d.state === 'stop' ? t('Stopped') : t('Failed');
+    return `<div class="dli"><button class="dlp" data-dlp="${esc(d.id)}" ${d.state === 'ok' ? '' : 'disabled'}><span class="dlimg">${d.logo ? `<img loading="lazy" src="${esc(d.logo)}" alt="" onerror="this.remove()">` : ''}${d.state === 'ok' ? `<i>${ic('play')}</i>` : ''}</span><span class="dlt"><b>${esc(d.name)}</b><small>${esc(st)}</small>${d.state === 'run' ? `<i class="dlbar"><i style="width:${pct}%"></i></i>` : ''}</span></button>${d.state === 'run' ? `<button class="btn" data-dls="${esc(d.id)}">${t('Stop')}</button>` : d.state !== 'ok' ? `<button class="btn" data-dlr="${esc(d.id)}">${t('Try again')}</button>` : ''}<button class="ib" data-dld="${esc(d.id)}" aria-label="${t('Delete download')}">${ic('close')}</button></div>`; }).join('')}</div>`;
+}
+function dlWire(box) {
+  const byId = id => Object.values(DLS).find(d => d.id === id), P = () => Capacitor.Plugins.ExtPlayer;
+  $$('[data-dlp]', box).forEach(b => b.onclick = () => { const d = byId(b.dataset.dlp); if (!d || !d.path) return; const orig = S.byKey[d.key] || EPS[d.key]; enterFsFor(Object.assign({}, orig || { name: d.name, logo: d.logo, kind: 'vod', ser: d.ser || undefined }, { key: d.key, url: Capacitor.convertFileSrc('file://' + d.path), local: true, kind: 'vod' })); });
+  $$('[data-dld]', box).forEach(b => b.onclick = async () => { await P().dlDelete({ id: b.dataset.dld }).catch(() => { }); await dlSync(); renderFlix(); });
+  $$('[data-dls]', box).forEach(b => b.onclick = async () => { await P().dlStop({ id: b.dataset.dls }).catch(() => { }); setTimeout(async () => { await dlSync(); renderFlix(); }, 800); });
+  $$('[data-dlr]', box).forEach(b => b.onclick = async () => { const d = byId(b.dataset.dlr); await P().dlStart(d).catch(() => { }); await dlSync(); renderFlix(); });
+}
+dlSync();
+
+/* ---------- trailer inside the app (YouTube), or a YouTube search when the provider has none ---------- */
+function trailerDialog(c, tr, year) {
+  const id = (/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/.exec(tr || '') || [])[1] || (/^[\w-]{11}$/.test(tr || '') ? tr : '');
+  const q = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(cleanTitle(c.name) + ' ' + (year || '') + ' trailer');
+  if (!id) { openDlg(`<h2>${t('Trailer')}</h2><p class="mut">${t('No trailer from the provider for this title.')}</p><div class="row"><button class="btn" id="dx">${t('Close')}</button><button class="btn p" id="tyq">${ic('search')} ${t('Search the trailer on YouTube')}</button></div>`); $('#dx').onclick = () => dlg.close(); $('#tyq').onclick = () => { dlg.close(); openExternal(q); }; $('#tyq').focus(); return; }
+  if (S.cur && !v.paused) v.pause();
+  openDlg(`<div class="trw"><iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="${t('Trailer')}"></iframe></div><div class="row"><button class="btn" id="tyo">${t('Open on YouTube')}</button><button class="btn p" id="dx">${t('Close')}</button></div>`, 'trailer');
+  $('#dx').onclick = () => dlg.close(); $('#tyo').onclick = () => { dlg.close(); openExternal('https://www.youtube.com/watch?v=' + id); }; $('#dx').focus();
+  dlg.addEventListener('close', () => { const f = $('.trw iframe', dlg); if (f) f.src = 'about:blank'; }, { once: true });
+}
+
+/* ---------- "On now": every channel with what is on right now, favourites first ---------- */
+function nowDialog() {
+  const favs = new Set(S.favs), live = S.vis.filter(c => c.kind === 'live');
+  const L = live.map(c => ({ c, nn: nowNext(c) })).sort((a, b) => (favs.has(b.c.key) - favs.has(a.c.key)) || (!!(b.nn && b.nn.now) - !!(a.nn && a.nn.now))).slice(0, 300), n = Date.now();
+  openDlg(`<div class="shh"><h2>${t('On now')}</h2><button class="ib" id="dx" aria-label="${t('Close')}">${ic('close')}</button></div><div class="nowg">${L.map(({ c, nn }) => { const p = nn && nn.now, pr = p ? Math.round((n - p.s) / (p.e - p.s) * 100) : 0; return `<button class="nowc" data-k="${c.key}"><span class="nowl">${logoHtml(c)}</span><span class="nowt"><small>${seg(shownNum(c))} ${esc(c.name)}${favs.has(c.key) ? ' ★' : ''}</small><b>${p ? esc(p.t) : esc(c.group || '')}</b>${p ? `<i class="pb"><i style="width:${pr}%"></i></i><small>${hm(p.s)}–${hm(p.e)}${nn.next ? ` · ${t('Next')}: ${hm(nn.next.s)} ${esc(nn.next.t)}` : ''}</small>` : ''}</span></button>`; }).join('') || `<p class="mut">${t('Nothing found')}</p>`}</div>`, 'sheet wide');
+  $('#dx').onclick = () => dlg.close();
+  $$('.nowc', dlg).forEach(b => b.onclick = () => { const c = S.byKey[b.dataset.k]; dlg.close(); if (c) enterFsFor(c); });
+  const f = $('.nowc', dlg); if (f && S.set.tv) f.focus();
+}
+
+/* ---------- new episodes of the series you watch: checked twice a day, shown as a row and a badge ---------- */
+var NEWEP = LS.get('ap.newep', {}), EPC = LS.get('ap.epc', {}), newEpBusy = false;
+async function newEpCheck() {
+  const x = xbase(); if (newEpBusy || !x) return; const now = Date.now();
+  const sers = Object.keys(SLAST).map(k => S.byKey[k]).filter(c => c && c.seriesId && (!EPC[c.key] || now - EPC[c.key].t > 12 * 3600e3)).slice(0, 15); if (!sers.length) return;
+  newEpBusy = true; const found = [];
+  try {
+    for (const c of sers) {
+      if (S.cur && !v.paused) break; // leave the server alone while something plays
+      try { const d = await fetchJson(`${x.base}/player_api.php?username=${x.q(x.s.user)}&password=${x.q(x.s.pass)}&action=get_series_info&series_id=${x.q(c.seriesId)}`);
+        const cnt = Object.values((d && d.episodes) || {}).reduce((a, l) => a + (l || []).length, 0), old = EPC[c.key];
+        if (old && cnt > old.n) { NEWEP[c.key] = { n: cnt - old.n + ((NEWEP[c.key] && NEWEP[c.key].n) || 0), at: now }; found.push(c.name); }
+        if (cnt) EPC[c.key] = { n: cnt, t: now };
+      } catch (e) { }
+      await new Promise(r => setTimeout(r, 800));
+    }
+  } finally { newEpBusy = false; LS.set('ap.epc', EPC); LS.set('ap.newep', NEWEP); }
+  if (found.length) { toast(t('New episodes of') + ' ' + found.slice(0, 3).join(', ')); if (S.view === 'flix' && S.flixTab === 'all') renderFlix(); }
+}
+
+/* ---------- statistics: how much you watch, and what ---------- */
+Object.assign(PT, { 'This week': 'Esta semana', 'Last 7 days': 'Últimos 7 dias', 'Most watched channels': 'Canais que mais vês', 'Most watched series': 'Séries que mais vês', 'Most watched films': 'Filmes que mais vês', 'Since': 'Desde', 'Nothing watched yet.': 'Ainda não viste nada.', 'h': 'h', 'Daily average': 'Média por dia' });
+const STATS = Object.assign({ days: {}, items: {}, since: Date.now() }, LS.get('ap.stats', {})); let statLast = 0, statSave = 0;
+v.addEventListener('timeupdate', () => {
+  const now = Date.now(), dt = (now - statLast) / 1000; statLast = now; const c = S.cur; if (!c || v.paused || dt <= 0 || dt > 15) return;
+  const day = new Date(now - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10); STATS.days[day] = (STATS.days[day] || 0) + dt;
+  const base = c.ser && S.byKey[c.ser] ? S.byKey[c.ser] : c, k = base.key, it = STATS.items[k] || (STATS.items[k] = { n: base.name, k: c.ser ? 'series' : c.kind === 'live' ? 'live' : base.kind === 'series' ? 'series' : 'vod', s: 0 }); it.s += dt;
+  if (now - statSave > 30000) { statSave = now; const ds = Object.keys(STATS.days).sort(); if (ds.length > 400) ds.slice(0, ds.length - 400).forEach(d => delete STATS.days[d]); const ks = Object.keys(STATS.items); if (ks.length > 600) ks.sort((a, b) => STATS.items[a].s - STATS.items[b].s).slice(0, ks.length - 600).forEach(x => delete STATS.items[x]); LS.set('ap.stats', STATS); }
+});
+const fmtDur = s => { s = Math.round(s / 60); const h = Math.floor(s / 60), m = s % 60; return h ? `${h} ${t('h')} ${m} min` : `${m} min`; };
+function statsDialog() {
+  LS.set('ap.stats', STATS); const days = [], wd = new Intl.DateTimeFormat(LANG === 'pt' ? 'pt-PT' : undefined, { weekday: 'short' });
+  for (let i = 6; i >= 0; i--) { const d = new Date(Date.now() - i * 864e5), k = new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); days.push([wd.format(d).replace('.', ''), STATS.days[k] || 0]); }
+  const week = days.reduce((a, d) => a + d[1], 0), max = Math.max(1, ...days.map(d => d[1])), items = Object.values(STATS.items);
+  const top = k => items.filter(x => x.k === k).sort((a, b) => b.s - a.s).slice(0, 5), list = (title, l) => l.length ? `<label>${t(title)}</label><ol class="stl">${l.map(x => `<li><span>${esc(x.n)}</span><small>${fmtDur(x.s)}</small></li>`).join('')}</ol>` : '';
+  openDlg(`<div class="shh"><h2>${t('Statistics')}</h2><button class="ib" id="dx" aria-label="${t('Close')}">${ic('close')}</button></div>
+    ${items.length ? `<div class="stbig"><div><small>${t('This week')}</small><b>${fmtDur(week)}</b></div><div><small>${t('Daily average')}</small><b>${fmtDur(week / 7)}</b></div></div>
+    <label>${t('Last 7 days')}</label><div class="stbars">${days.map(d => `<div><i style="height:${Math.round(d[1] / max * 100)}%" title="${fmtDur(d[1])}"></i><small>${esc(d[0])}</small></div>`).join('')}</div>
+    ${list('Most watched channels', top('live'))}${list('Most watched series', top('series'))}${list('Most watched films', top('vod'))}<p class="mut" style="font-size:12px">${t('Since')} ${new Date(STATS.since).toLocaleDateString(LANG === 'pt' ? 'pt-PT' : undefined)}</p>` : `<p class="mut">${t('Nothing watched yet.')}</p>`}`, 'sheet');
+  $('#dx').onclick = () => dlg.close();
+}
 /* ---------- first-run tutorial, like the official apps: the button to press is lit up, everything else is dimmed;
    pressing it (or "Next") moves on to the next step, which may be on the next screen. "Skip" ends it. ---------- */
 Object.assign(PT, { 'Show the tutorial': 'Ver o tutorial', 'Skip': 'Saltar', 'Next step': 'Seguinte', 'Finish': 'Concluir', 'of': 'de',
@@ -1501,10 +1635,11 @@ function renderFlix() {
   const byRating = withArt.filter(c => c.rating > 0).sort((a, b) => b.rating - a.rating), recent = all.slice().sort((a, b) => (b.added || 0) - (a.added || 0));
   // the hero mixes what is new and what is best rated, like the Netflix billboard
   const pool = recent.filter(c => c.logo).slice(0, 30).filter(c => c.rating >= 6).concat(byRating.slice(0, 20)); const seen = {}, top = pool.filter(c => !seen[c.key] && (seen[c.key] = 1)).slice(0, 8);
-  const tabs = [['all', 'Home'], ['series', 'Series'], ['movies', 'Movies'], ['imdbm', 'Top IMDb films'], ['imdbs', 'Top IMDb series'], ['catalog', 'Catalogue'], ['mylist', 'My list']];
+  const tabs = [['all', 'Home'], ['series', 'Series'], ['movies', 'Movies'], ['imdbm', 'Top IMDb films'], ['imdbs', 'Top IMDb series'], ['catalog', 'Catalogue'], ['mylist', 'My list']].concat(dlNative() ? [['dl', 'Downloads']] : []);
   let body = '';
-  imdbLoad();
-  if (tab === 'imdbm' || tab === 'imdbs') {
+  imdbLoad(); newEpCheck();
+  if (tab === 'dl') body = dlHtml();
+  else if (tab === 'imdbm' || tab === 'imdbs') {
     const kind = tab === 'imdbm' ? 'vod' : 'series';
     if (!IMDB) body = `<div class="empty"><p>${imdbBusy ? t('Loading IMDb ratings…') : t('Could not load the IMDb ratings. Check the internet connection.')}</p></div>`;
     else {
@@ -1526,7 +1661,7 @@ function renderFlix() {
     const g = GENRES.find(x => x[0] === S.flixGenre), list = all.filter(c => genreOf(c).includes(S.flixGenre));
     body = fxGridHtml(t(g ? g[1] : ''), list, false);
   } else {
-    const cw = contFor(kinds), rows = [[t('My list'), favList().filter(c => kinds.includes(c.kind))]];
+    const cw = contFor(kinds), rows = [[t('New episodes'), kinds.includes('series') ? Object.keys(NEWEP || {}).map(k => S.byKey[k]).filter(Boolean) : []], [t('My list'), favList().filter(c => kinds.includes(c.kind))]];
     const t10 = byRating.slice(0, 10), used = new Set(t10.map(c => c.key));
     const byw = becauseRow(kinds, all); if (byw) rows.push(byw);
     const rest = [[t('New on AntunesFlix'), pickRow(recent.filter(c => c.logo), 24, 'new', used), { sort: 'new', m: kinds.length > 1 ? 'vod' : kinds[0] }]];
@@ -1544,11 +1679,11 @@ function renderFlix() {
     // only the first rows go in now; the others are added as you scroll (a big catalogue has 100+ genre rows)
     lazyRest = rest.filter(r => r[1].length); lazyHtml = rowHtmlF; body += lazyRest.splice(0, 8).map(rowHtmlF).join('') + (lazyRest.length ? '<div class="fxmore" id="fxMore"></div>' : '');
   }
-  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' || S.flixCat || S.flixGenre ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>${!/^(mylist|catalog|imdb)/.test(tab) ? genreChips(all) : ''}` +
-    (!/^(mylist|catalog|imdb)/.test(tab) && !S.flixGenre && !S.flixCat && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
+  box.innerHTML = `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs.filter(x => x[0] !== 'all').map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}${tab !== 'all' || S.flixCat || S.flixGenre ? `<button data-ft="all" class="fxx" aria-label="${t('Close')}">✕</button>` : ''}</nav>${!/^(mylist|catalog|imdb|dl)/.test(tab) ? genreChips(all) : ''}` +
+    (!/^(mylist|catalog|imdb|dl)/.test(tab) && !S.flixGenre && !S.flixCat && top.length ? `<div class="hero fxhero" id="fxhero">${top.map((c, i) => `<div class="hs ${i ? '' : 'on'}" data-k="${c.key}"><div class="hbg" style="background-image:url('${esc(c.logo).replace(/'/g, '%27')}')"></div><div class="hpo"><img src="${esc(c.logo)}" alt="" onerror="this.remove()"></div><div class="hi"><small class="fxkind">${c.kind === 'series' ? t('Series') : t('Movies').replace(/s$/, '')}</small><h3>${esc(c.name)}</h3><div class="chips">${c.rating ? `<span>★ ${c.rating.toFixed(1)}</span>` : ''}<span>${esc(c.group || '')}</span></div><div class="hacts"><button class="btn p" data-hp="${c.key}">${ic('play')} ${c.kind === 'series' ? t('Watch series') : t('Play')}</button><button class="btn" data-hl="${c.key}">${ic(S.favs.includes(c.key) ? 'check' : 'plus')} ${t('My list')}</button></div></div></div>`).join('')}<div class="hdots">${top.map((c, i) => `<button data-hi="${i}" class="${i ? '' : 'on'}" aria-label="${i + 1}"></button>`).join('')}</div></div>` : '') + body;
   wireItems(box); wireCw(box); $('#fxS', box).onclick = () => openSearch('flix');
   const fr = $('#fxR', box); if (fr) fr.onclick = () => surprise(withArt);
-  lazyRows(box); $('#fxH', box).onclick = () => go('home'); setTimeout(genEnrich, 3000);
+  lazyRows(box); dlWire(box); $('#fxH', box).onclick = () => go('home'); setTimeout(genEnrich, 3000);
   fxGridWire(box);
   $$('[data-fs]', box).forEach(b => b.onclick = () => { S.flixSort = b.dataset.fs; renderFlix(); if (S.set.tv) setTimeout(() => { const f = $(`[data-fs="${S.flixSort}"]`, box); if (f) f.focus(); }, 20); });
   $$('[data-fk]', box).forEach(b => b.onclick = () => { S.flixKind = b.dataset.fk; renderFlix(); if (S.set.tv) setTimeout(() => { const f = $(`[data-fk="${S.flixKind}"]`, box); if (f) f.focus(); }, 20); });
@@ -1655,7 +1790,7 @@ function renderFxDetail(c) {
     ${main}${prog}
     ${S.dinfo == null ? `<p class="mut">${t('Loading…')}</p>` : (i.plot || i.description) ? `<p class="nfplot">${esc(i.plot || i.description)}</p>` : ''}
     ${i.cast ? `<p class="nfsmall"><b>${t('Cast')}:</b> ${esc(i.cast)}</p>` : ''}${i.director ? `<p class="nfsmall"><b>${t('Director')}:</b> ${esc(i.director)}</p>` : ''}${i.genre ? `<p class="nfsmall">${esc(i.genre)}</p>` : ''}
-    <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}${trailer ? `<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>` : ''}</div>
+    <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>${dlNative() && !c.seriesId && c.url ? `<button id="dDl">${ic('dl')}<span>${DLS[c.key] ? (DLS[c.key].state === 'ok' ? t('Downloaded') : t('Downloading…')) : t('Download')}</span></button>` : ''}</div>
     </div><div class="nftabs">${c.seriesId && seasons.length ? `<button data-dt="eps" class="${tab === 'eps' ? 'on' : ''}">${t('Episodes')}</button>` : ''}<button data-dt="sim" class="${tab === 'sim' ? 'on' : ''}">${t('More like this')}</button></div>
     ${tab === 'eps' ? `${seasons.length > 1 ? `<select class="nfsel" id="nfSn">${seasons.map(s => `<option value="${esc(s)}" ${s === sn ? 'selected' : ''}>${t('Season')} ${esc(s)}</option>`).join('')}</select>` : ''}<div class="nfeps">${(S.deps[sn] || []).map((e, n) => { const ep = epObj(c, sn, e, n), ps = POS[ep.key], dn = DUR[ep.key] || ep.dur || 2700, img = e.info && e.info.movie_image; return `<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round(ps / dn * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>`; }).join('')}</div>` : `<div class="fxgrid nfsim">${similar.map(posterHtml).join('') || `<p class="mut">—</p>`}</div>`}
   </div></div>`;
@@ -1663,7 +1798,9 @@ function renderFxDetail(c) {
   $('#nfP').onclick = play; const p = $('#dPlay') || $('#dSer'); if (p) p.onclick = play;
   $('#dFav').onclick = () => { toggleFav(c); renderFxDetail(c); };
   const ds = $('#dSeen'); if (ds) ds.onclick = () => { markSeen(c, !SEEN[c.key]); renderFxDetail(c); };
-  const tr = $('#dTr'); if (tr) tr.onclick = () => openExternal(/^https?:/.test(trailer) ? trailer : 'https://www.youtube.com/watch?v=' + encodeURIComponent(trailer));
+  const tr = $('#dTr'); if (tr) tr.onclick = () => trailerDialog(c, trailer, year);
+  const dd = $('#dDl'); if (dd) dd.onclick = () => { if (DLS[c.key] && DLS[c.key].state === 'ok') { S.flixTab = 'dl'; go('flix'); } else dlStart(c); };
+  if (c.seriesId && NEWEP[c.key]) { delete NEWEP[c.key]; LS.set('ap.newep', NEWEP); }
   $$('[data-dt]', box).forEach(b => b.onclick = () => { S.fxTabD = b.dataset.dt; renderFxDetail(c); });
   const sel = $('#nfSn'); if (sel) sel.onchange = () => { S.fxSn = sel.value; renderFxDetail(c); };
   $$('.nfep', box).forEach(b => b.onclick = () => { const e = S.deps[sn][+b.dataset.i]; enterFsFor(epObj(c, sn, e, +b.dataset.i)); });
