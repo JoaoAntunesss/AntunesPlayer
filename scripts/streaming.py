@@ -12,7 +12,7 @@ REGION = 'PT'
 API = 'https://api.themoviedb.org/3'
 SERVICES = [  # our id, how TMDB names it
     ('p-netflix', r'^netflix'), ('p-hbo', r'^(hbo ?max|max)$'), ('p-disney', r'^disney'),
-    ('p-prime', r'^amazon prime video$'), ('p-apple', r'^apple tv'), ('p-sky', r'^skyshowtime'),
+    ('p-prime', r'^amazon prime video$'), ('p-apple', r'^apple tv( ?\+| plus)$'), ('p-sky', r'^skyshowtime'),
     ('p-filmin', r'^filmin'), ('p-paramount', r'^paramount'),
 ]
 
