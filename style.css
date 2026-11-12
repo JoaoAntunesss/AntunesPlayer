@@ -235,7 +235,7 @@ body.tv{font-size:17px}body.tv :focus-visible{outline-width:4px}body.tv .ch:focu
 /* phone upright */
 @media (max-width:720px) and (orientation:portrait){
   #top{padding:10px 14px;gap:8px;min-height:60px}.logo{font-size:21px}.clock{display:none}.ib{width:42px;height:42px}.acts{gap:6px}
-  body[data-view=browse] #title{display:none}.search{height:44px}
+  body[data-view=browse] #title,body[data-view=search] #title{display:none}.search{height:44px;padding:0 10px;gap:6px}.search input{min-width:90px;font-size:16px}
   body[data-view=home] #vHome{padding:4px 14px 24px}
   .hgrid{grid-template-columns:1fr 1fr;grid-template-rows:auto;min-height:0;gap:12px}
   .t-live{grid-column:1/-1;min-height:170px}.t-mov,.t-ser{min-height:150px}.tile{padding:18px}.tile .i{width:44px;height:44px;top:18px;left:18px}.tile b{font-size:25px}
