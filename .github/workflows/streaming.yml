@@ -1,0 +1,32 @@
+name: Streaming catalogues
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 5 5 * *'   # once a month
+  push:
+    branches: [main]
+    paths: ['scripts/streaming.py', '.github/workflows/streaming.yml']
+permissions:
+  contents: write
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    env:
+      TMDB_KEY: ${{ secrets.TMDB_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Needs the TMDB_KEY secret
+        if: env.TMDB_KEY == ''
+        run: echo "::notice::Add a TMDB API key as the repository secret TMDB_KEY to build data/streaming.json"
+      - uses: actions/setup-python@v5
+        if: env.TMDB_KEY != ''
+        with: { python-version: '3.12' }
+      - if: env.TMDB_KEY != ''
+        run: python scripts/streaming.py
+      - name: Save data/streaming.json
+        if: env.TMDB_KEY != ''
+        run: |
+          git config user.name "João Antunes"
+          git config user.email "j.p.r.n.antunes@gmail.com"
+          git add data/streaming.json
+          git diff --cached --quiet || (git commit -m "Catálogos de streaming atualizados" && git push)

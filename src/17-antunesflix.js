@@ -217,7 +217,7 @@ Object.assign(PT, {
 });
 function genreOf(c) {
   const txt = c.genre || GEN[c.key] || '',
-    sig = txt + '|' + (c.name || '');
+    sig = txt + '|' + (c.name || '') + '|' + (c.group || '') + '|' + streamVer;
   if (c._gs !== sig) {
     c._gs = sig;
     c._g = txt
@@ -227,6 +227,7 @@ function genreOf(c) {
           .map(x => x[0])
       : [];
     if (!c._g.includes('xmas') && XMAS_TITLE.test(c.name || '')) c._g.push('xmas');
+    if (PLATS) for (const p of platOf(c)) c._g.push(p); // streaming services (31-streaming.js)
   }
   return c._g;
 }

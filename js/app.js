@@ -3655,6 +3655,7 @@ function vodHome(box) {
   );
 }
 function renderSearch() {
+  imdbLoad();
   const box = $('#sres'),
     q = fold(S.q.trim());
   if (q.length < 2) {
@@ -3662,7 +3663,7 @@ function renderSearch() {
     return;
   }
   const kinds = S.qs === 'flix' ? ['vod', 'series'] : S.qs === 'live' ? ['live'] : ['live', 'vod', 'series'],
-    res = S.vis.filter(c => kinds.includes(c.kind) && lname(c).includes(q)),
+    res = searchItems(S.q, kinds),
     sec = (k, label, f) => {
       const a = res.filter(c => c.kind === k);
       return a.length
@@ -5585,7 +5586,7 @@ Object.assign(PT, {
 });
 function genreOf(c) {
   const txt = c.genre || GEN[c.key] || '',
-    sig = txt + '|' + (c.name || '');
+    sig = txt + '|' + (c.name || '') + '|' + (c.group || '') + '|' + streamVer;
   if (c._gs !== sig) {
     c._gs = sig;
     c._g = txt
@@ -5595,6 +5596,7 @@ function genreOf(c) {
           .map(x => x[0])
       : [];
     if (!c._g.includes('xmas') && XMAS_TITLE.test(c.name || '')) c._g.push('xmas');
+    if (PLATS) for (const p of platOf(c)) c._g.push(p); // streaming services (31-streaming.js)
   }
   return c._g;
 }
@@ -6453,6 +6455,7 @@ async function imdbLoad() {
       } else IMDBIDX.set(k, [i]);
     })
   );
+  if (S.view === 'search') renderSearch();
   const box = $('#vFlix');
   if (S.view === 'flix' && box && (/^imdb/.test(S.flixTab) || box.scrollTop < 40)) renderFlix();
 }
@@ -6463,6 +6466,7 @@ function imdbOf(c) {
   c._imn = c.name;
   c._im = 0;
   c._imv = 0;
+  c._imi = null;
   const ids = IMDBIDX.get(imdbNorm(c.name));
   if (!ids) return 0;
   const y = +((/\b(19|20)\d\d\b/.exec(c.name) || [])[0] || 0),
@@ -6471,7 +6475,10 @@ function imdbOf(c) {
   for (const i of ids) {
     const e = IMDB[i];
     if (e[2] !== want || (y && e[1] && Math.abs(e[1] - y) > 1)) continue;
-    if (!best || e[4] > best[4]) best = e;
+    if (!best || e[4] > best[4]) {
+      best = e;
+      c._imi = i;
+    }
   }
   if (best) {
     c._im = best[3];
@@ -6631,6 +6638,7 @@ function renderFlix() {
   ].concat(dlNative() ? [['dl', 'Downloads']] : []);
   let body = '';
   imdbLoad();
+  streamLoad();
   newEpCheck();
   if (tab === 'dl') body = dlHtml();
   else if (tab === 'imdbm' || tab === 'imdbs') {
@@ -8645,4 +8653,193 @@ function askMode() {
 setTimeout(() => checkUpdate(false), 4000);
 cloudBoot().catch(e => console.warn('cloud', e));
 if (LOGIN_PC && !NATIVE && !DESKTOP) setTimeout(() => loginPcDialog(LOGIN_PC), 400);
+
+// ===== src/30-search.js =====
+/* ---------- search that finds what you mean ----------
+   Playlists name things in many ways ("PT | Spider-Man: No Way Home (2021) 4K"), people type quickly and in
+   Portuguese or English. A title matches when:
+   1. the letters match ignoring accents, punctuation, spaces and quality tags ("spiderman" finds "Spider-Man");
+   2. every word typed starts a word of the title, in any order ("home spider");
+   3. a word has one typo (two in long words: "brekaing bad");
+   4. or the IMDb data knows it by that name (search "Perdidos" and find "Lost", "O Padrinho" finds "The Godfather").
+   Results are ranked by how good the match is, then by IMDb rating. */
+var SKEY = new WeakMap(),
+  IMDBN = null;
+function skey(s) {
+  return fold(s)
+    .replace(/&/g, ' e ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+function searchKey(c) {
+  let k = SKEY.get(c);
+  if (!k) {
+    const base = skey(c.kind === 'live' ? c.name : cleanTitle(c.name) || c.name);
+    k = { s: base, c: base.replace(/ /g, ''), w: base.split(' ').filter(Boolean) };
+    SKEY.set(c, k);
+  }
+  return k;
+}
+// true when a and b differ by at most `max` edits (insert, delete, change, or swap of two letters)
+function near(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return false;
+  if (a === b) return true;
+  const n = a.length,
+    m = b.length;
+  let prev2 = null,
+    prev = Array.from({ length: m + 1 }, (_, j) => j);
+  for (let i = 1; i <= n; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= m; j++) {
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur[j] = v;
+      if (v < best) best = v;
+    }
+    if (best > max) return false;
+    prev2 = prev;
+    prev = cur;
+  }
+  return prev[m] <= max;
+}
+// the IMDb names of each title (original, English, Portuguese, Brazilian), ready to search
+function imdbNames() {
+  if (!IMDB) return null;
+  if (!IMDBN) IMDBN = IMDB.map(e => e[0].map(n => skey(n).replace(/ /g, '')).join('|'));
+  return IMDBN;
+}
+function searchItems(qRaw, kinds) {
+  const q = skey(qRaw),
+    qc = q.replace(/ /g, ''),
+    qw = q.split(' ').filter(Boolean);
+  if (qc.length < 2) return [];
+  const names = imdbNames(),
+    hits = [];
+  for (const c of S.vis) {
+    if (!kinds.includes(c.kind)) continue;
+    const k = searchKey(c);
+    let sc = 0;
+    if (k.c.includes(qc)) sc = k.c.startsWith(qc) ? 100 : k.s.split(' ').some(w => w.startsWith(qw[0])) ? 90 : 70;
+    else if (qw.length > 1 && qw.every(w => k.w.some(x => x.startsWith(w)))) sc = 80;
+    else if (
+      names &&
+      (c.kind === 'vod' || c.kind === 'series') &&
+      imdbOf(c) &&
+      c._imi != null &&
+      names[c._imi].includes(qc)
+    )
+      sc = 75;
+    if (sc) hits.push([sc, c]);
+  }
+  // nothing (or very little) found: try again forgiving one typo per word
+  if (hits.length < 8 && qw.some(w => w.length >= 4)) {
+    const seen = new Set(hits.map(h => h[1]));
+    for (const c of S.vis) {
+      if (!kinds.includes(c.kind) || seen.has(c)) continue;
+      const k = searchKey(c);
+      const ok = qw.every(w =>
+        k.w.some(x =>
+          w.length < 4
+            ? x.startsWith(w)
+            : near(w, x.slice(0, w.length + 1), w.length >= 8 ? 2 : 1) || near(w, x, w.length >= 8 ? 2 : 1)
+        )
+      );
+      if (ok) hits.push([40, c]);
+      if (hits.length > 400) break;
+    }
+  }
+  hits.sort((a, b) => b[0] - a[0] || (imdbOf(b[1]) || b[1].rating || 0) - (imdbOf(a[1]) || a[1].rating || 0));
+  return hits.map(h => h[1]);
+}
+
+// ===== src/31-streaming.js =====
+/* ---------- "On Netflix", "On HBO Max"…: which of your films and series are also on each streaming service ----------
+   Two sources, used together:
+   1. the playlist's own categories ("NETFLIX SERIES", "HBO MAX", "DISNEY+"…), so it works straight away;
+   2. data/streaming.json, built monthly from TMDB (what each service has in Portugal) by .github/workflows/streaming.yml,
+      matched to the playlist by title and year like the IMDb ratings.
+   Each service becomes a genre-like row and chip in AntunesFlix, so it gets rows, "See all" and the full grid for free. */
+var PLATS = [
+  ['p-netflix', 'On Netflix', /netflix/i],
+  ['p-hbo', 'On HBO Max', /\bhbo\b/i],
+  ['p-disney', 'On Disney+', /disney/i],
+  ['p-prime', 'On Prime Video', /prime ?video|amazon/i],
+  ['p-apple', 'On Apple TV+', /apple ?tv/i],
+  ['p-sky', 'On SkyShowtime', /skyshowtime/i],
+  ['p-filmin', 'On Filmin', /filmin/i],
+  ['p-paramount', 'On Paramount+', /paramount/i]
+];
+var STREAM = null,
+  STREAMIDX = null,
+  streamBusy = false,
+  streamVer = 0;
+Object.assign(PT, {
+  'On Netflix': 'Na Netflix',
+  'On HBO Max': 'Na HBO Max',
+  'On Disney+': 'No Disney+',
+  'On Prime Video': 'No Prime Video',
+  'On Apple TV+': 'Na Apple TV+',
+  'On SkyShowtime': 'Na SkyShowtime',
+  'On Filmin': 'Na Filmin',
+  'On Paramount+': 'No Paramount+'
+});
+// the services join the genres (right after Christmas), with a pattern that never matches genre text
+(() => {
+  const at = GENRES.findIndex(g => g[0] === 'xmas') + 1;
+  GENRES.splice(at, 0, ...PLATS.map(p => [p[0], p[1], /(?!)/]));
+})();
+async function streamLoad() {
+  if (STREAM || streamBusy) return;
+  streamBusy = true;
+  for (const u of ['https://joaoantunesss.github.io/AntunesPlayer/data/streaming.json', 'data/streaming.json']) {
+    try {
+      const r = await fetch(u);
+      if (r.ok) {
+        STREAM = await r.json();
+        break;
+      }
+    } catch (e) {}
+  }
+  streamBusy = false;
+  if (!STREAM || !Array.isArray(STREAM.t)) {
+    STREAM = { t: [] };
+    return;
+  }
+  STREAMIDX = new Map();
+  STREAM.t.forEach((e, i) =>
+    e[0].forEach(n => {
+      const k = imdbNorm(n);
+      if (!k) return;
+      const a = STREAMIDX.get(k);
+      if (a) a.push(i);
+      else STREAMIDX.set(k, [i]);
+    })
+  );
+  streamVer++;
+  const box = $('#vFlix');
+  if (S.view === 'flix' && box && box.scrollTop < 40) renderFlix();
+}
+// the services a film or series is on (ids from PLATS)
+function platOf(c) {
+  if (c.kind !== 'vod' && c.kind !== 'series') return [];
+  const sig = streamVer + '|' + (c.group || '') + '|' + c.name;
+  if (c._pls === sig) return c._pl;
+  const out = new Set();
+  for (const p of PLATS) if (p[2].test(c.group || '')) out.add(p[0]);
+  if (STREAMIDX) {
+    const ids = STREAMIDX.get(imdbNorm(c.name)),
+      y = +((/\b(19|20)\d\d\b/.exec(c.name) || [])[0] || 0),
+      want = c.kind === 'series' ? 's' : 'm';
+    if (ids)
+      for (const i of ids) {
+        const e = STREAM.t[i];
+        if (e[2] !== want || (y && e[1] && Math.abs(e[1] - y) > 1)) continue;
+        e[3].forEach(p => out.add(p));
+      }
+  }
+  c._pls = sig;
+  c._pl = [...out];
+  return c._pl;
+}
 })();

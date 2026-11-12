@@ -358,6 +358,7 @@ function vodHome(box) {
   );
 }
 function renderSearch() {
+  imdbLoad();
   const box = $('#sres'),
     q = fold(S.q.trim());
   if (q.length < 2) {
@@ -365,7 +366,7 @@ function renderSearch() {
     return;
   }
   const kinds = S.qs === 'flix' ? ['vod', 'series'] : S.qs === 'live' ? ['live'] : ['live', 'vod', 'series'],
-    res = S.vis.filter(c => kinds.includes(c.kind) && lname(c).includes(q)),
+    res = searchItems(S.q, kinds),
     sec = (k, label, f) => {
       const a = res.filter(c => c.kind === k);
       return a.length

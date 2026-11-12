@@ -36,6 +36,7 @@ async function imdbLoad() {
       } else IMDBIDX.set(k, [i]);
     })
   );
+  if (S.view === 'search') renderSearch();
   const box = $('#vFlix');
   if (S.view === 'flix' && box && (/^imdb/.test(S.flixTab) || box.scrollTop < 40)) renderFlix();
 }
@@ -46,6 +47,7 @@ function imdbOf(c) {
   c._imn = c.name;
   c._im = 0;
   c._imv = 0;
+  c._imi = null;
   const ids = IMDBIDX.get(imdbNorm(c.name));
   if (!ids) return 0;
   const y = +((/\b(19|20)\d\d\b/.exec(c.name) || [])[0] || 0),
@@ -54,7 +56,10 @@ function imdbOf(c) {
   for (const i of ids) {
     const e = IMDB[i];
     if (e[2] !== want || (y && e[1] && Math.abs(e[1] - y) > 1)) continue;
-    if (!best || e[4] > best[4]) best = e;
+    if (!best || e[4] > best[4]) {
+      best = e;
+      c._imi = i;
+    }
   }
   if (best) {
     c._im = best[3];
@@ -214,6 +219,7 @@ function renderFlix() {
   ].concat(dlNative() ? [['dl', 'Downloads']] : []);
   let body = '';
   imdbLoad();
+  streamLoad();
   newEpCheck();
   if (tab === 'dl') body = dlHtml();
   else if (tab === 'imdbm' || tab === 'imdbs') {

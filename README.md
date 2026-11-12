@@ -86,6 +86,8 @@ The app is plain JavaScript with no framework. The source is split by feature in
 | `src/27-multiscreen.js` | 2 or 4 channels at once |
 | `src/28-recording.js` | scheduled recordings (Android) |
 | `src/29-start.js` | start-up |
+| `src/30-search.js` | search: accents, punctuation, word order, typos, Portuguese/English titles |
+| `src/31-streaming.js` | "On Netflix", "On HBO Max"… rows (playlist categories + TMDB data) |
 
 `node scripts/build-app.mjs` joins them, in order, into `js/app.js`, the file the web, Android and Windows versions load. They share one private scope, so there are no imports between files. CI checks that `js/app.js` is up to date and that `src/` is formatted. The native Android parts (background recording, downloads, Chromecast, the TV home-screen channel) are in `scripts/android_patch.py`, which adds them to the Capacitor project at build time.
 
