@@ -47,7 +47,10 @@ try {
     out.state = await ev(state);
     ok = out.state.on && out.state.nvClass && out.state.fs && out.state.t > 3 && !out.state.paused && out.state.d > 20 && !out.state.msg;
   } else if (step === 'sub') {
-    out.r = await ev(`(async () => { await __ap.idbSet('sub:e2e', 'WEBVTT\\n\\n00:00:00.000 --> 00:01:00.000\\nLegenda online de teste\\n'); return __ap.subsLoad({ id: 'e2e', lang: 'pt-pt' }, __ap.S.cur); })()`);
+    // a real subtitle: short lines, one every 2 seconds
+    out.r = await ev(`(async () => { let vtt = 'WEBVTT\\n\\n'; const p = n => String(n).padStart(2, '0');
+      for (let i = 0; i < 30; i++) vtt += '00:00:' + p(i * 2) + '.000 --> 00:00:' + p(i * 2 + 1) + '.900\\nLegenda online de teste\\n\\n';
+      await __ap.idbSet('sub:e2e', vtt); return __ap.subsLoad({ id: 'e2e', lang: 'pt-pt' }, __ap.S.cur); })()`);
     await sleep(5000);
     out.state = await ev(state);
     ok = out.r === true && out.state.on && !out.state.paused;
