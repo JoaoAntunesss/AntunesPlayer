@@ -296,6 +296,31 @@ public class ExtPlayerPlugin extends Plugin {
     @PluginMethod
     public void dlDelete(PluginCall call) { String id = call.getString("id", ""); DlService.STOP.add(id); Dl.delete(getContext(), id); call.resolve(); }
 
+    // Built-in player with Dolby / DTS sound (see NativePlayer): used for films and episodes whose sound the WebView
+    // cannot decode. Returns where it stopped, so "Continue watching" and the next episode keep working.
+    @PluginMethod
+    public void nativePlay(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || url.isEmpty()) { call.reject("no url"); return; }
+        Intent i = new Intent(getContext(), NativePlayer.class);
+        i.putExtra("url", url); i.putExtra("title", call.getString("title", "")); i.putExtra("ua", call.getString("ua", ""));
+        Integer pos = call.getInt("pos", 0); i.putExtra("pos", pos == null ? 0L : pos * 1000L);
+        try { startActivityForResult(call, i, "nativeDone"); }
+        catch (Exception e) { call.reject("native player", e); }
+    }
+
+    @ActivityCallback
+    private void nativeDone(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        Intent d = result.getData();
+        JSObject o = new JSObject();
+        o.put("pos", d == null ? 0 : d.getLongExtra("pos", 0) / 1000.0);
+        o.put("dur", d == null ? 0 : d.getLongExtra("dur", 0) / 1000.0);
+        o.put("ended", d != null && d.getBooleanExtra("ended", false));
+        o.put("err", d == null ? "" : d.getStringExtra("err"));
+        call.resolve(o);
+    }
+
     // Chromecast: the system's device picker, then the stream is played by the Chromecast itself
     @PluginMethod
     public void cast(final PluginCall call) {
@@ -793,3 +818,136 @@ public class DlService extends Service {
 }
 """)
 print('downloads added')
+
+# Built-in player for Dolby (AC3 / E-AC3 / TrueHD) and DTS sound: ExoPlayer (Media3) with Jellyfin's FFmpeg audio decoder.
+# The WebView plays those films silently; app.js notices and opens them here instead, at the same point.
+gs = open(g, encoding='utf-8').read()
+if 'media3-exoplayer' not in gs:
+    gs = re.sub(r'dependencies\s*\{', "dependencies {\n    implementation 'androidx.media3:media3-exoplayer:1.5.0'\n    implementation 'androidx.media3:media3-exoplayer-hls:1.5.0'\n    implementation 'androidx.media3:media3-ui:1.5.0'\n    implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1'", gs, count=1)
+    open(g, 'w', encoding='utf-8').write(gs)
+open(jd + 'NativePlayer.java', 'w', encoding='utf-8').write(r"""package com.antunes.player;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.Toast;
+import androidx.annotation.OptIn;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.ui.PlayerView;
+
+/** Full-screen player for films and episodes. Sound the device cannot decode (Dolby, DTS) goes through FFmpeg. */
+@OptIn(markerClass = UnstableApi.class)
+public class NativePlayer extends Activity {
+    private ExoPlayer p;
+    private PlayerView pv;
+    private boolean ended, done;
+    private String err = "";
+
+    @Override
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        Intent in = getIntent();
+        String url = in.getStringExtra("url"), ua = in.getStringExtra("ua"), title = in.getStringExtra("title");
+        DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(15000).setReadTimeoutMs(30000)
+            .setUserAgent(ua != null && !ua.isEmpty() ? ua : "VLC/3.0.20 LibVLC/3.0.20");
+        DefaultRenderersFactory rf = new DefaultRenderersFactory(this)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON) // the device's decoders first, FFmpeg for the rest
+            .setEnableDecoderFallback(true);
+        p = new ExoPlayer.Builder(this, rf)
+            .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this, http)))
+            .setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
+            .setHandleAudioBecomingNoisy(true)
+            .setSeekBackIncrementMs(10000).setSeekForwardIncrementMs(10000)
+            .build();
+        p.addListener(new Player.Listener() {
+            @Override public void onPlaybackStateChanged(int st) { if (st == Player.STATE_ENDED) { ended = true; close(); } }
+            @Override public void onPlayerError(PlaybackException e) {
+                err = e.getErrorCodeName();
+                Toast.makeText(NativePlayer.this, "Não foi possível reproduzir (" + err + ")", Toast.LENGTH_LONG).show();
+                close();
+            }
+        });
+        pv = new PlayerView(this);
+        pv.setBackgroundColor(0xFF000000);
+        pv.setShowSubtitleButton(true);
+        pv.setShowNextButton(false);
+        pv.setShowPreviousButton(false);
+        pv.setControllerShowTimeoutMs(3500);
+        pv.setKeepScreenOn(true);
+        pv.setPlayer(p);
+        setContentView(pv);
+        immersive();
+        pv.requestFocus();
+        MediaItem item = new MediaItem.Builder().setUri(Uri.parse(url))
+            .setMediaMetadata(new MediaMetadata.Builder().setTitle(title == null ? "" : title).build()).build();
+        p.setMediaItem(item, Math.max(0, in.getLongExtra("pos", 0)));
+        p.prepare();
+        p.setPlayWhenReady(true);
+    }
+
+    private void immersive() {
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN
+            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+
+    @Override public void onWindowFocusChanged(boolean f) { super.onWindowFocusChanged(f); if (f) immersive(); }
+
+    // TV remote: with the controls hidden, left / right jump 10 s and OK pauses, like the app's own player
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        int k = e.getKeyCode();
+        if (p != null && pv != null && !pv.isControllerFullyVisible() && e.getAction() == KeyEvent.ACTION_DOWN) {
+            if (k == KeyEvent.KEYCODE_DPAD_LEFT) { p.seekBack(); pv.showController(); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_RIGHT) { p.seekForward(); pv.showController(); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER) { p.setPlayWhenReady(!p.getPlayWhenReady()); pv.showController(); return true; }
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override public void onBackPressed() { close(); }
+
+    @Override protected void onPause() { super.onPause(); if (p != null && !isFinishing()) p.setPlayWhenReady(false); }
+
+    private void close() {
+        if (done) return;
+        done = true;
+        Intent d = new Intent();
+        if (p != null) {
+            long dur = p.getDuration();
+            d.putExtra("pos", ended ? Math.max(0, dur) : p.getCurrentPosition());
+            d.putExtra("dur", dur == C.TIME_UNSET ? 0 : dur);
+        }
+        d.putExtra("ended", ended);
+        d.putExtra("err", err);
+        setResult(RESULT_OK, d);
+        finish();
+    }
+
+    @Override protected void onDestroy() { if (p != null) { p.release(); p = null; } super.onDestroy(); }
+}
+""")
+s3 = open(m, encoding='utf-8').read()
+if 'NativePlayer' not in s3:
+    s3 = s3.replace('</application>', '        <activity android:name=".NativePlayer" android:exported="false" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" android:screenOrientation="sensorLandscape" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode" />\n    </application>', 1)
+    open(m, 'w', encoding='utf-8').write(s3)
+with open('android/app/proguard-rules.pro', 'a', encoding='utf-8') as f:
+    f.write('\n-keep class androidx.media3.decoder.ffmpeg.** { *; }\n-keep class com.antunes.player.NativePlayer { *; }\n')
+print('native player (Dolby / DTS sound) added')

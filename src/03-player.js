@@ -131,6 +131,7 @@ async function play(c, isRetry) {
   S.dbg = '';
   stopRec(true);
   destroyPlayer();
+  if (!isRetry && natFirst(c)) return; // Dolby / DTS film or series: straight to the built-in player (src/32-audio-check.js)
   armStart(c, isRetry);
   $('#screen').classList.toggle('vod', c.kind !== 'live');
   $('#msg').hidden = true;
