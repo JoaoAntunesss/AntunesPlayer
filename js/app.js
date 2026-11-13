@@ -5264,7 +5264,8 @@ async function subsSearch(c) {
     .slice(0, 80);
 }
 const langName = l => (SUBL.find(x => x[0] === l) || [0, l.toUpperCase()])[1];
-async function subsLoad(r, c) {
+// the subtitle file as WebVTT text (cached, so each one is downloaded once)
+async function subsVtt(r) {
   let vtt = await idbGet('sub:' + r.id);
   if (!vtt) {
     await osLogin();
@@ -5279,6 +5280,10 @@ async function subsLoad(r, c) {
     idbSet('sub:' + r.id, vtt);
     if (j.remaining != null) S.subLeft = j.remaining;
   }
+  return vtt;
+}
+async function subsLoad(r, c) {
+  const vtt = await subsVtt(r);
   if (S.cur !== c) return false;
   $$('#v track[data-os]').forEach(x => x.remove());
   const tr = document.createElement('track');
@@ -8845,16 +8850,15 @@ function platOf(c) {
 }
 
 // ===== src/32-audio-check.js =====
-/* ---------- films and episodes with no sound ----------
-   Many films and episodes come as MKV files with Dolby (AC3 / E-AC3 / TrueHD) or DTS sound. The browser, the Android
-   WebView and the Windows app play the picture but cannot decode that sound, so the video runs silent.
-   A few seconds into playback, if the player has decoded no sound at all:
-   - in the Android app, the film switches by itself to the built-in native player (ExoPlayer + FFmpeg, see NativePlayer
-     in scripts/android_patch.py) at the same point. The series is remembered, so its next episodes open there directly;
-   - elsewhere (web, Windows, or a live channel), a notice offers VLC or another player.
-   Uses webkitAudioDecodedByteCount (Chrome, Android WebView, Edge, Electron); where it does not exist nothing happens. */
+/* ---------- films and series: the app's native player (Android) ----------
+   Many films and episodes come as MKV files with Dolby (AC3 / E-AC3 / TrueHD) or DTS sound. The WebView (and any browser)
+   plays the picture but cannot decode that sound, so they ran silent.
+   In the Android app every film and episode plays in the app's native player instead (ExoPlayer + FFmpeg, see
+   NativePlayer in scripts/android_patch.py): all sound formats, the embedded subtitles and the online subtitles the app
+   finds (OpenSubtitles), resume point, "Continue watching" and the next episode.
+   Elsewhere (web, Windows, live channels) a few seconds of video with no sound decoded show a notice offering another
+   player. Uses webkitAudioDecodedByteCount (Chrome, Edge, Electron); where it does not exist nothing happens. */
 var audChk = { key: '', t0: -1, done: false },
-  NATAUD = LS.get('ap.natAud', {}),
   natBusy = false;
 Object.assign(PT, {
   'No sound in this video': 'Este vídeo não tem som aqui',
@@ -8863,16 +8867,26 @@ Object.assign(PT, {
   'Open in VLC or another player': 'Abrir no VLC ou noutro leitor',
   'Copy the link for VLC': 'Copiar o link para o VLC',
   'Play with Dolby / DTS sound': 'Ver com som Dolby / DTS',
-  'Dolby / DTS sound: opening the built-in player': 'Som Dolby / DTS: a abrir no leitor com som',
-  'The built-in player could not play this': 'O leitor com som não conseguiu reproduzir isto'
+  'Dolby / DTS sound: opening the built-in player': 'Som Dolby / DTS: a abrir no leitor da app',
+  'The built-in player could not play this': 'O leitor da app não conseguiu reproduzir isto'
 });
 const natOk = () => NATIVE && !!(Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.nativePlay);
-const natId = c => c.ser || c.key;
-// films and series already known to need the native player open there straight away (called by play())
+// films and episodes always open in the native player. Called by play().
 function natFirst(c) {
-  if (!natOk() || natBusy || (c.kind !== 'vod' && c.kind !== 'series') || !NATAUD[natId(c)]) return false;
+  if (!natOk() || natBusy || c._web || (c.kind !== 'vod' && c.kind !== 'series')) return false;
   natPlay(c, POS[c.key] || 0);
   return true;
+}
+// the best online subtitle for c (same choice as autoSubs), as WebVTT text; gives up after 6 s
+async function natSubs(c) {
+  if (S.set.subAuto === false || !OSK()) return null;
+  const go = (async () => {
+    const list = await subsSearch(c);
+    S.subList = { k: c.key, list };
+    if (!list.length) return null;
+    return { vtt: await subsVtt(list[0]), lang: list[0].lang, label: langName(list[0].lang) };
+  })().catch(() => null);
+  return Promise.race([go, new Promise(r => setTimeout(() => r(null), 6000))]);
 }
 async function natPlay(c, pos) {
   if (natBusy) return;
@@ -8882,28 +8896,35 @@ async function natPlay(c, pos) {
     v.pause();
   } catch (e) {}
   destroyPlayer();
-  spin(false);
-  NATAUD[natId(c)] = Date.now();
-  const ks = Object.keys(NATAUD);
-  if (ks.length > 200) delete NATAUD[ks[0]];
-  LS.set('ap.natAud', NATAUD);
+  spin(true);
   const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url,
-    url = c.local ? cu.replace(/^.*?\/_capacitor_file_/, 'file://') : cu;
+    url = c.local ? cu.replace(/^.*?\/_capacitor_file_/, 'file://') : cu,
+    sub = await natSubs(c);
+  spin(false);
+  if (S.cur !== c) {
+    natBusy = false;
+    return;
+  }
   let r = null;
   try {
     r = await Capacitor.Plugins.ExtPlayer.nativePlay({
       url,
       title: c.name || '',
       ua: uaHdr()['User-Agent'] || '',
-      pos: Math.floor(pos || 0)
+      pos: Math.floor(pos || 0),
+      vtt: (sub && sub.vtt) || '',
+      subLang: (sub && sub.lang) || '',
+      subLabel: (sub && sub.label) || ''
     });
   } catch (e) {}
   natBusy = false;
   if (!r || r.err) {
-    // it failed there too: forget it, so next time the normal player is tried again
-    delete NATAUD[natId(c)];
-    LS.set('ap.natAud', NATAUD);
-    if (S.cur === c) showMsg(t('The built-in player could not play this'), esc((r && r.err) || ''), true);
+    // it failed there (a stream the native player cannot open): try the app screen once, so it still plays
+    if (S.cur === c) {
+      c._web = true;
+      toast(t('The built-in player could not play this') + (r && r.err ? ' (' + r.err + ')' : ''));
+      play(c, true);
+    }
     return;
   }
   // same bookkeeping as savePos(): continue watching, watched, last episode of the series

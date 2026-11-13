@@ -305,6 +305,16 @@ public class ExtPlayerPlugin extends Plugin {
         Intent i = new Intent(getContext(), NativePlayer.class);
         i.putExtra("url", url); i.putExtra("title", call.getString("title", "")); i.putExtra("ua", call.getString("ua", ""));
         Integer pos = call.getInt("pos", 0); i.putExtra("pos", pos == null ? 0L : pos * 1000L);
+        // online subtitles found by the app (WebVTT): written to a file, the player adds them as a subtitle track
+        String vtt = call.getString("vtt", "");
+        if (vtt != null && !vtt.isEmpty()) {
+            try {
+                java.io.File f = new java.io.File(getContext().getCacheDir(), "online-sub.vtt");
+                java.io.FileOutputStream o = new java.io.FileOutputStream(f);
+                o.write(vtt.getBytes(java.nio.charset.StandardCharsets.UTF_8)); o.close();
+                i.putExtra("sub", f.getAbsolutePath()); i.putExtra("subLang", call.getString("subLang", "")); i.putExtra("subLabel", call.getString("subLabel", ""));
+            } catch (Exception ignored) { }
+        }
         try { startActivityForResult(call, i, "nativeDone"); }
         catch (Exception e) { call.reject("native player", e); }
     }
@@ -840,6 +850,7 @@ import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
@@ -847,8 +858,13 @@ import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.audio.AudioCapabilities;
+import androidx.media3.exoplayer.audio.AudioSink;
+import androidx.media3.exoplayer.audio.DefaultAudioSink;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.ui.CaptionStyleCompat;
 import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.SubtitleView;
 
 /** Full-screen player for films and episodes. Sound the device cannot decode (Dolby, DTS) goes through FFmpeg. */
 @OptIn(markerClass = UnstableApi.class)
@@ -867,8 +883,16 @@ public class NativePlayer extends Activity {
         DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(15000).setReadTimeoutMs(30000)
             .setUserAgent(ua != null && !ua.isEmpty() ? ua : "VLC/3.0.20 LibVLC/3.0.20");
-        DefaultRenderersFactory rf = new DefaultRenderersFactory(this)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON) // the device's decoders first, FFmpeg for the rest
+        // Sound: FFmpeg first (AC3, E-AC3, TrueHD, DTS, AAC, MP3, FLAC…), turned into plain PCM. Many TV boxes list a Dolby
+        // decoder that outputs silence (no licence), or pass Dolby to a TV that cannot play it: decoding here avoids both.
+        DefaultRenderersFactory rf = new DefaultRenderersFactory(this) {
+            @SuppressWarnings("deprecation")
+            @Override protected AudioSink buildAudioSink(android.content.Context c, boolean floatOut, boolean params) {
+                return new DefaultAudioSink.Builder().setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                    .setEnableFloatOutput(floatOut).setEnableAudioTrackPlaybackParams(params).build();
+            }
+        }
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setEnableDecoderFallback(true);
         p = new ExoPlayer.Builder(this, rf)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this, http)))
@@ -891,12 +915,28 @@ public class NativePlayer extends Activity {
         pv.setShowPreviousButton(false);
         pv.setControllerShowTimeoutMs(3500);
         pv.setKeepScreenOn(true);
+        if (pv.getSubtitleView() != null) { // bigger, with an outline: readable on a TV from the sofa
+            pv.getSubtitleView().setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 1.25f);
+            pv.getSubtitleView().setStyle(new CaptionStyleCompat(0xFFFFFFFF, 0x00000000, 0x00000000, CaptionStyleCompat.EDGE_TYPE_OUTLINE, 0xFF000000, null));
+        }
         pv.setPlayer(p);
         setContentView(pv);
         immersive();
         pv.requestFocus();
-        MediaItem item = new MediaItem.Builder().setUri(Uri.parse(url))
-            .setMediaMetadata(new MediaMetadata.Builder().setTitle(title == null ? "" : title).build()).build();
+        MediaItem.Builder mb = new MediaItem.Builder().setUri(Uri.parse(url))
+            .setMediaMetadata(new MediaMetadata.Builder().setTitle(title == null ? "" : title).build());
+        String sub = in.getStringExtra("sub");
+        if (sub != null && new java.io.File(sub).exists()) {
+            String lang = in.getStringExtra("subLang"); if (lang == null) lang = "";
+            String lang2 = lang.length() >= 2 ? lang.substring(0, 2) : lang;
+            mb.setSubtitleConfigurations(java.util.Collections.singletonList(
+                new MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(new java.io.File(sub)))
+                    .setMimeType(MimeTypes.TEXT_VTT).setLanguage(lang2).setLabel((in.getStringExtra("subLabel") == null ? lang : in.getStringExtra("subLabel")) + " · online")
+                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT | C.SELECTION_FLAG_FORCED).build()));
+            // show them from the start (the user can turn them off in the subtitles button)
+            p.setTrackSelectionParameters(p.getTrackSelectionParameters().buildUpon().setPreferredTextLanguage(lang2).setSelectUndeterminedTextLanguage(true).build());
+        }
+        MediaItem item = mb.build();
         p.setMediaItem(item, Math.max(0, in.getLongExtra("pos", 0)));
         p.prepare();
         p.setPlayWhenReady(true);

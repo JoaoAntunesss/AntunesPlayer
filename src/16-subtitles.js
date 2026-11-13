@@ -167,7 +167,8 @@ async function subsSearch(c) {
     .slice(0, 80);
 }
 const langName = l => (SUBL.find(x => x[0] === l) || [0, l.toUpperCase()])[1];
-async function subsLoad(r, c) {
+// the subtitle file as WebVTT text (cached, so each one is downloaded once)
+async function subsVtt(r) {
   let vtt = await idbGet('sub:' + r.id);
   if (!vtt) {
     await osLogin();
@@ -182,6 +183,10 @@ async function subsLoad(r, c) {
     idbSet('sub:' + r.id, vtt);
     if (j.remaining != null) S.subLeft = j.remaining;
   }
+  return vtt;
+}
+async function subsLoad(r, c) {
+  const vtt = await subsVtt(r);
   if (S.cur !== c) return false;
   $$('#v track[data-os]').forEach(x => x.remove());
   const tr = document.createElement('track');
