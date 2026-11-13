@@ -874,7 +874,7 @@ public class NativeVideo {
     private FrameLayout box;
     private AspectRatioFrameLayout arf;
     private SubtitleView sv;
-    private boolean active, debug, live, stopped;
+    private boolean active, debug, live, stopped, logging;
     private String stab = "normal";
     private int recover = 0;
     private String url = "", err = "";
@@ -1002,7 +1002,7 @@ public class NativeVideo {
                 extSub = null; err = ""; recover = 0; stopped = false;
                 live = Boolean.TRUE.equals(call.getBoolean("live", false));
                 stab = call.getString("stab", "normal");
-                if (debug) p.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger("NativeVideoTest"));
+                if (debug && !logging) { logging = true; p.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger("NativeVideoTest")); }
                 prefLangs("", call.getString("subLangs", ""));
                 aspect(call.getString("aspect", "contain"));
                 p.setPlaybackParameters(PlaybackParameters.DEFAULT);
@@ -1174,7 +1174,14 @@ public class NativeVideo {
         if (p == null) return;
         JSObject o = new JSObject();
         o.put("e", e);
-        o.put("t", p.getCurrentPosition() / 1000.0);
+        // live: the position inside the live window stays about the same as the window moves on, so report the
+        // position since the stream began instead (it keeps growing while playing, like a <video> element's)
+        long pos = p.getCurrentPosition();
+        if (live && !p.getCurrentTimeline().isEmpty()) {
+            androidx.media3.common.Timeline.Window w = p.getCurrentTimeline().getWindow(p.getCurrentMediaItemIndex(), new androidx.media3.common.Timeline.Window());
+            pos += Math.max(0, w.positionInFirstPeriodUs / 1000);
+        }
+        o.put("t", pos / 1000.0);
         long d = p.getDuration();
         o.put("d", d == C.TIME_UNSET ? -1 : d / 1000.0);
         o.put("b", p.getBufferedPosition() / 1000.0);

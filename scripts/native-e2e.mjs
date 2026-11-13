@@ -78,6 +78,8 @@ try {
     out = await ev(`Capacitor.Plugins.ExtPlayer.nvTracks()`);
     ok = out.audio && out.audio.length >= 1 && out.text && out.text.length >= 1;
   } else if (step === 'live') {
+    await ev(`location.hash = '#live'; 1`); // from the channel list, as people do
+    await sleep(1500);
     out.started = await ev(`(() => { const c = __ap.S.channels.find(c => c.name.includes('Futebol')); if (!c) return 'not found'; __ap.enterFsFor(c); return c.name + ' / ' + c.kind; })()`);
     await sleep(15000);
     const a = await ev(state);
