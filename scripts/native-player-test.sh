@@ -74,7 +74,7 @@ adb logcat -c
 check node scripts/native-e2e.mjs live
 echo "  CPU, live full screen (native engine): $(cpu)%"
 kill $LIVE; echo "  server down for 12 s"; sleep 12
-live; echo "  server back"; sleep 25
+live; echo "  server back"; sleep 40
 adb logcat -d > out/live-logcat.txt
 grep "NativeVideoTest" out/live-logcat.txt | grep -E "playerFailed|loadError|state \[" | cut -c1-200 | tail -8
 check node scripts/native-e2e.mjs check

@@ -89,11 +89,14 @@ try {
     ok = a.on && a.fs && a.nvClass && !b.paused && b.t > a.t + 2 && !b.msg;
   } else if (step === 'check') {
     // still playing (after the server came back): the picture moves and there is no error
+    // (right after reconnecting, the live clock can jump back a little: the server started a new list)
     const a = await ev(state);
-    await sleep(4000);
+    await sleep(3000);
     const b = await ev(state);
-    out = { a, tNow: b.t };
-    ok = b.on && !b.paused && b.t > a.t + 2 && !b.msg;
+    await sleep(3000);
+    const c = await ev(state);
+    out = { a: a.t, b: b.t, c: c.t, st: c.st, msg: c.msg };
+    ok = c.on && !c.paused && c.st === 3 && (b.t > a.t + 1.5 || c.t > b.t + 1.5) && !c.msg;
   } else if (step === 'preview') {
     // leaving full screen on a live channel: back to the small preview, on the web player
     await ev(`history.back(); 1`);
