@@ -188,6 +188,10 @@ async function subsVtt(r) {
 async function subsLoad(r, c) {
   const vtt = await subsVtt(r);
   if (S.cur !== c) return false;
+  if (NV.on) {
+    await nvSub(vtt, r.lang, langName(r.lang) + ' · online');
+    return true;
+  }
   $$('#v track[data-os]').forEach(x => x.remove());
   const tr = document.createElement('track');
   tr.kind = 'subtitles';

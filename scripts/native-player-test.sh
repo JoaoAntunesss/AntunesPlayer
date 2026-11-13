@@ -1,8 +1,11 @@
 #!/bin/bash
 # Run by .github/workflows/native-player-test.yml inside the Android emulator job.
-# Plays each test video in the native player and checks: an audio track is playing, no playback error, frames shown.
+# Opens the real app, adds a test playlist, plays films with AC3 / DTS / E-AC3 sound in the app's own player and checks:
+# the native engine plays under the app's screen (picture visible), sound is decoded and playing, subtitles (the file's
+# own and an online one) are shown, seek / pause / play work, and leaving the player stops it.
 set -u
-mkdir -p out
+mkdir -p out media/movie
+cp media/test-*.mkv media/movie/
 python3 -m http.server 8000 --directory media </dev/null >/dev/null 2>&1 &
 SRV=$!
 trap 'kill $SRV 2>/dev/null' EXIT
@@ -10,30 +13,50 @@ sleep 2
 adb install -r android/app/build/outputs/apk/release/app-release.apk
 adb shell settings put system screen_off_timeout 600000
 fail=0
-# an online subtitle, as the app hands it over (a WebVTT file in the app's own folder)
-printf 'WEBVTT\n\n00:00:01.000 --> 00:00:20.000\nLegenda online de teste\n' > media/online.vtt
-for a in ac3 eac3 dca aac online; do
+check() { "$@" || fail=1; }
+
+launch() {
+  adb shell am force-stop com.antunes.player
+  adb shell monkey -p com.antunes.player -c android.intent.category.LAUNCHER 1 >/dev/null
+  sleep 10
+  pid=$(adb shell pidof com.antunes.player | tr -d '\r')
+  adb forward --remove-all
+  adb forward tcp:9222 localabstract:webview_devtools_remote_$pid
+  sleep 1
+}
+
+launch
+node scripts/native-e2e.mjs setup
+sleep 8
+
+for f in AC3 DTS EAC3; do
   adb logcat -c
-  f=$a; extra=""
-  if [ $a = online ]; then f=aac; extra="--es sub http://10.0.2.2:8000/online.vtt --es subLang pt-pt --es subLabel Portugues --es subLangs pt-pt,en"; else extra="--es subLangs pt-pt,en"; fi
-  adb shell am start -W -n com.antunes.player/.NativePlayer --es url "http://10.0.2.2:8000/test-$f.mkv" --es title test_$a --ez debug true $extra
-  sleep 12
-  adb exec-out screencap -p > "out/$a.png"
-  adb shell dumpsys audio > "out/$a-audio.txt"
-  adb logcat -d > "out/$a-logcat.txt"
-  started=$(grep -c "state:started" "out/$a-audio.txt")
-  err=$(grep -c "playerFailed\|PlaybackException\|FATAL EXCEPTION" "out/$a-logcat.txt")
-  dec=$(grep -o "audioDecoderInitialized[^]]*\]" "out/$a-logcat.txt" | head -1)
-  vdec=$(grep -c "videoDecoderInitialized\|renderedFirstFrame" "out/$a-logcat.txt")
-  echo "$a: audio playing=$started errors=$err video=$vdec decoder=$dec"
-  grep "NativePlayerTest" "out/$a-logcat.txt" | grep -E "DecoderInitialized|playerFailed" | cut -c1-200
-  echo "  selected tracks:"; grep "NativePlayerTest" "out/$a-logcat.txt" | grep "\[X\]" | sed 's/.*NativePlayerTest: *//' | cut -c1-200
-  echo "  subtitle shown:"; grep "NativePlayerTest: cues:" "out/$a-logcat.txt" | sed 's/.*cues: //' | sort -u | head -3
-  cues=$(grep -c "NativePlayerTest: cues: Legenda" "out/$a-logcat.txt")
-  want="Legenda de teste"; [ $a = online ] && want="Legenda online de teste"
-  grep -q "cues: $want" "out/$a-logcat.txt" || { echo "  subtitle '$want' NOT shown"; cues=0; }
-  if [ "$started" -lt 1 ] || [ "$err" -gt 0 ] || [ -z "$dec" ] || [ "$cues" -lt 1 ]; then fail=1; echo "  FAILED $a"; grep -i "exception\|error" "out/$a-logcat.txt" | grep -i "media3\|exo\|NativePlayer\|antunes\|ffmpeg" | head -20; fi
-  adb shell input keyevent KEYCODE_BACK
+  check node scripts/native-e2e.mjs play "$f"
+  adb exec-out screencap -p > "out/$f.png"
+  adb shell dumpsys audio > "out/$f-audio.txt"
+  adb logcat -d > "out/$f-logcat.txt"
+  dec=$(grep -o "audioDecoderInitialized[^]]*\]" "out/$f-logcat.txt" | head -1 | sed 's/.*, //')
+  playing=$(grep -c "state:started" "out/$f-audio.txt")
+  subs=$(grep "NativeVideoTest: cues:" "out/$f-logcat.txt" | sed 's/.*cues: //' | sort -u | head -2 | tr '\n' '|')
+  # the picture must show through the app's (transparent) page: the test video is coloured bars, not black
+  pic=$(python3 -c "
+from PIL import Image; im=Image.open('out/$f.png').convert('RGB'); w,h=im.size
+px=[im.getpixel((int(w*x/10),int(h*y/10))) for x in range(2,9) for y in range(3,7)]
+print(len(set(px)), max(max(p) for p in px))")
+  echo "  $f: audio decoder=$dec, audio playing=$playing, subtitles shown=[$subs], picture colours/brightest=$pic"
+  [ -n "$dec" ] && [ "$playing" -ge 1 ] && [ -n "$subs" ] || { echo "  FAILED $f (sound or subtitles)"; fail=1; }
+  [ "$(echo $pic | cut -d' ' -f1)" -ge 6 ] || { echo "  FAILED $f (picture not visible under the app)"; fail=1; }
+  if [ $f = AC3 ]; then
+    adb logcat -c
+    check node scripts/native-e2e.mjs sub
+    adb logcat -d > out/sub-logcat.txt
+    grep -q "cues: Legenda online de teste" out/sub-logcat.txt && echo "  online subtitle shown" || { echo "  FAILED online subtitle not shown"; fail=1; }
+    check node scripts/native-e2e.mjs seek
+    check node scripts/native-e2e.mjs pause
+    check node scripts/native-e2e.mjs tracks
+  fi
+  check node scripts/native-e2e.mjs stop
   sleep 2
 done
+grep -h "AndroidRuntime\|FATAL" out/*-logcat.txt | head -20
 exit $fail

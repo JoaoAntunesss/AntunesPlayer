@@ -764,3 +764,6 @@ dialog.trailer{width:min(960px,96vw);padding:14px}.trw{position:relative;aspect-
 .dlbar{display:block;height:4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;width:min(260px,40vw)}.dlbar i{display:block;height:100%;background:var(--fx,var(--acc))}
 /* new episodes badge */
 .po .newep{position:absolute;right:0;bottom:0;z-index:2;font-style:normal;font-weight:800;font-size:11px;padding:3px 8px;border-radius:8px 0 0 0;background:var(--fx,#e50914);color:#fff}
+/* films and series on Android: the native video engine draws under the page, so the page is see-through behind the player */
+html.nv,html.nv body,html.nv #screen.fs,html.nv #screen.fs #v{background:transparent!important}
+html.nv #screen.fs #v{opacity:0}

@@ -296,41 +296,16 @@ public class ExtPlayerPlugin extends Plugin {
     @PluginMethod
     public void dlDelete(PluginCall call) { String id = call.getString("id", ""); DlService.STOP.add(id); Dl.delete(getContext(), id); call.resolve(); }
 
-    // Built-in player with Dolby / DTS sound (see NativePlayer): used for films and episodes whose sound the WebView
-    // cannot decode. Returns where it stopped, so "Continue watching" and the next episode keep working.
-    @PluginMethod
-    public void nativePlay(PluginCall call) {
-        String url = call.getString("url");
-        if (url == null || url.isEmpty()) { call.reject("no url"); return; }
-        Intent i = new Intent(getContext(), NativePlayer.class);
-        i.putExtra("url", url); i.putExtra("title", call.getString("title", "")); i.putExtra("ua", call.getString("ua", ""));
-        Integer pos = call.getInt("pos", 0); i.putExtra("pos", pos == null ? 0L : pos * 1000L);
-        // online subtitles found by the app (WebVTT): written to a file, the player adds them as a subtitle track
-        String vtt = call.getString("vtt", "");
-        if (vtt != null && !vtt.isEmpty()) {
-            try {
-                java.io.File f = new java.io.File(getContext().getCacheDir(), "online-sub.vtt");
-                java.io.FileOutputStream o = new java.io.FileOutputStream(f);
-                o.write(vtt.getBytes(java.nio.charset.StandardCharsets.UTF_8)); o.close();
-                i.putExtra("sub", f.getAbsolutePath()); i.putExtra("subLang", call.getString("subLang", "")); i.putExtra("subLabel", call.getString("subLabel", ""));
-            } catch (Exception ignored) { }
-        }
-        i.putExtra("subLangs", call.getString("subLangs", ""));
-        try { startActivityForResult(call, i, "nativeDone"); }
-        catch (Exception e) { call.reject("native player", e); }
-    }
-
-    @ActivityCallback
-    private void nativeDone(PluginCall call, ActivityResult result) {
-        if (call == null) return;
-        Intent d = result.getData();
-        JSObject o = new JSObject();
-        o.put("pos", d == null ? 0 : d.getLongExtra("pos", 0) / 1000.0);
-        o.put("dur", d == null ? 0 : d.getLongExtra("dur", 0) / 1000.0);
-        o.put("ended", d != null && d.getBooleanExtra("ended", false));
-        o.put("err", d == null ? "" : d.getStringExtra("err"));
-        call.resolve(o);
-    }
+    // Films and series: the video is played by NativeVideo (ExoPlayer + FFmpeg) under the app's own player screen.
+    // app.js drives it like a <video> element (src/32-native-video.js); state comes back as "nv" events.
+    @PluginMethod public void nvOpen(PluginCall call) { NativeVideo.get(this).open(call); }
+    @PluginMethod public void nvCmd(PluginCall call) { NativeVideo.get(this).cmd(call); }
+    @PluginMethod public void nvSub(PluginCall call) { NativeVideo.get(this).sub(call); }
+    @PluginMethod public void nvTracks(PluginCall call) { NativeVideo.get(this).tracks(call); }
+    @PluginMethod public void nvClose(PluginCall call) { NativeVideo.get(this).close(); call.resolve(); }
+    void nvEmit(JSObject o) { notifyListeners("nv", o); }
+    @Override protected void handleOnPause() { super.handleOnPause(); if (NativeVideo.inst != null) NativeVideo.inst.background(); }
+    @Override protected void handleOnDestroy() { if (NativeVideo.inst != null) NativeVideo.inst.release(); super.handleOnDestroy(); }
 
     // Chromecast: the system's device picker, then the stream is played by the Chromecast itself
     @PluginMethod
@@ -830,30 +805,39 @@ public class DlService extends Service {
 """)
 print('downloads added')
 
-# Built-in player for Dolby (AC3 / E-AC3 / TrueHD) and DTS sound: ExoPlayer (Media3) with Jellyfin's FFmpeg audio decoder.
-# The WebView plays those films silently; app.js notices and opens them here instead, at the same point.
+# Video engine for films and series: ExoPlayer (Media3) with Jellyfin's FFmpeg audio decoder (Dolby AC3 / E-AC3 / TrueHD,
+# DTS), drawn under the transparent WebView so the app's own player screen stays on top (see NativeVideo, src/32-native-video.js).
 gs = open(g, encoding='utf-8').read()
 if 'media3-exoplayer' not in gs:
     gs = re.sub(r'dependencies\s*\{', "dependencies {\n    implementation 'androidx.media3:media3-exoplayer:1.5.0'\n    implementation 'androidx.media3:media3-exoplayer-hls:1.5.0'\n    implementation 'androidx.media3:media3-ui:1.5.0'\n    implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1'", gs, count=1)
     open(g, 'w', encoding='utf-8').write(gs)
-open(jd + 'NativePlayer.java', 'w', encoding='utf-8').write(r"""package com.antunes.player;
+open(jd + 'NativeVideo.java', 'w', encoding='utf-8').write(r"""package com.antunes.player;
 
 import android.app.Activity;
-import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
-import android.os.Bundle;
-import android.view.KeyEvent;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.TextureView;
 import android.view.View;
-import android.view.WindowManager;
-import android.widget.Toast;
+import android.view.ViewGroup;
+import android.webkit.WebView;
+import android.widget.FrameLayout;
 import androidx.annotation.OptIn;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
+import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
-import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
+import androidx.media3.common.TrackSelectionOverride;
+import androidx.media3.common.Tracks;
+import androidx.media3.common.VideoSize;
+import androidx.media3.common.text.Cue;
+import androidx.media3.common.text.CueGroup;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
@@ -863,148 +847,283 @@ import androidx.media3.exoplayer.audio.AudioCapabilities;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.DefaultAudioSink;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.CaptionStyleCompat;
-import androidx.media3.ui.PlayerView;
 import androidx.media3.ui.SubtitleView;
+import com.getcapacitor.JSArray;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.PluginCall;
+import java.util.ArrayList;
+import java.util.Collections;
 
-/** Full-screen player for films and episodes. Sound the device cannot decode (Dolby, DTS) goes through FFmpeg. */
+/** The app's video engine for films and series. It draws under the (transparent) WebView, so the app's own player
+ *  screen and controls stay on top, and plays any sound format: Dolby AC3 / E-AC3 / TrueHD and DTS go through FFmpeg. */
 @OptIn(markerClass = UnstableApi.class)
-public class NativePlayer extends Activity {
-    private ExoPlayer p;
-    private PlayerView pv;
-    private boolean ended, done;
-    private String err = "";
+public class NativeVideo {
+    static NativeVideo inst;
+    static NativeVideo get(ExtPlayerPlugin pl) { if (inst == null) inst = new NativeVideo(pl); return inst; }
 
-    @Override
-    protected void onCreate(Bundle b) {
-        super.onCreate(b);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        Intent in = getIntent();
-        String url = in.getStringExtra("url"), ua = in.getStringExtra("ua"), title = in.getStringExtra("title");
-        DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(15000).setReadTimeoutMs(30000)
-            .setUserAgent(ua != null && !ua.isEmpty() ? ua : "VLC/3.0.20 LibVLC/3.0.20");
-        // Sound: FFmpeg first (AC3, E-AC3, TrueHD, DTS, AAC, MP3, FLAC…), turned into plain PCM. Many TV boxes list a Dolby
-        // decoder that outputs silence (no licence), or pass Dolby to a TV that cannot play it: decoding here avoids both.
-        DefaultRenderersFactory rf = new DefaultRenderersFactory(this) {
+    private final ExtPlayerPlugin pl;
+    private final Handler h = new Handler(Looper.getMainLooper());
+    private ExoPlayer p;
+    private DefaultHttpDataSource.Factory http;
+    private FrameLayout box;
+    private AspectRatioFrameLayout arf;
+    private SubtitleView sv;
+    private boolean active, debug;
+    private String url = "", err = "";
+    private MediaItem.SubtitleConfiguration extSub;
+    private final ArrayList<int[]> audioIdx = new ArrayList<>(), textIdx = new ArrayList<>();
+
+    private NativeVideo(ExtPlayerPlugin pl) { this.pl = pl; }
+
+    private final Runnable tick = new Runnable() { public void run() {
+        if (!active || p == null) return;
+        emit("time");
+        h.postDelayed(this, 250);
+    } };
+
+    private void ui(Runnable r) { h.post(r); }
+    private WebView wv() { return pl.getBridge().getWebView(); }
+
+    private void ensure() {
+        if (p != null) return;
+        Activity a = pl.getActivity();
+        http = new DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(15000).setReadTimeoutMs(30000);
+        // Sound: FFmpeg first, turned into plain PCM. Many TV boxes list a Dolby decoder that outputs silence (no licence),
+        // or pass Dolby to a TV that cannot play it: decoding here avoids both.
+        DefaultRenderersFactory rf = new DefaultRenderersFactory(a) {
             @SuppressWarnings("deprecation")
             @Override protected AudioSink buildAudioSink(android.content.Context c, boolean floatOut, boolean params) {
                 return new DefaultAudioSink.Builder().setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
                     .setEnableFloatOutput(floatOut).setEnableAudioTrackPlaybackParams(params).build();
             }
-        }
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-            .setEnableDecoderFallback(true);
-        p = new ExoPlayer.Builder(this, rf)
-            .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this, http)))
+        }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER).setEnableDecoderFallback(true);
+        p = new ExoPlayer.Builder(a, rf)
+            .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(a, http)))
             .setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             .setHandleAudioBecomingNoisy(true)
-            .setSeekBackIncrementMs(10000).setSeekForwardIncrementMs(10000)
             .build();
-        if (in.getBooleanExtra("debug", false)) {
-            p.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger("NativePlayerTest"));
-            p.addListener(new Player.Listener() { @Override public void onCues(androidx.media3.common.text.CueGroup g) {
-                for (androidx.media3.common.text.Cue c : g.cues) android.util.Log.d("NativePlayerTest", "cues: " + c.text);
-            } });
-        }
         p.addListener(new Player.Listener() {
-            @Override public void onPlaybackStateChanged(int st) { if (st == Player.STATE_ENDED) { ended = true; close(); } }
-            @Override public void onPlayerError(PlaybackException e) {
-                err = e.getErrorCodeName();
-                Toast.makeText(NativePlayer.this, "Não foi possível reproduzir (" + err + ")", Toast.LENGTH_LONG).show();
-                close();
+            @Override public void onPlaybackStateChanged(int st) { emit("state"); }
+            @Override public void onPlayWhenReadyChanged(boolean pw, int reason) { emit("state"); }
+            @Override public void onIsPlayingChanged(boolean on) { emit("state"); }
+            @Override public void onPlayerError(PlaybackException e) { err = e.getErrorCodeName() + (e.getMessage() != null ? ": " + e.getMessage() : ""); emit("error"); }
+            @Override public void onPositionDiscontinuity(Player.PositionInfo o, Player.PositionInfo n, int reason) { if (reason == Player.DISCONTINUITY_REASON_SEEK) emit("seeked"); }
+            @Override public void onVideoSizeChanged(VideoSize vs) {
+                if (vs.width > 0 && vs.height > 0) arf.setAspectRatio(vs.width * vs.pixelWidthHeightRatio / vs.height);
+                emit("size");
             }
+            @Override public void onCues(CueGroup g) {
+                sv.setCues(g.cues);
+                if (debug) for (Cue c : g.cues) android.util.Log.d("NativeVideoTest", "cues: " + c.text);
+            }
+            @Override public void onTracksChanged(Tracks t) { emit("tracks"); }
         });
-        pv = new PlayerView(this);
-        pv.setBackgroundColor(0xFF000000);
-        pv.setShowSubtitleButton(true);
-        pv.setShowNextButton(false);
-        pv.setShowPreviousButton(false);
-        pv.setControllerShowTimeoutMs(3500);
-        pv.setKeepScreenOn(true);
-        if (pv.getSubtitleView() != null) { // bigger, with an outline: readable on a TV from the sofa
-            pv.getSubtitleView().setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 1.25f);
-            pv.getSubtitleView().setStyle(new CaptionStyleCompat(0xFFFFFFFF, 0x00000000, 0x00000000, CaptionStyleCompat.EDGE_TYPE_OUTLINE, 0xFF000000, null));
-        }
-        pv.setPlayer(p);
-        setContentView(pv);
-        immersive();
-        pv.requestFocus();
-        MediaItem.Builder mb = new MediaItem.Builder().setUri(Uri.parse(url))
-            .setMediaMetadata(new MediaMetadata.Builder().setTitle(title == null ? "" : title).build());
-        // Subtitles: the online one the app found (file, or a link) is added and chosen; otherwise the file's own subtitles
-        // in the user's languages (or with no language set) are switched on. "subLangs" empty = subtitles off by default.
-        String sub = in.getStringExtra("sub"), lang = in.getStringExtra("subLang"), langs = in.getStringExtra("subLangs");
-        if (lang == null) lang = "";
-        String lang2 = lang.length() >= 2 ? lang.substring(0, 2) : lang;
-        if (sub != null && !sub.isEmpty() && (sub.startsWith("http") || new java.io.File(sub).exists())) {
-            Uri su = sub.startsWith("http") ? Uri.parse(sub) : Uri.fromFile(new java.io.File(sub));
-            String lab = in.getStringExtra("subLabel");
-            mb.setSubtitleConfigurations(java.util.Collections.singletonList(
-                new MediaItem.SubtitleConfiguration.Builder(su)
-                    .setMimeType(MimeTypes.TEXT_VTT).setLanguage(lang2).setLabel((lab == null || lab.isEmpty() ? lang : lab) + " · online")
-                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT | C.SELECTION_FLAG_FORCED).build()));
-        }
-        java.util.ArrayList<String> pref = new java.util.ArrayList<>();
-        if (!lang2.isEmpty()) pref.add(lang2);
+        box = new FrameLayout(a);
+        box.setBackgroundColor(Color.BLACK);
+        arf = new AspectRatioFrameLayout(a);
+        arf.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+        TextureView tv = new TextureView(a);
+        arf.addView(tv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        box.addView(arf, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER));
+        sv = new SubtitleView(a);
+        // bigger, with an outline: readable on a TV from the sofa
+        sv.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 1.25f);
+        sv.setStyle(new CaptionStyleCompat(Color.WHITE, Color.TRANSPARENT, Color.TRANSPARENT, CaptionStyleCompat.EDGE_TYPE_OUTLINE, Color.BLACK, null));
+        sv.setBottomPaddingFraction(0.09f);
+        box.addView(sv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        p.setVideoTextureView(tv);
+        box.setVisibility(View.GONE);
+        ViewGroup parent = (ViewGroup) wv().getParent();
+        parent.addView(box, 0, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    private MediaItem item() {
+        MediaItem.Builder b = new MediaItem.Builder().setUri(Uri.parse(url));
+        if (extSub != null) b.setSubtitleConfigurations(Collections.singletonList(extSub));
+        return b.build();
+    }
+
+    private void prefLangs(String lang, String langs) {
+        ArrayList<String> pref = new ArrayList<>();
+        if (lang != null && lang.length() >= 2) pref.add(lang.substring(0, 2));
         if (langs != null) for (String l : langs.split(",")) { String x = l.trim(); if (x.length() >= 2 && !pref.contains(x.substring(0, 2))) pref.add(x.substring(0, 2)); }
-        if (!pref.isEmpty())
-            p.setTrackSelectionParameters(p.getTrackSelectionParameters().buildUpon()
-                .setPreferredTextLanguages(pref.toArray(new String[0])).setSelectUndeterminedTextLanguage(true).build());
-        MediaItem item = mb.build();
-        p.setMediaItem(item, Math.max(0, in.getLongExtra("pos", 0)));
-        p.prepare();
-        p.setPlayWhenReady(true);
+        p.setTrackSelectionParameters(p.getTrackSelectionParameters().buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT).clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, pref.isEmpty())
+            .setPreferredTextLanguages(pref.toArray(new String[0])).setSelectUndeterminedTextLanguage(!pref.isEmpty()).build());
     }
 
-    private void immersive() {
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    void open(PluginCall call) {
+        ui(() -> {
+            try {
+                ensure();
+                url = call.getString("url", "");
+                debug = Boolean.TRUE.equals(call.getBoolean("debug", false));
+                String ua = call.getString("ua", "");
+                http.setUserAgent(ua != null && !ua.isEmpty() ? ua : "VLC/3.0.20 LibVLC/3.0.20");
+                extSub = null; err = "";
+                if (debug) p.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger("NativeVideoTest"));
+                prefLangs("", call.getString("subLangs", ""));
+                aspect(call.getString("aspect", "contain"));
+                p.setPlaybackParameters(PlaybackParameters.DEFAULT);
+                p.setVolume(1f);
+                Integer pos = call.getInt("pos", 0);
+                p.setMediaItem(item(), pos == null ? 0 : pos);
+                p.prepare();
+                p.setPlayWhenReady(true);
+                sv.setCues(Collections.<Cue>emptyList());
+                box.setVisibility(View.VISIBLE);
+                wv().setBackgroundColor(Color.TRANSPARENT);
+                active = true;
+                h.removeCallbacks(tick);
+                h.post(tick);
+                call.resolve();
+            } catch (Exception e) { call.reject(String.valueOf(e.getMessage()), e); }
+        });
     }
 
-    @Override public void onWindowFocusChanged(boolean f) { super.onWindowFocusChanged(f); if (f) immersive(); }
+    private void aspect(String a) {
+        if (arf == null) return;
+        arf.setResizeMode("cover".equals(a) ? AspectRatioFrameLayout.RESIZE_MODE_ZOOM : "fill".equals(a) ? AspectRatioFrameLayout.RESIZE_MODE_FILL : AspectRatioFrameLayout.RESIZE_MODE_FIT);
+    }
 
-    // TV remote: with the controls hidden, left / right jump 10 s and OK pauses, like the app's own player
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent e) {
-        int k = e.getKeyCode();
-        if (p != null && pv != null && !pv.isControllerFullyVisible() && e.getAction() == KeyEvent.ACTION_DOWN) {
-            if (k == KeyEvent.KEYCODE_DPAD_LEFT) { p.seekBack(); pv.showController(); return true; }
-            if (k == KeyEvent.KEYCODE_DPAD_RIGHT) { p.seekForward(); pv.showController(); return true; }
-            if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER) { p.setPlayWhenReady(!p.getPlayWhenReady()); pv.showController(); return true; }
+    void cmd(PluginCall call) {
+        ui(() -> {
+            if (p == null) { call.resolve(); return; }
+            String c = call.getString("c", "");
+            Double v = call.getDouble("v", 0.0);
+            double x = v == null ? 0 : v;
+            switch (c) {
+                case "play": if (p.getPlaybackState() == Player.STATE_ENDED) p.seekTo(0); p.setPlayWhenReady(true); break;
+                case "pause": p.setPlayWhenReady(false); break;
+                case "seek": p.seekTo((long) x); break;
+                case "rate": p.setPlaybackParameters(new PlaybackParameters((float) Math.max(0.25, x))); break;
+                case "vol": p.setVolume((float) Math.max(0, Math.min(1, x))); break;
+                case "aspect": aspect(call.getString("s", "contain")); break;
+                case "audio": select(C.TRACK_TYPE_AUDIO, audioIdx, (int) x); break;
+                case "text": select(C.TRACK_TYPE_TEXT, textIdx, (int) x); break;
+            }
+            call.resolve();
+        });
+    }
+
+    private void select(int type, ArrayList<int[]> idx, int i) {
+        Tracks t = p.getCurrentTracks();
+        androidx.media3.common.TrackSelectionParameters.Builder b = p.getTrackSelectionParameters().buildUpon().clearOverridesOfType(type);
+        if (i < 0 || i >= idx.size()) { b.setTrackTypeDisabled(type, true); p.setTrackSelectionParameters(b.build()); return; }
+        int[] gi = idx.get(i);
+        if (gi[0] >= t.getGroups().size()) return;
+        b.setTrackTypeDisabled(type, false).addOverride(new TrackSelectionOverride(t.getGroups().get(gi[0]).getMediaTrackGroup(), gi[1]));
+        p.setTrackSelectionParameters(b.build());
+    }
+
+    private static String name(Format f, int n, String kind) {
+        String l = f.label != null ? f.label : "";
+        String lang = f.language != null && !"und".equals(f.language) ? new java.util.Locale(f.language).getDisplayLanguage() : "";
+        String s = !l.isEmpty() ? l : !lang.isEmpty() ? lang : kind + " " + n;
+        if (!l.isEmpty() && !lang.isEmpty() && !l.toLowerCase().contains(lang.toLowerCase())) s = lang + " · " + l;
+        if (f.sampleMimeType != null && kind.equals("Audio")) {
+            String m = f.sampleMimeType;
+            String codec = m.contains("eac3") ? "Dolby Digital+" : m.contains("ac3") ? "Dolby Digital" : m.contains("true-hd") ? "Dolby TrueHD" : m.contains("dts") ? "DTS" : m.contains("mp4a") ? "AAC" : "";
+            if (!codec.isEmpty()) s += " · " + codec + (f.channelCount > 2 ? " " + (f.channelCount == 6 ? "5.1" : f.channelCount == 8 ? "7.1" : f.channelCount + "ch") : "");
         }
-        return super.dispatchKeyEvent(e);
+        return s;
     }
 
-    @SuppressWarnings("deprecation")
-    @Override public void onBackPressed() { close(); }
-
-    @Override protected void onPause() { super.onPause(); if (p != null && !isFinishing()) p.setPlayWhenReady(false); }
-
-    private void close() {
-        if (done) return;
-        done = true;
-        Intent d = new Intent();
-        if (p != null) {
-            long dur = p.getDuration();
-            d.putExtra("pos", ended ? Math.max(0, dur) : p.getCurrentPosition());
-            d.putExtra("dur", dur == C.TIME_UNSET ? 0 : dur);
-        }
-        d.putExtra("ended", ended);
-        d.putExtra("err", err);
-        setResult(RESULT_OK, d);
-        finish();
+    void tracks(PluginCall call) {
+        ui(() -> {
+            JSArray au = new JSArray(), tx = new JSArray();
+            audioIdx.clear(); textIdx.clear();
+            if (p != null) {
+                Tracks t = p.getCurrentTracks();
+                for (int g = 0; g < t.getGroups().size(); g++) {
+                    Tracks.Group gr = t.getGroups().get(g);
+                    int type = gr.getType();
+                    if (type != C.TRACK_TYPE_AUDIO && type != C.TRACK_TYPE_TEXT) continue;
+                    for (int j = 0; j < gr.length; j++) {
+                        if (!gr.isTrackSupported(j)) continue;
+                        ArrayList<int[]> idx = type == C.TRACK_TYPE_AUDIO ? audioIdx : textIdx;
+                        JSObject o = new JSObject();
+                        o.put("i", idx.size());
+                        o.put("n", name(gr.getTrackFormat(j), idx.size() + 1, type == C.TRACK_TYPE_AUDIO ? "Audio" : "Sub"));
+                        o.put("on", gr.isTrackSelected(j));
+                        idx.add(new int[]{g, j});
+                        (type == C.TRACK_TYPE_AUDIO ? au : tx).put(o);
+                    }
+                }
+            }
+            JSObject r = new JSObject();
+            r.put("audio", au); r.put("text", tx);
+            call.resolve(r);
+        });
     }
 
-    @Override protected void onDestroy() { if (p != null) { p.release(); p = null; } super.onDestroy(); }
+    // an online subtitle the app found: added to the film and shown, the film carries on from where it is
+    void sub(PluginCall call) {
+        ui(() -> {
+            try {
+                if (p == null || url.isEmpty()) { call.resolve(); return; }
+                String vtt = call.getString("vtt", ""), lang = call.getString("lang", ""), label = call.getString("label", "");
+                java.io.File f = new java.io.File(pl.getContext().getCacheDir(), "online-sub-" + System.currentTimeMillis() + ".vtt");
+                for (java.io.File o : pl.getContext().getCacheDir().listFiles()) if (o.getName().startsWith("online-sub-")) o.delete();
+                java.io.FileOutputStream o = new java.io.FileOutputStream(f);
+                o.write(vtt.getBytes(java.nio.charset.StandardCharsets.UTF_8)); o.close();
+                String l2 = lang != null && lang.length() >= 2 ? lang.substring(0, 2) : "";
+                extSub = new MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(f)).setMimeType(MimeTypes.TEXT_VTT)
+                    .setLanguage(l2).setLabel(label).setSelectionFlags(C.SELECTION_FLAG_DEFAULT | C.SELECTION_FLAG_FORCED).build();
+                long pos = p.getCurrentPosition();
+                boolean pw = p.getPlayWhenReady();
+                prefLangs(l2, "");
+                p.setMediaItem(item(), pos);
+                p.prepare();
+                p.setPlayWhenReady(pw);
+                call.resolve();
+            } catch (Exception e) { call.reject(String.valueOf(e.getMessage()), e); }
+        });
+    }
+
+    void close() {
+        ui(() -> {
+            active = false;
+            h.removeCallbacks(tick);
+            if (p != null) { p.stop(); p.clearMediaItems(); }
+            if (sv != null) sv.setCues(Collections.<Cue>emptyList());
+            if (box != null) box.setVisibility(View.GONE);
+            try { wv().setBackgroundColor(Color.BLACK); } catch (Exception ignored) { }
+            url = ""; extSub = null;
+        });
+    }
+
+    void background() { ui(() -> { if (active && p != null) p.setPlayWhenReady(false); }); }
+
+    void release() {
+        h.removeCallbacks(tick);
+        if (p != null) { p.release(); p = null; }
+        inst = null;
+    }
+
+    private void emit(String e) {
+        if (p == null) return;
+        JSObject o = new JSObject();
+        o.put("e", e);
+        o.put("t", p.getCurrentPosition() / 1000.0);
+        long d = p.getDuration();
+        o.put("d", d == C.TIME_UNSET ? -1 : d / 1000.0);
+        o.put("b", p.getBufferedPosition() / 1000.0);
+        o.put("st", p.getPlaybackState());
+        o.put("pw", p.getPlayWhenReady());
+        o.put("pl", p.isPlaying());
+        VideoSize vs = p.getVideoSize();
+        o.put("w", vs.width); o.put("h", vs.height);
+        if ("error".equals(e)) o.put("err", err);
+        pl.nvEmit(o);
+    }
 }
 """)
-s3 = open(m, encoding='utf-8').read()
-if 'NativePlayer' not in s3:
-    s3 = s3.replace('</application>', '        <activity android:name=".NativePlayer" android:exported="' + ('true' if os.environ.get('NATIVE_TEST') else 'false') + '" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" android:screenOrientation="sensorLandscape" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode" />\n    </application>', 1)
-    open(m, 'w', encoding='utf-8').write(s3)
 with open('android/app/proguard-rules.pro', 'a', encoding='utf-8') as f:
-    f.write('\n-keep class androidx.media3.decoder.ffmpeg.** { *; }\n-keep class com.antunes.player.NativePlayer { *; }\n')
+    f.write('\n-keep class androidx.media3.decoder.ffmpeg.** { *; }\n-keep class com.antunes.player.NativeVideo { *; }\n')
 # Media3 1.5 is compiled against Android 15 (API 35): compile with it too (targetSdk stays the same, so the app behaves the same)
 if os.path.exists(v):
     t = open(v, encoding='utf-8').read()
@@ -1013,4 +1132,4 @@ if os.path.exists(v):
 gp = 'android/gradle.properties'
 if os.path.exists(gp) and 'suppressUnsupportedCompileSdk' not in open(gp, encoding='utf-8').read():
     open(gp, 'a', encoding='utf-8').write('\nandroid.suppressUnsupportedCompileSdk=35\n')
-print('native player (Dolby / DTS sound) added')
+print('native video engine (Dolby / DTS sound) added')

@@ -951,6 +951,7 @@ let hls = null,
   retried = false,
   rec = null;
 function destroyPlayer() {
+  if (NV.on) nvStop(); // films and series on Android: the native engine (src/32-native-video.js)
   $$('#v track[data-os]').forEach(x => x.remove());
   if (hls) {
     try {
@@ -1074,7 +1075,6 @@ async function play(c, isRetry) {
   S.dbg = '';
   stopRec(true);
   destroyPlayer();
-  if (!isRetry && natFirst(c)) return; // Dolby / DTS film or series: straight to the built-in player (src/32-audio-check.js)
   armStart(c, isRetry);
   $('#screen').classList.toggle('vod', c.kind !== 'live');
   $('#msg').hidden = true;
@@ -1089,7 +1089,9 @@ async function play(c, isRetry) {
     isTs = (c.kind === 'live' || c.kind === 'catchup') && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu),
     ST = STAB[stabLevel(c)];
   try {
-    if (isHls) {
+    if (nvFor(c))
+      await nvStart(c, cu); // Android films and series: native engine, any sound format (src/32-native-video.js)
+    else if (isHls) {
       if (!window.Hls && (NATIVE || !v.canPlayType('application/vnd.apple.mpegurl'))) await loadScript('js/hls.min.js'); // in the app, hls.js + native HTTP is more reliable than the WebView's own HLS
       if (window.Hls && Hls.isSupported()) {
         hls = new Hls(
@@ -2058,13 +2060,24 @@ let aspI = 0;
 $('#cAsp').onclick = () => {
   aspI = (aspI + 1) % ASP.length;
   v.style.objectFit = ASP[aspI][0];
+  if (NV.on) nvCmd('aspect', 0, ASP[aspI][0]);
   toast(t(ASP[aspI][1]));
 };
-const openTracks = () => {
+const openTracks = async () => {
   const au = [],
     su = [];
   let cur = { a: -1, s: -1 };
-  if (hls) {
+  if (NV.on) {
+    const tr = await nvTracks();
+    (tr.audio || []).forEach(x => {
+      au.push({ i: x.i, n: x.n });
+      if (x.on) cur.a = x.i;
+    });
+    (tr.text || []).forEach(x => {
+      su.push({ i: x.i, n: x.n });
+      if (x.on) cur.s = x.i;
+    });
+  } else if (hls) {
     (hls.audioTracks || []).forEach((x, i) => au.push({ i, n: x.name || x.lang || 'Audio ' + (i + 1) }));
     (hls.subtitleTracks || []).forEach((x, i) => su.push({ i, n: x.name || x.lang || 'Sub ' + (i + 1) }));
     cur = { a: hls.audioTrack, s: hls.subtitleTrack };
@@ -2105,7 +2118,8 @@ const openTracks = () => {
     b =>
       (b.onclick = () => {
         const i = +b.dataset.i;
-        if (b.dataset.k === 'a') {
+        if (NV.on) nvCmd(b.dataset.k === 'a' ? 'audio' : 'text', i);
+        else if (b.dataset.k === 'a') {
           if (hls) hls.audioTrack = i;
           else [...v.audioTracks].forEach((x, n) => (x.enabled = n === i));
         } else {
@@ -2928,6 +2942,7 @@ $('#cMore').onclick = () => {
       (b.onclick = () => {
         aspI = +b.dataset.as;
         v.style.objectFit = ASP[aspI][0];
+        if (NV.on) nvCmd('aspect', 0, ASP[aspI][0]);
         $$('[data-as]', dlg).forEach(x => x.classList.toggle('on', x === b));
       })
   );
@@ -5285,6 +5300,10 @@ async function subsVtt(r) {
 async function subsLoad(r, c) {
   const vtt = await subsVtt(r);
   if (S.cur !== c) return false;
+  if (NV.on) {
+    await nvSub(vtt, r.lang, langName(r.lang) + ' · online');
+    return true;
+  }
   $$('#v track[data-os]').forEach(x => x.remove());
   const tr = document.createElement('track');
   tr.kind = 'subtitles';
@@ -8849,112 +8868,231 @@ function platOf(c) {
   return c._pl;
 }
 
-// ===== src/32-audio-check.js =====
-/* ---------- films and series: the app's native player (Android) ----------
-   Many films and episodes come as MKV files with Dolby (AC3 / E-AC3 / TrueHD) or DTS sound. The WebView (and any browser)
-   plays the picture but cannot decode that sound, so they ran silent.
-   In the Android app every film and episode plays in the app's native player instead (ExoPlayer + FFmpeg, see
-   NativePlayer in scripts/android_patch.py): all sound formats, the embedded subtitles and the online subtitles the app
-   finds (OpenSubtitles), resume point, "Continue watching" and the next episode.
+// ===== src/32-native-video.js =====
+/* ---------- films and series: native video engine under the app's own player (Android) ----------
+   Many films and episodes come as MKV files with Dolby (AC3 / E-AC3 / TrueHD) or DTS sound, which the WebView cannot
+   decode: they played with no sound. In the Android app they are played by NativeVideo (ExoPlayer + FFmpeg, see
+   scripts/android_patch.py), which draws the picture under the WebView. The page turns transparent there, so the app's
+   own player screen, controls, resume, skip intro and next episode stay exactly as they are.
+   To keep all that code unchanged, the <video> element is driven through the same properties and events it already
+   uses: while the engine is on, currentTime, duration, paused, play(), pause()… are redirected to it (properties set
+   on the element itself, removed again when it stops), and its state comes back as the usual media events.
    Elsewhere (web, Windows, live channels) a few seconds of video with no sound decoded show a notice offering another
-   player. Uses webkitAudioDecodedByteCount (Chrome, Edge, Electron); where it does not exist nothing happens. */
-var audChk = { key: '', t0: -1, done: false },
-  natBusy = false;
+   player (webkitAudioDecodedByteCount: Chrome, Edge, Electron). */
+var NV = { on: false },
+  audChk = { key: '', t0: -1, done: false };
 Object.assign(PT, {
   'No sound in this video': 'Este vídeo não tem som aqui',
   'Its sound is in a format this player cannot play (usually Dolby AC3/E-AC3 or DTS). Another player plays it.':
     'O som vem num formato que este leitor não consegue tocar (normalmente Dolby AC3/E-AC3 ou DTS). Noutro leitor ouve-se.',
   'Open in VLC or another player': 'Abrir no VLC ou noutro leitor',
   'Copy the link for VLC': 'Copiar o link para o VLC',
-  'Play with Dolby / DTS sound': 'Ver com som Dolby / DTS',
-  'Dolby / DTS sound: opening the built-in player': 'Som Dolby / DTS: a abrir no leitor da app',
-  'The built-in player could not play this': 'O leitor da app não conseguiu reproduzir isto'
+  'Not available with this video': 'Não disponível neste vídeo'
 });
-const natOk = () => NATIVE && !!(Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.nativePlay);
-// films and episodes always open in the native player. Called by play().
-function natFirst(c) {
-  if (!natOk() || natBusy || c._web || (c.kind !== 'vod' && c.kind !== 'series')) return false;
-  natPlay(c, POS[c.key] || 0);
-  return true;
-}
-// the best online subtitle for c (same choice as autoSubs), as WebVTT text; gives up after 6 s
-async function natSubs(c) {
-  if (S.set.subAuto === false || !OSK()) return null;
-  const go = (async () => {
-    const list = await subsSearch(c);
-    S.subList = { k: c.key, list };
-    if (!list.length) return null;
-    return { vtt: await subsVtt(list[0]), lang: list[0].lang, label: langName(list[0].lang) };
-  })().catch(() => null);
-  return Promise.race([go, new Promise(r => setTimeout(() => r(null), 6000))]);
-}
-async function natPlay(c, pos) {
-  if (natBusy) return;
-  natBusy = true;
-  audBox(false);
-  try {
-    v.pause();
-  } catch (e) {}
-  destroyPlayer();
-  spin(true);
-  const cu = c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url,
-    url = c.local ? cu.replace(/^.*?\/_capacitor_file_/, 'file://') : cu,
-    sub = await natSubs(c);
-  spin(false);
-  if (S.cur !== c) {
-    natBusy = false;
-    return;
-  }
-  let r = null;
-  try {
-    r = await Capacitor.Plugins.ExtPlayer.nativePlay({
-      url,
-      title: c.name || '',
-      ua: uaHdr()['User-Agent'] || '',
-      pos: Math.floor(pos || 0),
-      vtt: (sub && sub.vtt) || '',
-      subLang: (sub && sub.lang) || '',
-      subLabel: (sub && sub.label) || '',
-      subLangs: S.set.subAuto === false ? '' : subLangs().join(',')
-    });
-  } catch (e) {}
-  natBusy = false;
-  if (!r || r.err) {
-    // it failed there (a stream the native player cannot open): try the app screen once, so it still plays
-    if (S.cur === c) {
-      c._web = true;
-      toast(t('The built-in player could not play this') + (r && r.err ? ' (' + r.err + ')' : ''));
-      play(c, true);
+const XP = () => Capacitor.Plugins.ExtPlayer;
+const nvOk = () => NATIVE && !!(window.Capacitor && Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.nvOpen);
+// films and episodes go to the engine; live channels keep the web player (hls.js, time-shift, recording)
+const nvFor = c => nvOk() && (c.kind === 'vod' || c.kind === 'series');
+const nvFire = n => v.dispatchEvent(new Event(n));
+const nvCmd = (c, x, s) =>
+  XP()
+    .nvCmd({ c, v: x || 0, s: s || '' })
+    .catch(() => {});
+let nvSeekT = 0;
+const NVPROPS = {
+  currentTime: {
+    get: () => NV.t,
+    set: x => {
+      NV.t = Math.max(0, +x || 0);
+      NV.seeking = true;
+      clearTimeout(nvSeekT);
+      nvSeekT = setTimeout(() => nvSeeked(), 4000);
+      nvFire('seeking');
+      nvFire('timeupdate');
+      nvCmd('seek', Math.round(NV.t * 1000));
     }
-    return;
+  },
+  duration: { get: () => NV.d },
+  paused: { get: () => !NV.pw },
+  ended: { get: () => NV.st === 4 },
+  seeking: { get: () => !!NV.seeking },
+  readyState: { get: () => (NV.st === 3 || NV.st === 4 ? 4 : NV.meta ? 1 : 0) },
+  buffered: { get: () => ({ length: NV.meta ? 1 : 0, start: () => 0, end: () => NV.b }) },
+  videoWidth: { get: () => NV.w },
+  videoHeight: { get: () => NV.h },
+  error: { get: () => NV.err },
+  playbackRate: {
+    get: () => NV.rate,
+    set: x => {
+      NV.rate = +x || 1;
+      nvCmd('rate', NV.rate);
+      nvFire('ratechange');
+    }
+  },
+  volume: {
+    get: () => NV.vol,
+    set: x => {
+      NV.vol = Math.max(0, Math.min(1, +x));
+      nvCmd('vol', NV.muted ? 0 : NV.vol);
+      nvFire('volumechange');
+    }
+  },
+  muted: {
+    get: () => NV.muted,
+    set: x => {
+      NV.muted = !!x;
+      nvCmd('vol', NV.muted ? 0 : NV.vol);
+      nvFire('volumechange');
+    }
+  },
+  play: {
+    value: () => {
+      if (!NV.pw) {
+        NV.pw = true;
+        nvFire('play');
+      }
+      nvCmd('play');
+      return Promise.resolve();
+    }
+  },
+  pause: {
+    value: () => {
+      if (NV.pw) {
+        NV.pw = false;
+        nvFire('pause');
+      }
+      nvCmd('pause');
+    }
+  },
+  load: { value: () => {} },
+  getAttribute: { value: n => (n === 'src' ? NV.url : Element.prototype.getAttribute.call(v, n)) },
+  audioTracks: { get: () => undefined },
+  textTracks: { get: () => [] },
+  getVideoPlaybackQuality: { value: () => ({ droppedVideoFrames: 0, totalVideoFrames: 0 }) },
+  requestPictureInPicture: { value: () => Promise.reject(new Error('n/a')) },
+  captureStream: { value: undefined },
+  mozCaptureStream: { value: undefined }
+};
+function nvStart(c, url) {
+  const muted = v.muted,
+    vol = v.volume;
+  Object.keys(NVPROPS).forEach(k => Object.defineProperty(v, k, Object.assign({ configurable: true }, NVPROPS[k])));
+  NV = {
+    on: true,
+    url,
+    key: c.key,
+    t: 0,
+    d: NaN,
+    b: 0,
+    st: 2,
+    pw: true,
+    pl: false,
+    w: 0,
+    h: 0,
+    err: null,
+    seeking: false,
+    meta: false,
+    rate: 1,
+    vol,
+    muted
+  };
+  document.documentElement.classList.add('nv');
+  nvFire('loadstart');
+  nvFire('play');
+  const src = c.local ? url.replace(/^.*?\/_capacitor_file_/, 'file://') : url;
+  return XP()
+    .nvOpen({
+      url: src,
+      ua: uaHdr()['User-Agent'] || '',
+      pos: 0,
+      subLangs: S.set.subAuto === false ? '' : subLangs().join(','),
+      aspect: v.style.objectFit || 'contain',
+      debug: !!LS.get('ap.nvdebug', false)
+    })
+    .then(() => {
+      if (muted) nvCmd('vol', 0);
+    })
+    .catch(e => nvError(String((e && e.message) || e)));
+}
+function nvStop() {
+  if (!NV.on) return;
+  NV.on = false;
+  clearTimeout(nvSeekT);
+  Object.keys(NVPROPS).forEach(k => delete v[k]);
+  document.documentElement.classList.remove('nv');
+  XP()
+    .nvClose()
+    .catch(() => {});
+}
+function nvSeeked() {
+  clearTimeout(nvSeekT);
+  if (!NV.seeking) return;
+  NV.seeking = false;
+  nvFire('seeked');
+  nvFire('timeupdate');
+}
+function nvError(msg) {
+  if (!NV.on) return;
+  NV.err = { code: 4, message: msg };
+  const c = S.cur;
+  if (c) showMsg(t('Could not play this'), whyHtml(c.url, false, msg), true);
+}
+// state from the engine (about 4 times a second, and on every change)
+function nvEvt(d) {
+  if (!NV.on || !d) return;
+  if (!NV.seeking || d.e === 'seeked') NV.t = d.t;
+  NV.b = d.b;
+  const dur = d.d > 0 ? d.d : NaN;
+  if ((d.w && d.w !== NV.w) || (d.h && d.h !== NV.h)) {
+    NV.w = d.w;
+    NV.h = d.h;
+    nvFire('resize');
   }
-  // same bookkeeping as savePos(): continue watching, watched, last episode of the series
-  const k = c.key,
-    dur = r.dur || DUR[k] || 0;
-  WTS[k] = Date.now();
-  if (c.ser) SLAST[c.ser] = { k, t: Date.now() };
-  let nx = null;
-  if (r.ended || (dur > 60 && r.pos > dur - Math.max(30, dur * 0.06))) {
-    markSeen(c);
-    if (c.ser)
-      try {
-        nx = nextEpisode();
-      } catch (e) {}
-  } else if (r.pos > 10) {
-    POS[k] = Math.floor(r.pos);
-    if (dur) DUR[k] = Math.floor(dur);
-    LS.set('ap.pos', POS);
-    LS.set('ap.dur', DUR);
+  if (!NV.meta && (dur > 0 || d.st === 3)) {
+    NV.meta = true;
+    NV.d = dur;
+    ['durationchange', 'loadedmetadata', 'loadeddata', 'canplay'].forEach(nvFire);
+  } else if (dur > 0 && dur !== NV.d) {
+    NV.d = dur;
+    nvFire('durationchange');
   }
-  saveWatch();
-  if (S.cur !== c) return;
-  if (location.hash === '#play') history.back();
-  else stopPlayback();
-  if (nx && r.ended) {
-    toast(t('Next episode') + ': ' + nx.name);
-    setTimeout(() => enterFsFor(nx), 1200);
+  if (d.e === 'seeked') nvSeeked();
+  if (d.pw !== NV.pw) {
+    NV.pw = d.pw;
+    nvFire(d.pw ? 'play' : 'pause');
+  }
+  if (d.st !== NV.st) {
+    NV.st = d.st;
+    if (d.st === 2) nvFire('waiting');
+    if (d.st === 3 && NV.seeking) nvSeeked();
+    if (d.st === 4) nvFire('ended');
+  }
+  if (d.pl !== NV.pl) {
+    NV.pl = d.pl;
+    if (d.pl) nvFire('playing');
+  }
+  if (d.e === 'error') nvError(d.err || 'error');
+  else if (d.e === 'time' && d.pl) nvFire('timeupdate');
+}
+if (nvOk()) XP().addListener('nv', nvEvt);
+// the engine's audio and subtitle tracks, for the Audio / Subtitles menu
+async function nvTracks() {
+  try {
+    return await XP().nvTracks();
+  } catch (e) {
+    return { audio: [], text: [] };
   }
 }
+// online subtitles go to the engine, which shows them under the app's controls
+function nvSub(vtt, lang, label) {
+  return XP()
+    .nvSub({ vtt, lang, label })
+    .catch(() => {});
+}
+// test builds only: lets the automatic test on an Android emulator drive the app
+if (LS.get('ap.devhook', false)) window.__ap = { S, NV: () => NV, v, enterFsFor, play, subsLoad, idbSet };
+
+/* ---------- no sound on the web player ---------- */
 function audBox(show) {
   let el = $('#noAud');
   if (!show) {
@@ -8966,16 +9104,12 @@ function audBox(show) {
     el.id = 'noAud';
     $('#nextUp').insertAdjacentElement('afterend', el);
   }
-  const nat = natOk() && S.cur && S.cur.kind !== 'live';
   el.innerHTML =
     `<small>${ic('mute')} ${t('No sound in this video')}</small>` +
     `<p>${esc(t('Its sound is in a format this player cannot play (usually Dolby AC3/E-AC3 or DTS). Another player plays it.'))}</p>` +
-    `<div class="row">${nat ? `<button class="btn p" id="naNat">${ic('vol')} ${t('Play with Dolby / DTS sound')}</button>` : ''}` +
-    `<button class="btn${nat ? '' : ' p'}" id="naOpen">${ic('ext')} ${NATIVE ? t('Open in VLC or another player') : t('Copy the link for VLC')}</button>` +
+    `<div class="row"><button class="btn p" id="naOpen">${ic('ext')} ${NATIVE ? t('Open in VLC or another player') : t('Copy the link for VLC')}</button>` +
     `<button class="btn" id="naX">${t('Close')}</button></div>`;
   el.hidden = false;
-  const nb = $('#naNat');
-  if (nb) nb.onclick = () => S.cur && natPlay(S.cur, v.currentTime);
   $('#naOpen').onclick = () => {
     el.hidden = true;
     openElsewhere();
@@ -8984,7 +9118,7 @@ function audBox(show) {
 }
 function audTick() {
   const c = S.cur;
-  if (!c || natBusy || !('webkitAudioDecodedByteCount' in v)) return;
+  if (!c || NV.on || !('webkitAudioDecodedByteCount' in v)) return;
   if (audChk.key !== c.key) {
     audChk = { key: c.key, t0: -1, done: false };
     audBox(false);
@@ -8997,11 +9131,7 @@ function audTick() {
   // 5 s of picture played: enough for any sound to have been decoded
   if (v.currentTime - audChk.t0 < 5) return;
   audChk.done = true;
-  if (v.webkitAudioDecodedByteCount !== 0 || !(v.webkitVideoDecodedByteCount > 0)) return;
-  if (natOk() && (c.kind === 'vod' || c.kind === 'series')) {
-    toast(t('Dolby / DTS sound: opening the built-in player'));
-    natPlay(c, Math.max(0, v.currentTime - 5));
-  } else audBox(true);
+  if (v.webkitAudioDecodedByteCount === 0 && v.webkitVideoDecodedByteCount > 0) audBox(true);
 }
 v.addEventListener('timeupdate', audTick);
 v.addEventListener('emptied', () => audBox(false));
