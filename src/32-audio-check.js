@@ -62,7 +62,8 @@ async function natPlay(c, pos) {
       pos: Math.floor(pos || 0),
       vtt: (sub && sub.vtt) || '',
       subLang: (sub && sub.lang) || '',
-      subLabel: (sub && sub.label) || ''
+      subLabel: (sub && sub.label) || '',
+      subLangs: S.set.subAuto === false ? '' : subLangs().join(',')
     });
   } catch (e) {}
   natBusy = false;

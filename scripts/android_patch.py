@@ -315,6 +315,7 @@ public class ExtPlayerPlugin extends Plugin {
                 i.putExtra("sub", f.getAbsolutePath()); i.putExtra("subLang", call.getString("subLang", "")); i.putExtra("subLabel", call.getString("subLabel", ""));
             } catch (Exception ignored) { }
         }
+        i.putExtra("subLangs", call.getString("subLangs", ""));
         try { startActivityForResult(call, i, "nativeDone"); }
         catch (Exception e) { call.reject("native player", e); }
     }
@@ -931,17 +932,25 @@ public class NativePlayer extends Activity {
         pv.requestFocus();
         MediaItem.Builder mb = new MediaItem.Builder().setUri(Uri.parse(url))
             .setMediaMetadata(new MediaMetadata.Builder().setTitle(title == null ? "" : title).build());
-        String sub = in.getStringExtra("sub");
-        if (sub != null && new java.io.File(sub).exists()) {
-            String lang = in.getStringExtra("subLang"); if (lang == null) lang = "";
-            String lang2 = lang.length() >= 2 ? lang.substring(0, 2) : lang;
+        // Subtitles: the online one the app found (file, or a link) is added and chosen; otherwise the file's own subtitles
+        // in the user's languages (or with no language set) are switched on. "subLangs" empty = subtitles off by default.
+        String sub = in.getStringExtra("sub"), lang = in.getStringExtra("subLang"), langs = in.getStringExtra("subLangs");
+        if (lang == null) lang = "";
+        String lang2 = lang.length() >= 2 ? lang.substring(0, 2) : lang;
+        if (sub != null && !sub.isEmpty() && (sub.startsWith("http") || new java.io.File(sub).exists())) {
+            Uri su = sub.startsWith("http") ? Uri.parse(sub) : Uri.fromFile(new java.io.File(sub));
+            String lab = in.getStringExtra("subLabel");
             mb.setSubtitleConfigurations(java.util.Collections.singletonList(
-                new MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(new java.io.File(sub)))
-                    .setMimeType(MimeTypes.TEXT_VTT).setLanguage(lang2).setLabel((in.getStringExtra("subLabel") == null ? lang : in.getStringExtra("subLabel")) + " · online")
+                new MediaItem.SubtitleConfiguration.Builder(su)
+                    .setMimeType(MimeTypes.TEXT_VTT).setLanguage(lang2).setLabel((lab == null || lab.isEmpty() ? lang : lab) + " · online")
                     .setSelectionFlags(C.SELECTION_FLAG_DEFAULT | C.SELECTION_FLAG_FORCED).build()));
-            // show them from the start (the user can turn them off in the subtitles button)
-            p.setTrackSelectionParameters(p.getTrackSelectionParameters().buildUpon().setPreferredTextLanguage(lang2).setSelectUndeterminedTextLanguage(true).build());
         }
+        java.util.ArrayList<String> pref = new java.util.ArrayList<>();
+        if (!lang2.isEmpty()) pref.add(lang2);
+        if (langs != null) for (String l : langs.split(",")) { String x = l.trim(); if (x.length() >= 2 && !pref.contains(x.substring(0, 2))) pref.add(x.substring(0, 2)); }
+        if (!pref.isEmpty())
+            p.setTrackSelectionParameters(p.getTrackSelectionParameters().buildUpon()
+                .setPreferredTextLanguages(pref.toArray(new String[0])).setSelectUndeterminedTextLanguage(true).build());
         MediaItem item = mb.build();
         p.setMediaItem(item, Math.max(0, in.getLongExtra("pos", 0)));
         p.prepare();
