@@ -900,6 +900,7 @@ public class NativePlayer extends Activity {
             .setHandleAudioBecomingNoisy(true)
             .setSeekBackIncrementMs(10000).setSeekForwardIncrementMs(10000)
             .build();
+        if (in.getBooleanExtra("debug", false)) p.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger("NativePlayerTest"));
         p.addListener(new Player.Listener() {
             @Override public void onPlaybackStateChanged(int st) { if (st == Player.STATE_ENDED) { ended = true; close(); } }
             @Override public void onPlayerError(PlaybackException e) {
@@ -986,7 +987,7 @@ public class NativePlayer extends Activity {
 """)
 s3 = open(m, encoding='utf-8').read()
 if 'NativePlayer' not in s3:
-    s3 = s3.replace('</application>', '        <activity android:name=".NativePlayer" android:exported="false" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" android:screenOrientation="sensorLandscape" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode" />\n    </application>', 1)
+    s3 = s3.replace('</application>', '        <activity android:name=".NativePlayer" android:exported="' + ('true' if os.environ.get('NATIVE_TEST') else 'false') + '" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" android:screenOrientation="sensorLandscape" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode" />\n    </application>', 1)
     open(m, 'w', encoding='utf-8').write(s3)
 with open('android/app/proguard-rules.pro', 'a', encoding='utf-8') as f:
     f.write('\n-keep class androidx.media3.decoder.ffmpeg.** { *; }\n-keep class com.antunes.player.NativePlayer { *; }\n')
