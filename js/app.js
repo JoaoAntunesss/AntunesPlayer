@@ -1062,6 +1062,10 @@ Object.assign(PT, {
 });
 async function play(c, isRetry) {
   if (!c) return;
+  if (!isRetry && !planoOk()) {
+    planoShow(); // free day over and not paid
+    return;
+  }
   if (S.cur && S.cur.key !== c.key) S.last = S.cur.key;
   if (!isRetry) {
     retried = false;
@@ -7779,6 +7783,9 @@ async function readRemote() {
 }
 async function onSignedIn(u) {
   C.user = u;
+  planoCheck().then(() => {
+    if (!planoOk() && !dlg.open) planoShow();
+  });
   const first = LS.get('ap.cloudUid', '') !== u.uid;
   LS.set('ap.cloudUid', u.uid);
   if (signing || first) toast(t('Signed in as') + ' ' + (u.email || ''));
@@ -7885,11 +7892,12 @@ function accountDialog() {
   ${
     u
       ? `<p>${t('Signed in as')} <b>${esc(u.email || u.displayName || '')}</b><br><small class="mut">${when ? t('Synced') + ' · ' + new Date(when).toLocaleString(LANG === 'pt' ? 'pt-PT' : undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : t('Not synced yet')}${C.err ? ' · ' + esc(C.err) : ''}</small></p>
-  <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn" id="aSync">${ic('refresh')} ${t('Sync now')}</button><button class="btn" id="aTv">${ic('tv')} ${t('Send to a TV')}</button><button class="btn" id="aOut">${t('Sign out')}</button></div>`
+  ${planoLinha()}<div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn" id="aSync">${ic('refresh')} ${t('Sync now')}</button><button class="btn" id="aTv">${ic('tv')} ${t('Send to a TV')}</button><button class="btn" id="aOut">${t('Sign out')}</button></div>`
       : `<div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn p" id="aIn">${ic('user')} ${t('Sign in with Google')}</button><button class="btn" id="aCode">${ic('tv')} ${t('Sign in with a code (TV)')}</button></div>`
   }
   <div class="row"><button class="btn p" id="dx">${t('Close')}</button></div>`);
   $('#dx').onclick = () => dlg.close();
+  planoBind();
   if (u) {
     $('#aSync').onclick = async () => {
       try {
@@ -9393,4 +9401,171 @@ v.addEventListener('loadstart', () => {
     clearTimeout(stillOff);
   }
 });
+
+// ===== src/34-plano.js =====
+/* ---------- subscription: 24 hours free, then 1 € a month ----------
+   Who paid is known by the Google account (the same sign-in that syncs playlists). The app asks the AW server
+   (playerEstado, a Firebase function on aw-sites) with the account's token; payment is on a Stripe link tied to that
+   account, so it works on every device where the same account is signed in (phone, TV, PC).
+   Free for 24 hours from the first time the app opened on this device. Without internet, the last answer counts for
+   up to 7 days. The owner and family are free (list on the server). */
+const PLANO_API = 'https://europe-west1-aw-sites-e31c3.cloudfunctions.net/';
+const PLANO_TESTE = 24 * 3600e3;
+const planoIni = LS.get('ap.first', 0) || (LS.set('ap.first', Date.now()), Date.now());
+let PLANO = LS.get('ap.plano', null), // { estado: 'gratis'|'pago'|'teste'|'pagar', ate, fimTeste, link, t }
+  planoBusy = null;
+Object.assign(PT, {
+  'Your free day is over': 'O teu dia grátis acabou',
+  'AntunesPlayer costs 1 € a month. You can cancel whenever you want.':
+    'O AntunesPlayer custa 1 € por mês. Cancelas quando quiseres.',
+  'Sign in with your Google account to pay, so the subscription works on all your devices.':
+    'Entra com a tua conta Google para pagares. Assim a subscrição funciona em todos os teus aparelhos.',
+  'Pay 1 € a month': 'Pagar 1 € por mês',
+  'I have paid': 'Já paguei',
+  'Checking…': 'A confirmar…',
+  'Payment not found yet. If you just paid, wait a minute and try again.':
+    'Ainda não encontrei o pagamento. Se acabaste de pagar, espera um minuto e tenta outra vez.',
+  'Thank you! Enjoy.': 'Obrigado! Bom proveito.',
+  'Pay on your phone: open AntunesPlayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.':
+    'Paga no telemóvel: abre lá o AntunesPlayer com a mesma conta Google e carrega em “Pagar 1 € por mês”. Depois carrega aqui em “Já paguei”.',
+  Subscription: 'Subscrição',
+  'Free account': 'Conta grátis',
+  'Active until': 'Ativa até',
+  'Ends on': 'Termina a',
+  'Free until': 'Grátis até',
+  'Manage subscription': 'Gerir subscrição',
+  'Free time left': 'Tempo grátis que falta',
+  'Could not check the subscription': 'Não deu para confirmar a subscrição'
+});
+const planoFmt = ms =>
+  new Date(ms).toLocaleString(LANG === 'pt' ? 'pt-PT' : undefined, {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+// can watch now?
+function planoOk() {
+  const now = Date.now(),
+    p = PLANO;
+  if (p && now - p.t < 7 * 86400e3 && (!C.user || !p.uid || p.uid === C.user.uid)) {
+    if (p.estado === 'gratis') return true;
+    if (p.estado === 'pago') return !p.ate || p.ate > now - 3 * 86400e3;
+    if (p.estado === 'teste') return p.fimTeste > now;
+  }
+  if (!C.user) return now < planoIni + PLANO_TESTE; // not signed in: the device's own free day
+  return !p || p.estado !== 'pagar' ? now < planoIni + PLANO_TESTE : false;
+}
+async function planoCall(fn, extra) {
+  const tok = await C.user.getIdToken();
+  const q = new URLSearchParams(Object.assign({ inicio: planoIni }, extra || {}));
+  const r = await fetch(PLANO_API + fn + '?' + q, { headers: { Authorization: 'Bearer ' + tok }, cache: 'no-store' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.erro || 'HTTP ' + r.status);
+  return j;
+}
+function planoCheck(pago) {
+  if (!C.user || !navigator.onLine) return Promise.resolve(PLANO);
+  if (planoBusy && !pago) return planoBusy;
+  planoBusy = planoCall('playerEstado', pago ? { pago: 1 } : null)
+    .then(j => {
+      PLANO = Object.assign(j, { t: Date.now(), uid: C.user.uid });
+      LS.set('ap.plano', PLANO);
+      if (!planoOk() && S.cur && !v.paused) {
+        stopPlayback();
+        planoShow();
+      }
+      return PLANO;
+    })
+    .catch(e => {
+      console.warn('plano', e);
+      return PLANO;
+    })
+    .finally(() => (planoBusy = null));
+  return planoBusy;
+}
+// the screen shown when the free day is over
+function planoShow() {
+  const u = C.user,
+    tv = !!S.set.tv;
+  openDlg(
+    `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AntunesPlayer costs 1 € a month. You can cancel whenever you want.')}</p>
+    ${u ? (tv ? `<p class="mut">${t('Pay on your phone: open AntunesPlayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : '') : `<p class="mut">${t('Sign in with your Google account to pay, so the subscription works on all your devices.')}</p>`}
+    <p class="mut" id="plSt" aria-live="polite">${u ? t('Signed in as') + ' <b>' + esc(u.email || '') + '</b>' : ''}</p>
+    <div class="row" style="flex-wrap:wrap">${
+      u
+        ? `<button class="btn" id="plDone">${t('I have paid')}</button>${tv ? '' : `<button class="btn p" id="plPay">${t('Pay 1 € a month')}</button>`}`
+        : `<button class="btn p" id="plIn">${ic('user')} ${t('Sign in with Google')}</button>`
+    }</div>`
+  );
+  if (!u) {
+    $('#plIn').onclick = async () => {
+      await signInFlow();
+      if (C.user) {
+        await planoCheck();
+        if (planoOk()) {
+          if (dlg.open) dlg.close();
+          toast(t('Thank you! Enjoy.'));
+        } else planoShow();
+      }
+    };
+    return;
+  }
+  const pay = $('#plPay');
+  if (pay)
+    pay.onclick = async () => {
+      let l = PLANO && PLANO.link;
+      if (!l) l = (await planoCheck()).link;
+      if (l) openExternal(l);
+    };
+  $('#plDone').onclick = async () => {
+    const st = $('#plSt');
+    st.textContent = t('Checking…');
+    await planoCheck(true);
+    if (planoOk()) {
+      dlg.close();
+      toast(t('Thank you! Enjoy.'));
+    } else st.textContent = t('Payment not found yet. If you just paid, wait a minute and try again.');
+  };
+}
+// a line about the subscription in Settings → Google account
+function planoLinha() {
+  const p = PLANO,
+    now = Date.now();
+  if (!C.user || !p)
+    return `<p class="mut">${t('Free time left')}: ${Math.max(0, Math.ceil((planoIni + PLANO_TESTE - now) / 3600e3))} h</p>`;
+  const txt =
+    p.estado === 'gratis'
+      ? t('Free account')
+      : p.estado === 'pago'
+        ? (p.cancelada ? t('Ends on') : t('Active until')) + ' ' + planoFmt(p.ate)
+        : p.estado === 'teste'
+          ? t('Free until') + ' ' + planoFmt(p.fimTeste)
+          : t('Your free day is over');
+  return `<p><b>${t('Subscription')}:</b> ${esc(txt)}</p><div class="row" style="justify-content:flex-start;flex-wrap:wrap">${
+    p.estado === 'pago' ? `<button class="btn" id="plMan">${t('Manage subscription')}</button>` : ''
+  }${p.estado === 'teste' || p.estado === 'pagar' ? `<button class="btn" id="plPay2">${t('Pay 1 € a month')}</button>` : ''}</div>`;
+}
+function planoBind() {
+  const m = $('#plMan'),
+    p = $('#plPay2');
+  if (m)
+    m.onclick = async () => {
+      try {
+        const j = await planoCall('playerGerir');
+        if (j.url) openExternal(j.url);
+      } catch (e) {
+        toast(t('Could not check the subscription') + ': ' + e.message);
+      }
+    };
+  if (p) p.onclick = () => PLANO && PLANO.link && openExternal(PLANO.link);
+}
+// check on start (after the account signs in), when the app comes back, and every hour
+setTimeout(() => {
+  if (!LS.get('ap.cloudUid', '') && !planoOk()) planoShow();
+}, 4000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) planoCheck();
+});
+setInterval(() => planoCheck(), 3600e3);
 })();

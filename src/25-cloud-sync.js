@@ -249,6 +249,9 @@ async function readRemote() {
 }
 async function onSignedIn(u) {
   C.user = u;
+  planoCheck().then(() => {
+    if (!planoOk() && !dlg.open) planoShow();
+  });
   const first = LS.get('ap.cloudUid', '') !== u.uid;
   LS.set('ap.cloudUid', u.uid);
   if (signing || first) toast(t('Signed in as') + ' ' + (u.email || ''));
@@ -355,11 +358,12 @@ function accountDialog() {
   ${
     u
       ? `<p>${t('Signed in as')} <b>${esc(u.email || u.displayName || '')}</b><br><small class="mut">${when ? t('Synced') + ' · ' + new Date(when).toLocaleString(LANG === 'pt' ? 'pt-PT' : undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : t('Not synced yet')}${C.err ? ' · ' + esc(C.err) : ''}</small></p>
-  <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn" id="aSync">${ic('refresh')} ${t('Sync now')}</button><button class="btn" id="aTv">${ic('tv')} ${t('Send to a TV')}</button><button class="btn" id="aOut">${t('Sign out')}</button></div>`
+  ${planoLinha()}<div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn" id="aSync">${ic('refresh')} ${t('Sync now')}</button><button class="btn" id="aTv">${ic('tv')} ${t('Send to a TV')}</button><button class="btn" id="aOut">${t('Sign out')}</button></div>`
       : `<div class="row" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn p" id="aIn">${ic('user')} ${t('Sign in with Google')}</button><button class="btn" id="aCode">${ic('tv')} ${t('Sign in with a code (TV)')}</button></div>`
   }
   <div class="row"><button class="btn p" id="dx">${t('Close')}</button></div>`);
   $('#dx').onclick = () => dlg.close();
+  planoBind();
   if (u) {
     $('#aSync').onclick = async () => {
       try {

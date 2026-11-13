@@ -119,6 +119,10 @@ Object.assign(PT, {
 });
 async function play(c, isRetry) {
   if (!c) return;
+  if (!isRetry && !planoOk()) {
+    planoShow(); // free day over and not paid
+    return;
+  }
   if (S.cur && S.cur.key !== c.key) S.last = S.cur.key;
   if (!isRetry) {
     retried = false;
