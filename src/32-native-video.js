@@ -225,7 +225,8 @@ function nvSub(vtt, lang, label) {
     .catch(() => {});
 }
 // test builds only: lets the automatic test on an Android emulator drive the app
-if (LS.get('ap.devhook', false)) window.__ap = { S, NV: () => NV, v, enterFsFor, play, subsLoad, idbSet };
+if (LS.get('ap.devhook', false))
+  window.__ap = { S, NV: () => NV, v, enterFsFor, play, subsLoad, idbSet, stillNext: x => stillNext(x) };
 
 /* ---------- no sound on the web player ---------- */
 function audBox(show) {

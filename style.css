@@ -769,3 +769,11 @@ html.nv,html.nv body,html.nv #screen.fs,html.nv #screen.fs #v{background:transpa
 html.nv #screen.fs #v{opacity:0}
 /* battery: no endless decorative animation while a video is playing full screen */
 body.fsOn .trace .pulse,html.nv .trace .pulse{animation:none}
+/* "Are you still watching?" */
+#still{position:absolute;inset:0;z-index:12;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:6px;padding:0 clamp(24px,8vw,120px);background:linear-gradient(90deg,rgba(4,6,12,.92) 0%,rgba(4,6,12,.7) 55%,rgba(4,6,12,.35) 100%);color:#fff;animation:dlgIn .3s cubic-bezier(.22,1,.36,1)}
+#still[hidden]{display:none}
+#still h2{margin:0;font-size:clamp(24px,3.4vw,44px);font-weight:800;letter-spacing:-.01em}
+#still p{margin:0 0 14px;color:#c4cbe0;font-size:clamp(14px,1.5vw,19px);max-width:60ch}
+#still .row{justify-content:flex-start;flex-wrap:wrap;gap:10px}
+#still .btn{font-size:clamp(14px,1.4vw,18px);padding:clamp(10px,1.3vh,14px) clamp(18px,1.8vw,26px)}
+#screen.asking #ov,#screen.asking #nextUp,#screen.asking #skipIntro{display:none!important}

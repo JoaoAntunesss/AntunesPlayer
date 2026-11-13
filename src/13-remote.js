@@ -275,6 +275,19 @@ document.addEventListener('keydown', e => {
     const inPanel = !$('#chPanel').hidden,
       inStrip = !$('#chStrip').hidden,
       inOv = screenEl.classList.contains('show') && $('#ov').contains(document.activeElement);
+    if (stillOpen()) {
+      // "Are you still watching?": arrows move between the two buttons, OK presses, Back leaves
+      if (k.startsWith('Arrow')) {
+        e.preventDefault();
+        spatial(k, $('#still'));
+        return;
+      }
+      if (k === 'Enter') {
+        e.preventDefault();
+        (($('#still').contains(document.activeElement) && document.activeElement) || $('#stillGo')).click();
+        return;
+      }
+    }
     if (k === 'Backspace') {
       e.preventDefault();
       back();

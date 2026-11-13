@@ -81,7 +81,7 @@ v.addEventListener('ended', () => {
   if (nx) {
     toast(t('Next episode') + ': ' + nx.name);
     setTimeout(() => {
-      if (S.cur && S.cur.ser) enterFsFor(nx);
+      if (S.cur && S.cur.ser) stillNext(nx); // asks "Are you still watching?" after a few (src/33-still-watching.js)
     }, 1500);
   }
 });
