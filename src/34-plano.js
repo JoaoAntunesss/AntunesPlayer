@@ -12,7 +12,8 @@ let PLANO = LS.get('ap.plano', null), // { estado: 'gratis'|'pago'|'teste'|'paga
 Object.assign(PT, {
   'Your free day is over': 'O teu dia grátis acabou',
   'AntunesPlayer costs 1 € a month. You can cancel whenever you want.':
-    'O AntunesPlayer custa 1 € por mês. Cancelas quando quiseres.',
+    'O AntunesPlayer custa 1 € por mês, ou 10 € por ano (dois meses grátis). Cancelas quando quiseres.',
+  '10 € a year': '10 € por ano',
   'Sign in with your Google account to pay, so the subscription works on all your devices.':
     'Entra com a tua conta Google para pagares. Assim a subscrição funciona em todos os teus aparelhos.',
   'Pay 1 € a month': 'Pagar 1 € por mês',
@@ -107,7 +108,7 @@ function planoShow() {
     <p class="mut" id="plSt" aria-live="polite">${u ? t('Signed in as') + ' <b>' + esc(u.email || '') + '</b>' : ''}</p>
     <div class="row" style="flex-wrap:wrap">${
       u
-        ? `<button class="btn" id="plDone">${t('I have paid')}</button>${tv ? '' : `<button class="btn p" id="plPay">${t('Pay 1 € a month')}</button>`}`
+        ? `<button class="btn" id="plDone">${t('I have paid')}</button>${tv ? '' : `<button class="btn" id="plPayY">${t('10 € a year')}</button><button class="btn p" id="plPay">${t('Pay 1 € a month')}</button>`}`
         : `<button class="btn p" id="plIn">${ic('user')} ${t('Sign in with Google')}</button>`
     }</div>`
   );
@@ -124,13 +125,18 @@ function planoShow() {
     };
     return;
   }
-  const pay = $('#plPay');
-  if (pay)
-    pay.onclick = async () => {
-      let l = PLANO && PLANO.link;
-      if (!l) l = (await planoCheck()).link;
-      if (l) openExternal(l);
-    };
+  [
+    ['#plPay', 'link'],
+    ['#plPayY', 'linkAno']
+  ].forEach(([sel, k]) => {
+    const b = $(sel);
+    if (b)
+      b.onclick = async () => {
+        let l = PLANO && PLANO[k];
+        if (!l) l = ((await planoCheck()) || {})[k];
+        if (l) openExternal(l);
+      };
+  });
   $('#plDone').onclick = async () => {
     const st = $('#plSt');
     st.textContent = t('Checking…');
