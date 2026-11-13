@@ -950,4 +950,12 @@ if 'NativePlayer' not in s3:
     open(m, 'w', encoding='utf-8').write(s3)
 with open('android/app/proguard-rules.pro', 'a', encoding='utf-8') as f:
     f.write('\n-keep class androidx.media3.decoder.ffmpeg.** { *; }\n-keep class com.antunes.player.NativePlayer { *; }\n')
+# Media3 1.5 is compiled against Android 15 (API 35): compile with it too (targetSdk stays the same, so the app behaves the same)
+if os.path.exists(v):
+    t = open(v, encoding='utf-8').read()
+    t = re.sub(r'compileSdkVersion\s*=\s*\d+', 'compileSdkVersion = 35', t)
+    open(v, 'w', encoding='utf-8').write(t)
+gp = 'android/gradle.properties'
+if os.path.exists(gp) and 'suppressUnsupportedCompileSdk' not in open(gp, encoding='utf-8').read():
+    open(gp, 'a', encoding='utf-8').write('\nandroid.suppressUnsupportedCompileSdk=35\n')
 print('native player (Dolby / DTS sound) added')
