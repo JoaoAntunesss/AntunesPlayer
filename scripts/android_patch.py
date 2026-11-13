@@ -900,7 +900,12 @@ public class NativePlayer extends Activity {
             .setHandleAudioBecomingNoisy(true)
             .setSeekBackIncrementMs(10000).setSeekForwardIncrementMs(10000)
             .build();
-        if (in.getBooleanExtra("debug", false)) p.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger("NativePlayerTest"));
+        if (in.getBooleanExtra("debug", false)) {
+            p.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger("NativePlayerTest"));
+            p.addListener(new Player.Listener() { @Override public void onCues(androidx.media3.common.text.CueGroup g) {
+                for (androidx.media3.common.text.Cue c : g.cues) android.util.Log.d("NativePlayerTest", "cues: " + c.text);
+            } });
+        }
         p.addListener(new Player.Listener() {
             @Override public void onPlaybackStateChanged(int st) { if (st == Player.STATE_ENDED) { ended = true; close(); } }
             @Override public void onPlayerError(PlaybackException e) {

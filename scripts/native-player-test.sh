@@ -10,9 +10,15 @@ sleep 2
 adb install -r android/app/build/outputs/apk/release/app-release.apk
 adb shell settings put system screen_off_timeout 600000
 fail=0
-for a in ac3 eac3 dca aac; do
+# an online subtitle, as the app hands it over (a WebVTT file in the app's own folder)
+SUBD=/sdcard/Android/data/com.antunes.player/files
+printf 'WEBVTT\n\n00:00:01.000 --> 00:00:20.000\nLegenda online de teste\n' > out/online.vtt
+adb shell mkdir -p $SUBD && adb push out/online.vtt $SUBD/online.vtt >/dev/null
+for a in ac3 eac3 dca aac online; do
   adb logcat -c
-  adb shell am start -W -n com.antunes.player/.NativePlayer --es url "http://10.0.2.2:8000/test-$a.mkv" --es title test_$a --ez debug true
+  f=$a; extra=""
+  if [ $a = online ]; then f=aac; extra="--es sub $SUBD/online.vtt --es subLang pt-pt --es subLabel Portugues"; fi
+  adb shell am start -W -n com.antunes.player/.NativePlayer --es url "http://10.0.2.2:8000/test-$f.mkv" --es title test_$a --ez debug true $extra
   sleep 12
   adb exec-out screencap -p > "out/$a.png"
   adb shell dumpsys audio > "out/$a-audio.txt"
@@ -22,7 +28,9 @@ for a in ac3 eac3 dca aac; do
   dec=$(grep -o "audioDecoderInitialized[^]]*\]" "out/$a-logcat.txt" | head -1)
   vdec=$(grep -c "videoDecoderInitialized\|renderedFirstFrame" "out/$a-logcat.txt")
   echo "$a: audio playing=$started errors=$err video=$vdec decoder=$dec"
-  grep "NativePlayerTest" "out/$a-logcat.txt" | grep -E "DecoderInitialized|tracks|playerFailed|state \[|renderedFirstFrame" | cut -c1-220 | head -14
+  grep "NativePlayerTest" "out/$a-logcat.txt" | grep -E "DecoderInitialized|playerFailed" | cut -c1-200
+  echo "  selected tracks:"; grep "NativePlayerTest" "out/$a-logcat.txt" | grep "\[X\]" | sed 's/.*NativePlayerTest: *//' | cut -c1-200
+  echo "  subtitle cues shown:"; grep "NativePlayerTest" "out/$a-logcat.txt" | grep -i "cues\|Legenda" | cut -c1-200 | head -3
   if [ "$started" -lt 1 ] || [ "$err" -gt 0 ] || [ -z "$dec" ]; then fail=1; echo "  FAILED $a"; grep -i "exception\|error" "out/$a-logcat.txt" | grep -i "media3\|exo\|NativePlayer\|antunes\|ffmpeg" | head -20; fi
   adb shell input keyevent KEYCODE_BACK
   sleep 2
