@@ -368,7 +368,8 @@ function armStall() {
     stallT = null;
     if (!S.cur || S.cur.key !== k || v.paused || v.currentTime > t0 + 0.5) return;
     stallN++;
-    if (hls) {
+    if (NV.on) nvCmd('reload');
+    else if (hls) {
       const edge = hls.liveSyncPosition;
       if (edge && edge > v.currentTime + 1) v.currentTime = edge;
       else {
@@ -529,6 +530,10 @@ function stopRec(silent) {
 function toggleRec() {
   if (rec) {
     stopRec();
+    return;
+  }
+  if (NV.on) {
+    toast(t('Not available with this video'));
     return;
   }
   try {

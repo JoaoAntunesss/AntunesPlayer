@@ -767,3 +767,5 @@ dialog.trailer{width:min(960px,96vw);padding:14px}.trw{position:relative;aspect-
 /* films and series on Android: the native video engine draws under the page, so the page is see-through behind the player */
 html.nv,html.nv body,html.nv #screen.fs,html.nv #screen.fs #v{background:transparent!important}
 html.nv #screen.fs #v{opacity:0}
+/* battery: no endless decorative animation while a video is playing full screen */
+body.fsOn .trace .pulse,html.nv .trace .pulse{animation:none}

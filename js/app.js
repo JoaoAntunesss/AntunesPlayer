@@ -1311,7 +1311,8 @@ function armStall() {
     stallT = null;
     if (!S.cur || S.cur.key !== k || v.paused || v.currentTime > t0 + 0.5) return;
     stallN++;
-    if (hls) {
+    if (NV.on) nvCmd('reload');
+    else if (hls) {
       const edge = hls.liveSyncPosition;
       if (edge && edge > v.currentTime + 1) v.currentTime = edge;
       else {
@@ -1472,6 +1473,10 @@ function stopRec(silent) {
 function toggleRec() {
   if (rec) {
     stopRec();
+    return;
+  }
+  if (NV.on) {
+    toast(t('Not available with this video'));
     return;
   }
   try {
@@ -2483,6 +2488,7 @@ function doFs(on) {
     screenEl.classList.remove('pv');
     document.body.classList.add('fsOn');
     showOv();
+    if (S.cur && S.cur.kind === 'live' && nvOk() && !NV.on) play(S.cur, true); // full screen: native engine
     try {
       screen.orientation.lock('landscape').catch(() => {});
     } catch (e) {}
@@ -2497,6 +2503,8 @@ function doFs(on) {
       screen.orientation.unlock();
     } catch (e) {}
     if (S.cur && S.cur.kind !== 'live') stopPlayback();
+    else if (S.cur && NV.on)
+      play(S.cur, true); // back to the small preview: web player
     else if (!v.paused || S.cur) v.play().catch(() => {});
   }
 }
@@ -5012,7 +5020,7 @@ function streamInfo() {
     } catch (e) {}
     $('#siBox', dlg).innerHTML =
       row('Resolution', v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : '—') +
-      row('Engine', hls ? 'hls.js' : mpg ? 'mpegts.js' : 'HTML5') +
+      row('Engine', NV.on ? 'ExoPlayer (nativo)' : hls ? 'hls.js' : mpg ? 'mpegts.js' : 'HTML5') +
       (lv && lv.bitrate
         ? row(
             'Bitrate',
@@ -8891,8 +8899,10 @@ Object.assign(PT, {
 });
 const XP = () => Capacitor.Plugins.ExtPlayer;
 const nvOk = () => NATIVE && !!(window.Capacitor && Capacitor.Plugins.ExtPlayer && Capacitor.Plugins.ExtPlayer.nvOpen);
-// films and episodes go to the engine; live channels keep the web player (hls.js, time-shift, recording)
-const nvFor = c => nvOk() && (c.kind === 'vod' || c.kind === 'series');
+// films and episodes always go to the engine; live channels too when watched full screen (football on a busy server:
+// bigger reserve, reconnects by itself; and much less battery than decoding the stream in JavaScript). The small
+// preview next to the channel list keeps the web player.
+const nvFor = c => nvOk() && (c.kind === 'vod' || c.kind === 'series' || fsOn);
 const nvFire = n => v.dispatchEvent(new Event(n));
 const nvCmd = (c, x, s) =>
   XP()
@@ -8979,6 +8989,7 @@ function nvStart(c, url) {
   Object.keys(NVPROPS).forEach(k => Object.defineProperty(v, k, Object.assign({ configurable: true }, NVPROPS[k])));
   NV = {
     on: true,
+    live: c.kind === 'live',
     url,
     key: c.key,
     t: 0,
@@ -9005,7 +9016,9 @@ function nvStart(c, url) {
       url: src,
       ua: uaHdr()['User-Agent'] || '',
       pos: 0,
-      subLangs: S.set.subAuto === false ? '' : subLangs().join(','),
+      subLangs: S.set.subAuto === false || c.kind === 'live' ? '' : subLangs().join(','),
+      live: c.kind === 'live',
+      stab: stabLevel(c),
       aspect: v.style.objectFit || 'contain',
       debug: !!LS.get('ap.nvdebug', false)
     })
@@ -9042,17 +9055,18 @@ function nvEvt(d) {
   if (!NV.on || !d) return;
   if (!NV.seeking || d.e === 'seeked') NV.t = d.t;
   NV.b = d.b;
-  const dur = d.d > 0 ? d.d : NaN;
+  const dur = NV.live ? Infinity : d.d > 0 ? d.d : NaN;
   if ((d.w && d.w !== NV.w) || (d.h && d.h !== NV.h)) {
     NV.w = d.w;
     NV.h = d.h;
     nvFire('resize');
   }
-  if (!NV.meta && (dur > 0 || d.st === 3)) {
+  if (d.e === 'retry') nvFire('waiting'); // a live stream reconnecting by itself
+  if (!NV.meta && ((dur > 0 && !NV.live) || d.st === 3)) {
     NV.meta = true;
     NV.d = dur;
     ['durationchange', 'loadedmetadata', 'loadeddata', 'canplay'].forEach(nvFire);
-  } else if (dur > 0 && dur !== NV.d) {
+  } else if (dur > 0 && dur !== NV.d && !NV.live) {
     NV.d = dur;
     nvFire('durationchange');
   }

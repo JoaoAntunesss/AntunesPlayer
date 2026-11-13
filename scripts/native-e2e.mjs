@@ -29,6 +29,8 @@ http://10.0.2.2:8000/movie/test-ac3.mkv
 http://10.0.2.2:8000/movie/test-dca.mkv
 #EXTINF:-1 group-title="Filmes",Teste EAC3 (2024)
 http://10.0.2.2:8000/movie/test-eac3.mkv
+#EXTINF:-1 group-title="Desporto",Canal Teste Futebol
+http://10.0.2.2:8000/live/canal.m3u8
 `;
 const state = `(() => { const n = __ap.NV(), v = __ap.v; return { on: n.on, t: +v.currentTime.toFixed(2), d: v.duration, paused: v.paused, st: n.st, w: n.w, h: n.h, nvClass: document.documentElement.classList.contains('nv'), fs: document.querySelector('#screen').classList.contains('fs'), msg: document.querySelector('#msg').hidden ? '' : document.querySelector('#msg').innerText.slice(0, 200) }; })()`;
 let out = {},
@@ -75,6 +77,29 @@ try {
   } else if (step === 'tracks') {
     out = await ev(`Capacitor.Plugins.ExtPlayer.nvTracks()`);
     ok = out.audio && out.audio.length >= 1 && out.text && out.text.length >= 1;
+  } else if (step === 'live') {
+    out.started = await ev(`(() => { const c = __ap.S.channels.find(c => c.name.includes('Futebol')); if (!c) return 'not found'; __ap.enterFsFor(c); return c.name + ' / ' + c.kind; })()`);
+    await sleep(15000);
+    const a = await ev(state);
+    await sleep(4000);
+    const b = await ev(state);
+    out = { started: out.started, a, tNow: b.t, msg: b.msg };
+    ok = a.on && a.fs && a.nvClass && !b.paused && b.t > a.t + 2 && !b.msg;
+  } else if (step === 'check') {
+    // still playing (after the server came back): the picture moves and there is no error
+    const a = await ev(state);
+    await sleep(4000);
+    const b = await ev(state);
+    out = { a, tNow: b.t };
+    ok = b.on && !b.paused && b.t > a.t + 2 && !b.msg;
+  } else if (step === 'preview') {
+    // leaving full screen on a live channel: back to the small preview, on the web player
+    await ev(`history.back(); 1`);
+    await sleep(10000);
+    out = await ev(`(() => { const v = __ap.v; return { on: __ap.NV().on, fs: document.querySelector('#screen').classList.contains('fs'), cur: !!__ap.S.cur, t: v.currentTime, paused: v.paused }; })()`);
+    await sleep(3000);
+    out.tNow = await ev(`__ap.v.currentTime`);
+    ok = !out.on && !out.fs && out.cur && out.tNow > out.t;
   } else if (step === 'stop') {
     await ev(`history.back(); 1`);
     await sleep(3000);

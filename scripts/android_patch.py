@@ -305,6 +305,7 @@ public class ExtPlayerPlugin extends Plugin {
     @PluginMethod public void nvClose(PluginCall call) { NativeVideo.get(this).close(); call.resolve(); }
     void nvEmit(JSObject o) { notifyListeners("nv", o); }
     @Override protected void handleOnPause() { super.handleOnPause(); if (NativeVideo.inst != null) NativeVideo.inst.background(); }
+    @Override protected void handleOnResume() { super.handleOnResume(); if (NativeVideo.inst != null) NativeVideo.inst.foreground(); }
     @Override protected void handleOnDestroy() { if (NativeVideo.inst != null) NativeVideo.inst.release(); super.handleOnDestroy(); }
 
     // Chromecast: the system's device picker, then the stream is played by the Chromecast itself
@@ -819,7 +820,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
-import android.view.TextureView;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebView;
@@ -841,12 +842,15 @@ import androidx.media3.common.text.CueGroup;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.audio.AudioCapabilities;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.DefaultAudioSink;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.CaptionStyleCompat;
 import androidx.media3.ui.SubtitleView;
@@ -870,7 +874,9 @@ public class NativeVideo {
     private FrameLayout box;
     private AspectRatioFrameLayout arf;
     private SubtitleView sv;
-    private boolean active, debug;
+    private boolean active, debug, live, stopped;
+    private String stab = "normal";
+    private int recover = 0;
     private String url = "", err = "";
     private MediaItem.SubtitleConfiguration extSub;
     private final ArrayList<int[]> audioIdx = new ArrayList<>(), textIdx = new ArrayList<>();
@@ -880,7 +886,7 @@ public class NativeVideo {
     private final Runnable tick = new Runnable() { public void run() {
         if (!active || p == null) return;
         emit("time");
-        h.postDelayed(this, 250);
+        h.postDelayed(this, 500); // twice a second is enough for the controls, and wakes the page up less often
     } };
 
     private void ui(Runnable r) { h.post(r); }
@@ -899,16 +905,38 @@ public class NativeVideo {
                     .setEnableFloatOutput(floatOut).setEnableAudioTrackPlaybackParams(params).build();
             }
         }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER).setEnableDecoderFallback(true);
+        // Busy servers (a big football match): keep a large reserve of video, and retry a failed piece many times
+        // with a short pause instead of giving up.
+        DefaultLoadControl lc = new DefaultLoadControl.Builder()
+            .setBufferDurationsMs(20000, 50000, 1500, 3000).setPrioritizeTimeOverSizeThresholds(true).build();
+        LoadErrorHandlingPolicy retry = new DefaultLoadErrorHandlingPolicy(8) {
+            @Override public long getRetryDelayMsFor(LoadErrorHandlingPolicy.LoadErrorInfo info) {
+                long d = super.getRetryDelayMsFor(info);
+                return d == C.TIME_UNSET ? d : Math.min(4000, 500L * info.errorCount);
+            }
+        };
         p = new ExoPlayer.Builder(a, rf)
-            .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(a, http)))
+            .setLoadControl(lc)
+            .setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(a, http)).setLoadErrorHandlingPolicy(retry))
             .setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             .setHandleAudioBecomingNoisy(true)
             .build();
         p.addListener(new Player.Listener() {
-            @Override public void onPlaybackStateChanged(int st) { emit("state"); }
+            @Override public void onPlaybackStateChanged(int st) {
+                if (st == Player.STATE_READY) recover = 0;
+                // a live stream that "ends" is a dropped connection: connect again
+                if (st == Player.STATE_ENDED && live && active && !stopped) { reconnect(false); return; }
+                emit("state");
+            }
             @Override public void onPlayWhenReadyChanged(boolean pw, int reason) { emit("state"); }
             @Override public void onIsPlayingChanged(boolean on) { emit("state"); }
-            @Override public void onPlayerError(PlaybackException e) { err = e.getErrorCodeName() + (e.getMessage() != null ? ": " + e.getMessage() : ""); emit("error"); }
+            @Override public void onPlayerError(PlaybackException e) {
+                // live: the server dropped us, timed out or we fell behind the live window: connect again, quietly,
+                // a few times (the app shows the loading circle meanwhile) before showing an error
+                if (live && active && recover < 8) { reconnect(true); return; }
+                err = e.getErrorCodeName() + (e.getMessage() != null ? ": " + e.getMessage() : "");
+                emit("error");
+            }
             @Override public void onPositionDiscontinuity(Player.PositionInfo o, Player.PositionInfo n, int reason) { if (reason == Player.DISCONTINUITY_REASON_SEEK) emit("seeked"); }
             @Override public void onVideoSizeChanged(VideoSize vs) {
                 if (vs.width > 0 && vs.height > 0) arf.setAspectRatio(vs.width * vs.pixelWidthHeightRatio / vs.height);
@@ -924,7 +952,7 @@ public class NativeVideo {
         box.setBackgroundColor(Color.BLACK);
         arf = new AspectRatioFrameLayout(a);
         arf.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
-        TextureView tv = new TextureView(a);
+        SurfaceView tv = new SurfaceView(a); // lighter on the battery than a TextureView: the picture goes straight to the screen
         arf.addView(tv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         box.addView(arf, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER));
         sv = new SubtitleView(a);
@@ -933,7 +961,7 @@ public class NativeVideo {
         sv.setStyle(new CaptionStyleCompat(Color.WHITE, Color.TRANSPARENT, Color.TRANSPARENT, CaptionStyleCompat.EDGE_TYPE_OUTLINE, Color.BLACK, null));
         sv.setBottomPaddingFraction(0.09f);
         box.addView(sv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        p.setVideoTextureView(tv);
+        p.setVideoSurfaceView(tv);
         box.setVisibility(View.GONE);
         ViewGroup parent = (ViewGroup) wv().getParent();
         parent.addView(box, 0, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -941,6 +969,14 @@ public class NativeVideo {
 
     private MediaItem item() {
         MediaItem.Builder b = new MediaItem.Builder().setUri(Uri.parse(url));
+        if (live) {
+            // how far behind the live point to play: more distance = more reserve for busy servers (set by the app's
+            // "Live stream stability", which also steps up by itself when a channel keeps stopping)
+            MediaItem.LiveConfiguration.Builder lb = new MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(0.98f).setMaxPlaybackSpeed(1.02f);
+            if ("stable".equals(stab)) lb.setTargetOffsetMs(20000);
+            else if ("max".equals(stab)) lb.setTargetOffsetMs(30000);
+            b.setLiveConfiguration(lb.build());
+        }
         if (extSub != null) b.setSubtitleConfigurations(Collections.singletonList(extSub));
         return b.build();
     }
@@ -963,7 +999,9 @@ public class NativeVideo {
                 debug = Boolean.TRUE.equals(call.getBoolean("debug", false));
                 String ua = call.getString("ua", "");
                 http.setUserAgent(ua != null && !ua.isEmpty() ? ua : "VLC/3.0.20 LibVLC/3.0.20");
-                extSub = null; err = "";
+                extSub = null; err = ""; recover = 0; stopped = false;
+                live = Boolean.TRUE.equals(call.getBoolean("live", false));
+                stab = call.getString("stab", "normal");
                 if (debug) p.addAnalyticsListener(new androidx.media3.exoplayer.util.EventLogger("NativeVideoTest"));
                 prefLangs("", call.getString("subLangs", ""));
                 aspect(call.getString("aspect", "contain"));
@@ -984,6 +1022,17 @@ public class NativeVideo {
         });
     }
 
+    private void reconnect(boolean wasError) {
+        recover++;
+        emit("retry");
+        h.postDelayed(() -> {
+            if (!active || p == null || stopped) return;
+            p.seekToDefaultPosition();
+            p.prepare();
+            p.setPlayWhenReady(true);
+        }, Math.min(3000, 600L * recover));
+    }
+
     private void aspect(String a) {
         if (arf == null) return;
         arf.setResizeMode("cover".equals(a) ? AspectRatioFrameLayout.RESIZE_MODE_ZOOM : "fill".equals(a) ? AspectRatioFrameLayout.RESIZE_MODE_FILL : AspectRatioFrameLayout.RESIZE_MODE_FIT);
@@ -1002,6 +1051,7 @@ public class NativeVideo {
                 case "rate": p.setPlaybackParameters(new PlaybackParameters((float) Math.max(0.25, x))); break;
                 case "vol": p.setVolume((float) Math.max(0, Math.min(1, x))); break;
                 case "aspect": aspect(call.getString("s", "contain")); break;
+                case "reload": p.seekToDefaultPosition(); p.prepare(); p.setPlayWhenReady(true); break;
                 case "audio": select(C.TRACK_TYPE_AUDIO, audioIdx, (int) x); break;
                 case "text": select(C.TRACK_TYPE_TEXT, textIdx, (int) x); break;
             }
@@ -1096,7 +1146,23 @@ public class NativeVideo {
         });
     }
 
-    void background() { ui(() -> { if (active && p != null) p.setPlayWhenReady(false); }); }
+    // app in the background: a film pauses; a live channel stops downloading altogether (no data, no decoding, no battery)
+    void background() {
+        ui(() -> {
+            if (!active || p == null) return;
+            if (live) { stopped = true; p.stop(); } else p.setPlayWhenReady(false);
+        });
+    }
+    // back in the app: the live channel starts again from the live point
+    void foreground() {
+        ui(() -> {
+            if (!active || p == null || !stopped) return;
+            stopped = false;
+            p.seekToDefaultPosition();
+            p.prepare();
+            p.setPlayWhenReady(true);
+        });
+    }
 
     void release() {
         h.removeCallbacks(tick);
@@ -1115,6 +1181,7 @@ public class NativeVideo {
         o.put("st", p.getPlaybackState());
         o.put("pw", p.getPlayWhenReady());
         o.put("pl", p.isPlaying());
+        o.put("live", live);
         VideoSize vs = p.getVideoSize();
         o.put("w", vs.width); o.put("h", vs.height);
         if ("error".equals(e)) o.put("err", err);
