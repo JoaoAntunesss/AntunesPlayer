@@ -155,6 +155,7 @@ function doFs(on) {
     screenEl.classList.remove('pv');
     document.body.classList.add('fsOn');
     showOv();
+    if (S.cur && S.cur.kind === 'live' && nvOk() && !NV.on) play(S.cur, true); // full screen: native engine
     try {
       screen.orientation.lock('landscape').catch(() => {});
     } catch (e) {}
@@ -169,6 +170,8 @@ function doFs(on) {
       screen.orientation.unlock();
     } catch (e) {}
     if (S.cur && S.cur.kind !== 'live') stopPlayback();
+    else if (S.cur && NV.on)
+      play(S.cur, true); // back to the small preview: web player
     else if (!v.paused || S.cur) v.play().catch(() => {});
   }
 }

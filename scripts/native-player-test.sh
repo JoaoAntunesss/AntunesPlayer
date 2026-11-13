@@ -8,7 +8,7 @@ mkdir -p out media/movie
 cp media/test-*.mkv media/movie/
 python3 -m http.server 8000 --directory media </dev/null >/dev/null 2>&1 &
 SRV=$!
-trap 'kill $SRV 2>/dev/null' EXIT
+trap 'kill $SRV 2>/dev/null; kill ${LIVE:-0} 2>/dev/null' EXIT
 sleep 2
 adb install -r android/app/build/outputs/apk/release/app-release.apk
 adb shell settings put system screen_off_timeout 600000
@@ -60,5 +60,26 @@ print(len(set(px)), max(max(p) for p in px))")
   check node scripts/native-e2e.mjs stop
   sleep 2
 done
+# ---- live channel (football on a busy server): a real-time HLS stream, then the server goes down and comes back
+live() { ffmpeg -loglevel error -re -f lavfi -i testsrc=size=640x360:rate=25 -f lavfi -i "sine=f=440:sample_rate=48000" \
+  -c:v libx264 -preset ultrafast -g 50 -c:a aac -ac 2 -f hls -hls_time 2 -hls_list_size 6 \
+  -hls_flags delete_segments -hls_start_number_source epoch media/live/canal.m3u8 </dev/null >/dev/null 2>&1 & LIVE=$!; }
+cpu() { # CPU used by the app and its WebView over 6 seconds (lower = less battery)
+  adb shell top -b -n 2 -d 6 -o %CPU,ARGS | awk '/antunes|webview|sandboxed/ {s+=$1} /^Tasks/ {n++; if (n==2) s=0} END {print s}'
+}
+mkdir -p media/live
+live
+sleep 8
+adb logcat -c
+check node scripts/native-e2e.mjs live
+echo "  CPU, live full screen (native engine): $(cpu)%"
+kill $LIVE; echo "  server down for 12 s"; sleep 12
+live; echo "  server back"; sleep 40
+adb logcat -d > out/live-logcat.txt
+grep "NativeVideoTest" out/live-logcat.txt | grep -E "playerFailed|loadError|state \[" | cut -c1-200 | tail -8
+check node scripts/native-e2e.mjs check
+check node scripts/native-e2e.mjs preview
+echo "  CPU, live small preview (web player): $(cpu)%"
+kill $LIVE
 grep -h "AndroidRuntime\|FATAL" out/*-logcat.txt | head -20
 exit $fail

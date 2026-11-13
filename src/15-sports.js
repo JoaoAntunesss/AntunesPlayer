@@ -113,7 +113,7 @@ function streamInfo() {
     } catch (e) {}
     $('#siBox', dlg).innerHTML =
       row('Resolution', v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : '—') +
-      row('Engine', hls ? 'hls.js' : mpg ? 'mpegts.js' : 'HTML5') +
+      row('Engine', NV.on ? 'ExoPlayer (nativo)' : hls ? 'hls.js' : mpg ? 'mpegts.js' : 'HTML5') +
       (lv && lv.bitrate
         ? row(
             'Bitrate',
