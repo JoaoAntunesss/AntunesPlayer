@@ -45,7 +45,7 @@ px=[im.getpixel((int(w*x/10),int(h*y/10))) for x in range(2,9) for y in range(3,
 print(len(set(px)), max(max(p) for p in px))")
   grep "NativeVideoTest" "out/$f-logcat.txt" | grep -E "cues:|x-media3-cues" | cut -c1-200 | head -6
   echo "  $f: audio decoder=$dec, audio playing=$playing, subtitles shown=[$subs], picture colours/brightest=$pic"
-  [ -n "$dec" ] && [ "$playing" -ge 1 ] && [ -n "$subs" ] || { echo "  FAILED $f (sound or subtitles)"; fail=1; }
+  [ -n "$dec" ] && [ "$playing" -ge 1 ] && echo "$subs" | grep -q "Legenda de teste" || { echo "  FAILED $f (sound or subtitles)"; fail=1; }
   [ "$(echo $pic | cut -d' ' -f1)" -ge 6 ] || { echo "  FAILED $f (picture not visible under the app)"; fail=1; }
   if [ $f = AC3 ]; then
     adb logcat -c

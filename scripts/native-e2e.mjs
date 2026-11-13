@@ -36,6 +36,7 @@ let out = {},
 try {
   if (step === 'setup') {
     await ev(`localStorage.setItem('ap.devhook','true'); localStorage.setItem('ap.nvdebug','true'); localStorage.setItem('ap.tour','"done"');
+      localStorage.setItem('ap.set', JSON.stringify({ osKey: 'test-no-online-search', subLangs: 'pt-pt,en' }));
       localStorage.setItem('ap.sources', JSON.stringify([{ id: 's1', name: 'Teste', type: 'm3u', text: ${JSON.stringify(M3U)} }]));
       localStorage.setItem('ap.src','"s1"'); location.reload(); 1`);
     out = { done: true };
