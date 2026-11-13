@@ -8,6 +8,7 @@ let hls = null,
   retried = false,
   rec = null;
 function destroyPlayer() {
+  if (NV.on) nvStop(); // films and series on Android: the native engine (src/32-native-video.js)
   $$('#v track[data-os]').forEach(x => x.remove());
   if (hls) {
     try {
@@ -131,7 +132,6 @@ async function play(c, isRetry) {
   S.dbg = '';
   stopRec(true);
   destroyPlayer();
-  if (!isRetry && natFirst(c)) return; // Dolby / DTS film or series: straight to the built-in player (src/32-audio-check.js)
   armStart(c, isRetry);
   $('#screen').classList.toggle('vod', c.kind !== 'live');
   $('#msg').hidden = true;
@@ -146,7 +146,9 @@ async function play(c, isRetry) {
     isTs = (c.kind === 'live' || c.kind === 'catchup') && !isHls && !/\.(mp4|mkv|webm|avi|mov)(\?|$)/i.test(cu),
     ST = STAB[stabLevel(c)];
   try {
-    if (isHls) {
+    if (nvFor(c))
+      await nvStart(c, cu); // Android films and series: native engine, any sound format (src/32-native-video.js)
+    else if (isHls) {
       if (!window.Hls && (NATIVE || !v.canPlayType('application/vnd.apple.mpegurl'))) await loadScript('js/hls.min.js'); // in the app, hls.js + native HTTP is more reliable than the WebView's own HLS
       if (window.Hls && Hls.isSupported()) {
         hls = new Hls(

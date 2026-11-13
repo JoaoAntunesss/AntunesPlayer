@@ -131,13 +131,24 @@ let aspI = 0;
 $('#cAsp').onclick = () => {
   aspI = (aspI + 1) % ASP.length;
   v.style.objectFit = ASP[aspI][0];
+  if (NV.on) nvCmd('aspect', 0, ASP[aspI][0]);
   toast(t(ASP[aspI][1]));
 };
-const openTracks = () => {
+const openTracks = async () => {
   const au = [],
     su = [];
   let cur = { a: -1, s: -1 };
-  if (hls) {
+  if (NV.on) {
+    const tr = await nvTracks();
+    (tr.audio || []).forEach(x => {
+      au.push({ i: x.i, n: x.n });
+      if (x.on) cur.a = x.i;
+    });
+    (tr.text || []).forEach(x => {
+      su.push({ i: x.i, n: x.n });
+      if (x.on) cur.s = x.i;
+    });
+  } else if (hls) {
     (hls.audioTracks || []).forEach((x, i) => au.push({ i, n: x.name || x.lang || 'Audio ' + (i + 1) }));
     (hls.subtitleTracks || []).forEach((x, i) => su.push({ i, n: x.name || x.lang || 'Sub ' + (i + 1) }));
     cur = { a: hls.audioTrack, s: hls.subtitleTrack };
@@ -178,7 +189,8 @@ const openTracks = () => {
     b =>
       (b.onclick = () => {
         const i = +b.dataset.i;
-        if (b.dataset.k === 'a') {
+        if (NV.on) nvCmd(b.dataset.k === 'a' ? 'audio' : 'text', i);
+        else if (b.dataset.k === 'a') {
           if (hls) hls.audioTrack = i;
           else [...v.audioTracks].forEach((x, n) => (x.enabled = n === i));
         } else {

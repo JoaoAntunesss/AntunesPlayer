@@ -416,6 +416,7 @@ $('#cMore').onclick = () => {
       (b.onclick = () => {
         aspI = +b.dataset.as;
         v.style.objectFit = ASP[aspI][0];
+        if (NV.on) nvCmd('aspect', 0, ASP[aspI][0]);
         $$('[data-as]', dlg).forEach(x => x.classList.toggle('on', x === b));
       })
   );
