@@ -280,6 +280,21 @@ document.addEventListener('keydown', e => {
       back();
       return;
     }
+    // "Skip intro" and the "Next episode" card: OK presses them, like on Netflix (unless the controls are open)
+    if (k === 'Enter' && !inPanel && !inStrip) {
+      const ae = document.activeElement,
+        pop = [$('#skipIntro'), $('#nuGo')].find(b => b && !b.hidden && !b.closest('[hidden]'));
+      if (ae && ((ae.id === 'skipIntro' && !ae.hidden) || (ae.closest('#nextUp') && !$('#nextUp').hidden))) {
+        e.preventDefault();
+        ae.click();
+        return;
+      }
+      if (pop && !inOv) {
+        e.preventDefault();
+        pop.click();
+        return;
+      }
+    }
     if (inPanel) {
       if (k === 'ArrowLeft' || k === 'ArrowRight') {
         e.preventDefault();
