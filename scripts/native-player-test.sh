@@ -3,9 +3,8 @@
 # Plays each test video in the native player and checks: an audio track is playing, no playback error, frames shown.
 set -u
 mkdir -p out
-cd media && python3 -m http.server 8000 </dev/null >/dev/null 2>&1 &
+python3 -m http.server 8000 --directory media </dev/null >/dev/null 2>&1 &
 SRV=$!
-cd ..
 trap 'kill $SRV 2>/dev/null' EXIT
 sleep 2
 adb install -r android/app/build/outputs/apk/release/app-release.apk
