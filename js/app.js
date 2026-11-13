@@ -9454,11 +9454,28 @@ function planoOk() {
     if (p.estado === 'teste') return p.fimTeste > now;
   }
   if (!C.user) return now < planoIni + PLANO_TESTE; // not signed in: the device's own free day
+  if (p && p.estado === 'limite' && now - p.t < 7 * 86400e3) return false; // the account is on too many devices
   return !p || p.estado !== 'pagar' ? now < planoIni + PLANO_TESTE : false;
 }
+// how this device appears in the account's list of devices
+const planoDevName = () => {
+  const ua = navigator.userAgent;
+  const what = S.set.tv
+    ? 'TV'
+    : DESKTOP
+      ? 'PC'
+      : NATIVE
+        ? /tablet|SM-T|Tab/i.test(ua)
+          ? 'Tablet'
+          : 'Telemóvel'
+        : 'Navegador';
+  const model =
+    (/;\s*([^;)]+?)\s+Build\//.exec(ua) || [])[1] || (/Windows/.test(ua) ? 'Windows' : /Mac OS/.test(ua) ? 'Mac' : '');
+  return (what + (model ? ' · ' + model : '')).slice(0, 40);
+};
 async function planoCall(fn, extra) {
   const tok = await C.user.getIdToken();
-  const q = new URLSearchParams(Object.assign({ inicio: planoIni }, extra || {}));
+  const q = new URLSearchParams(Object.assign({ inicio: planoIni, dev: C.dev, nome: planoDevName() }, extra || {}));
   const r = await fetch(PLANO_API + fn + '?' + q, { headers: { Authorization: 'Bearer ' + tok }, cache: 'no-store' });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.erro || 'HTTP ' + r.status);
@@ -9488,6 +9505,7 @@ function planoCheck(pago) {
 function planoShow() {
   const u = C.user,
     tv = !!S.set.tv;
+  if (u && PLANO && PLANO.estado === 'limite') return planoDevices();
   openDlg(
     `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AntunesPlayer costs 1 € a month. You can cancel whenever you want.')}</p>
     ${u ? (tv ? `<p class="mut">${t('Pay on your phone: open AntunesPlayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : '') : `<p class="mut">${t('Sign in with your Google account to pay, so the subscription works on all your devices.')}</p>`}
@@ -9528,6 +9546,84 @@ function planoShow() {
     } else st.textContent = t('Payment not found yet. If you just paid, wait a minute and try again.');
   };
 }
+// too many devices on this account: remove one to make room for this one
+function planoDevices() {
+  const p = PLANO || {},
+    list = p.aparelhos || [];
+  openDlg(
+    `<h2>${ic('tv')} ${t('This account is on too many devices')}</h2>
+    <p>${t('Each account can be used on up to')} ${p.max || 3} ${t('devices. To use it here, remove one you no longer use.')}</p>
+    <div class="srcs">${list
+      .map(
+        x =>
+          `<div class="srow"><span class="sic">${ic(/TV/.test(x.nome) ? 'tv' : 'user')}</span><div><b>${esc(x.nome)}</b><small>${t('Last used')} ${planoFmt(x.visto)}</small></div><button class="btn" data-pldev="${esc(x.id)}">${t('Remove')}</button></div>`
+      )
+      .join('')}</div>
+    <p class="mut" id="plSt" aria-live="polite"></p>
+    <div class="row"><button class="btn" id="dx">${t('Close')}</button></div>`
+  );
+  $('#dx').onclick = () => dlg.close();
+  $$('[data-pldev]', dlg).forEach(
+    b =>
+      (b.onclick = async () => {
+        $('#plSt').textContent = t('Checking…');
+        try {
+          await planoCall('playerTirar', { id: b.dataset.pldev });
+          await planoCheck(true);
+          if (planoOk()) {
+            dlg.close();
+            toast(t('Thank you! Enjoy.'));
+          } else planoShow();
+        } catch (e) {
+          $('#plSt').textContent = e.message;
+        }
+      })
+  );
+}
+/* no more than 2 devices watching at the same time: while something plays, the device says so every minute */
+let planoVerT = 0;
+async function planoVer(parar) {
+  if (!C.user || !navigator.onLine || (PLANO && PLANO.estado === 'gratis')) return;
+  try {
+    const j = await planoCall('playerVer', parar ? { parar: 1 } : null);
+    if (j && j.ok === false && S.cur) {
+      stopPlayback();
+      openDlg(
+        `<h2>${ic('tv')} ${t('Already watching on')} ${j.max || 2} ${t('devices')}</h2><p>${t('This account is playing on')} ${esc((j.nomes || []).join(', '))}. ${t('Stop one of them to watch here.')}</p><div class="row"><button class="btn p" id="dx">${t('Close')}</button></div>`
+      );
+      $('#dx').onclick = () => dlg.close();
+    }
+  } catch (e) {}
+}
+v.addEventListener('playing', () => {
+  if (planoVerT) return;
+  planoVer();
+  planoVerT = setInterval(() => {
+    if (!S.cur || v.paused) {
+      clearInterval(planoVerT);
+      planoVerT = 0;
+      return;
+    }
+    planoVer();
+  }, 60e3);
+});
+v.addEventListener('emptied', () => {
+  if (!planoVerT) return;
+  clearInterval(planoVerT);
+  planoVerT = 0;
+  planoVer(true);
+});
+Object.assign(PT, {
+  'This account is on too many devices': 'Esta conta já está em demasiados aparelhos',
+  'Each account can be used on up to': 'Cada conta pode ser usada em até',
+  'devices. To use it here, remove one you no longer use.': 'aparelhos. Para a usares aqui, tira um que já não uses.',
+  'Last used': 'Usado pela última vez a',
+  Remove: 'Tirar',
+  'Already watching on': 'Já está a ver em',
+  devices: 'aparelhos',
+  'This account is playing on': 'Esta conta está a dar em',
+  'Stop one of them to watch here.': 'Para um deles para veres aqui.'
+});
 // a line about the subscription in Settings → Google account
 function planoLinha() {
   const p = PLANO,
