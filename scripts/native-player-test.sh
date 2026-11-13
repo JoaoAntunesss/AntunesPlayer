@@ -43,6 +43,7 @@ for f in AC3 DTS EAC3; do
 from PIL import Image; im=Image.open('out/$f.png').convert('RGB'); w,h=im.size
 px=[im.getpixel((int(w*x/10),int(h*y/10))) for x in range(2,9) for y in range(3,7)]
 print(len(set(px)), max(max(p) for p in px))")
+  grep "NativeVideoTest" "out/$f-logcat.txt" | grep -E "cues:|x-media3-cues" | cut -c1-200 | head -6
   echo "  $f: audio decoder=$dec, audio playing=$playing, subtitles shown=[$subs], picture colours/brightest=$pic"
   [ -n "$dec" ] && [ "$playing" -ge 1 ] && [ -n "$subs" ] || { echo "  FAILED $f (sound or subtitles)"; fail=1; }
   [ "$(echo $pic | cut -d' ' -f1)" -ge 6 ] || { echo "  FAILED $f (picture not visible under the app)"; fail=1; }
@@ -50,6 +51,7 @@ print(len(set(px)), max(max(p) for p in px))")
     adb logcat -c
     check node scripts/native-e2e.mjs sub
     adb logcat -d > out/sub-logcat.txt
+    grep "NativeVideoTest" out/sub-logcat.txt | grep -E "cues|\[X\].*text|x-media3-cues|DecoderInit|playerFailed|loadError" | cut -c1-260 | head -12
     grep -q "cues: Legenda online de teste" out/sub-logcat.txt && echo "  online subtitle shown" || { echo "  FAILED online subtitle not shown"; fail=1; }
     check node scripts/native-e2e.mjs seek
     check node scripts/native-e2e.mjs pause
