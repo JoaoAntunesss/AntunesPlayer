@@ -9243,7 +9243,8 @@ function stillAsk(nx) {
   };
   $('#stillX').onclick = () => {
     done();
-    if (fsOn) back(true); // leave the player (not just hide its controls)
+    if (fsOn)
+      back(true); // leave the player (not just hide its controls)
     else stopPlayback();
   };
   $('#stillGo').focus({ preventScroll: true });
