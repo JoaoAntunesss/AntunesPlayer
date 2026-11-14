@@ -214,6 +214,7 @@ function subsErr(e) {
   else toast(t('Could not get subtitles') + (e && e.message ? ': ' + e.message : ''));
 }
 async function autoSubs(c) {
+  if (c && c.local) return dlSubsApply(c); // downloaded: the subtitles saved with it, no internet needed
   if (!c || c.kind === 'live' || c.kind === 'catchup' || S.set.subAuto === false || !OSK()) return;
   try {
     const list = await subsSearch(c);

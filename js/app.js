@@ -5366,6 +5366,7 @@ function subsErr(e) {
   else toast(t('Could not get subtitles') + (e && e.message ? ': ' + e.message : ''));
 }
 async function autoSubs(c) {
+  if (c && c.local) return dlSubsApply(c); // downloaded: the subtitles saved with it, no internet needed
   if (!c || c.kind === 'live' || c.kind === 'catchup' || S.set.subAuto === false || !OSK()) return;
   try {
     const list = await subsSearch(c);
@@ -5921,7 +5922,7 @@ async function dlSync() {
     ((r && r.list) || []).forEach(d => (DLS[d.key] = d));
   } catch (e) {}
 }
-async function dlStart(c) {
+async function dlStart(c, quiet) {
   if (!c || !c.url || !dlNative()) return;
   const ext = (/\.(mp4|mkv|avi|mov|webm|ts)(\?|$)/i.exec(c.url) || [, 'mp4'])[1].toLowerCase();
   const base = c.ser && S.byKey[c.ser] ? S.byKey[c.ser] : c;
@@ -5936,7 +5937,7 @@ async function dlStart(c) {
       logo: base.logo || '',
       ser: c.ser || ''
     });
-    toast(t('Download started. Follow it in AntunesFlix → Downloads.'));
+    if (!quiet) toast(t('Download started. Follow it in AntunesFlix → Downloads.'));
     await dlSync();
     dlPoll();
   } catch (e) {
@@ -5945,11 +5946,12 @@ async function dlStart(c) {
 }
 function dlPoll() {
   clearTimeout(dlT);
-  const run = Object.values(DLS).some(d => d.state === 'run');
+  const run = Object.values(DLS).some(d => d.state === 'run' || d.state === 'queue');
   if (!run) return;
   dlT = setTimeout(async () => {
     await dlSync();
     if (S.view === 'flix' && S.flixTab === 'dl') renderFlix();
+    else if (S.view === 'flix' && S.detail && $('.nfdlb')) renderFxDetail(S.detail);
     dlPoll();
   }, 2000);
 }
@@ -5958,21 +5960,30 @@ const fmtMB = b =>
     ? (b / 1073741824).toFixed(1).replace('.', LANG === 'pt' ? ',' : '.') + ' GB'
     : Math.round(b / 1048576) + ' MB';
 function dlHtml() {
-  const L = Object.values(DLS).sort((a, b) => (b.at || 0) - (a.at || 0));
+  const grp = d => (d.ser ? (S.byKey[d.ser] && S.byKey[d.ser].name) || String(d.name).split(' · ')[0] : '');
+  const L = Object.values(DLS).sort(
+    (a, b) => grp(a).localeCompare(grp(b)) || String(a.name).localeCompare(String(b.name), undefined, { numeric: true })
+  );
+  let last = null;
   dlPoll();
   if (!L.length)
     return `<div class="empty"><p>${t('Nothing downloaded yet. Open a film and tap Download, or use More → Download while watching.')}</p></div>`;
   return `<div class="dlist">${L.map(d => {
+    const g = grp(d),
+      hd = g !== last ? `<h3 class="dlh">${esc(g || t('Films'))}</h3>` : '';
+    last = g;
     const pct = d.total ? Math.min(100, Math.round((d.size / d.total) * 100)) : 0,
       st =
         d.state === 'ok'
           ? fmtMB(d.size)
           : d.state === 'run'
             ? `${t('Downloading…')} ${d.total ? pct + '%' : fmtMB(d.size)}`
-            : d.state === 'stop'
-              ? t('Stopped')
-              : t('Failed');
-    return `<div class="dli"><button class="dlp" data-dlp="${esc(d.id)}" ${d.state === 'ok' ? '' : 'disabled'}><span class="dlimg">${d.logo ? `<img loading="lazy" src="${esc(d.logo)}" alt="" onerror="this.remove()">` : ''}${d.state === 'ok' ? `<i>${ic('play')}</i>` : ''}</span><span class="dlt"><b>${esc(d.name)}</b><small>${esc(st)}</small>${d.state === 'run' ? `<i class="dlbar"><i style="width:${pct}%"></i></i>` : ''}</span></button>${d.state === 'run' ? `<button class="btn" data-dls="${esc(d.id)}">${t('Stop')}</button>` : d.state !== 'ok' ? `<button class="btn" data-dlr="${esc(d.id)}">${t('Try again')}</button>` : ''}<button class="ib" data-dld="${esc(d.id)}" aria-label="${t('Delete download')}">${ic('close')}</button></div>`;
+            : d.state === 'queue'
+              ? t('Waiting')
+              : d.state === 'stop'
+                ? t('Stopped')
+                : t('Failed');
+    return `${hd}<div class="dli"><button class="dlp" data-dlp="${esc(d.id)}" ${d.state === 'ok' ? '' : 'disabled'}><span class="dlimg">${d.logo ? `<img loading="lazy" src="${esc(d.logo)}" alt="" onerror="this.remove()">` : ''}${d.state === 'ok' ? `<i>${ic('play')}</i>` : ''}</span><span class="dlt"><b>${esc(d.name)}</b><small>${esc(st)}</small>${d.state === 'run' ? `<i class="dlbar"><i style="width:${pct}%"></i></i>` : ''}</span></button>${d.state === 'run' || d.state === 'queue' ? `<button class="btn" data-dls="${esc(d.id)}">${t('Stop')}</button>` : d.state !== 'ok' ? `<button class="btn" data-dlr="${esc(d.id)}">${t('Try again')}</button>` : ''}<button class="ib" data-dld="${esc(d.id)}" aria-label="${t('Delete download')}">${ic('close')}</button></div>`;
   }).join('')}</div>`;
 }
 function dlWire(box) {
@@ -7368,7 +7379,7 @@ function renderFxDetail(c) {
     ${main}${prog}
     ${S.dinfo == null ? `<p class="mut">${t('Loading…')}</p>` : i.plot || i.description ? `<p class="nfplot">${esc(i.plot || i.description)}</p>` : ''}
     ${i.cast ? `<p class="nfsmall"><b>${t('Cast')}:</b> ${esc(i.cast)}</p>` : ''}${i.director ? `<p class="nfsmall"><b>${t('Director')}:</b> ${esc(i.director)}</p>` : ''}${i.genre ? `<p class="nfsmall">${esc(i.genre)}</p>` : ''}
-    <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>${dlNative() && !c.seriesId && c.url ? `<button id="dDl">${ic('dl')}<span>${DLS[c.key] ? (DLS[c.key].state === 'ok' ? t('Downloaded') : t('Downloading…')) : t('Download')}</span></button>` : ''}</div>
+    <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>${dlNative() && c.seriesId ? `<button id="dDlS">${ic('dl')}<span>${t('Download')}</span></button>` : ''}${dlNative() && !c.seriesId && c.url ? `<button id="dDl">${ic('dl')}<span>${DLS[c.key] ? (DLS[c.key].state === 'ok' ? t('Downloaded') : t('Downloading…')) : t('Download')}</span></button>` : ''}</div>
     </div><div class="nftabs">${c.seriesId && seasons.length ? `<button data-dt="eps" class="${tab === 'eps' ? 'on' : ''}">${t('Episodes')}</button>` : ''}<button data-dt="sim" class="${tab === 'sim' ? 'on' : ''}">${t('More like this')}</button></div>
     ${
       tab === 'eps'
@@ -7380,7 +7391,7 @@ function renderFxDetail(c) {
                 ps = POS[ep.key],
                 dn = DUR[ep.key] || ep.dur || 2700,
                 img = e.info && e.info.movie_image;
-              return `<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round((ps / dn) * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>`;
+              return `${dlNative() ? '<div class="nfepw">' : ''}<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round((ps / dn) * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>${dlNative() ? dlEpBtn(ep, n) + '</div>' : ''}`;
             })
             .join('')}</div>`
         : `<div class="fxgrid nfsim">${similar.map(posterHtml).join('') || `<p class="mut">—</p>`}</div>`
@@ -7432,6 +7443,20 @@ function renderFxDetail(c) {
       S.fxSn = sel.value;
       renderFxDetail(c);
     };
+  const dls = $('#dDlS');
+  if (dls) dls.onclick = () => dlSeriesAsk(c, sn);
+  $$('[data-dle]', box).forEach(
+    b =>
+      (b.onclick = () => {
+        const n = +b.dataset.dle,
+          ep = epObj(c, sn, S.deps[sn][n], n),
+          d = DLS[ep.key];
+        if (d && d.state === 'ok') {
+          S.flixTab = 'dl';
+          go('flix');
+        } else if (!d || d.state === 'stop' || d.state === 'err') dlAsk([ep], ep.name);
+      })
+  );
   $$('.nfep', box).forEach(
     b =>
       (b.onclick = () => {
@@ -9670,4 +9695,155 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) planoCheck();
 });
 setInterval(() => planoCheck(), 3600e3);
+
+// ===== src/35-offline.js =====
+/* ---------- offline: whole seasons or series, with the subtitles you choose ----------
+   Episodes can be downloaded one by one (the icon next to each episode) or a season / the whole series at once. The
+   Android app downloads two at a time and the rest wait their turn, even with the app closed (DlService).
+   Subtitles: the ones inside the video file come with it; online ones (OpenSubtitles) are saved for the languages you
+   pick, so they work without internet too. OpenSubtitles has a daily limit (5, or 20 with an account): what does not
+   fit today is fetched the next days by itself. Without internet the app opens straight on Downloads. */
+Object.assign(PT, {
+  'Download episode': 'Descarregar episódio',
+  'Download for offline': 'Descarregar para ver sem internet',
+  'This season': 'Esta temporada',
+  'Whole series': 'Série completa',
+  episodes: 'episódios',
+  'Subtitles to save': 'Legendas a guardar',
+  'Subtitles inside the video always come with it. Online subtitles are saved for these languages:':
+    'As legendas que já vêm no vídeo descarregam sempre com ele. As legendas online ficam guardadas nestas línguas:',
+  'No online subtitles': 'Sem legendas online',
+  'Already downloaded': 'Já descarregados',
+  Waiting: 'Em espera',
+  'downloads added. Follow them in AntunesFlix → Downloads.':
+    'transferências adicionadas. Acompanha em AntunesFlix → Descarregados.',
+  'Online subtitles limit for today reached. The rest will be fetched tomorrow.':
+    'Chegaste ao limite de legendas online de hoje. As que faltam vêm amanhã, sozinhas.',
+  'No internet. Here is what you downloaded.': 'Sem internet. Aqui está o que descarregaste.',
+  Films: 'Filmes'
+});
+const DLQ_KEY = 'ap.dlsubq';
+// the small download button next to an episode (✓ when it is on the device, ⋯ while it downloads or waits)
+function dlEpBtn(ep, n) {
+  const d = DLS[ep.key],
+    st = d && d.state;
+  const icon = st === 'ok' ? ic('check') : st === 'run' || st === 'queue' ? '⋯' : ic('dl');
+  return `<button class="nfdlb${st === 'ok' ? ' ok' : ''}" data-dle="${n}" aria-label="${esc(t('Download episode') + ' ' + ep.name)}">${icon}</button>`;
+}
+// ask which subtitles to save, then download
+function dlAsk(eps, title) {
+  const pick = new Set(subLangs()),
+    todo = eps.filter(
+      e => !(DLS[e.key] && (DLS[e.key].state === 'ok' || DLS[e.key].state === 'run' || DLS[e.key].state === 'queue'))
+    ),
+    done = eps.length - todo.length;
+  const draw = () => {
+    openDlg(
+      `<h2>${ic('dl')} ${t('Download for offline')}</h2><p><b>${esc(title)}</b><br><small class="mut">${todo.length} ${t('episodes')}${done ? ' · ' + done + ' ' + t('Already downloaded').toLowerCase() : ''}</small></p>
+      <label>${t('Subtitles to save')}</label><p class="mut"><small>${t('Subtitles inside the video always come with it. Online subtitles are saved for these languages:')}</small></p>
+      <div class="chips" id="dlLangs">${SUBL.map(([k, n]) => `<button class="chip${pick.has(k) ? ' on' : ''}" data-dll="${k}" aria-pressed="${pick.has(k)}">${esc(n)}</button>`).join('')}</div>
+      <div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="dlGo" ${todo.length ? '' : 'disabled'}>${ic('dl')} ${t('Download')}</button></div>`
+    );
+    $('#dx').onclick = () => dlg.close();
+    $$('[data-dll]', dlg).forEach(
+      b =>
+        (b.onclick = () => {
+          const k = b.dataset.dll;
+          pick.has(k) ? pick.delete(k) : pick.add(k);
+          draw();
+          const nb = $(`[data-dll="${k}"]`, dlg);
+          if (nb) nb.focus();
+        })
+    );
+    $('#dlGo').onclick = async () => {
+      dlg.close();
+      const langs = [...pick].slice(0, 3);
+      for (const e of todo) await dlStart(e, true);
+      if (todo.length > 1 || eps.length > 1)
+        toast(todo.length + ' ' + t('downloads added. Follow them in AntunesFlix → Downloads.'));
+      else toast(t('Download started. Follow it in AntunesFlix → Downloads.'));
+      if (langs.length && OSK()) {
+        const q = LS.get(DLQ_KEY, []);
+        todo.forEach(e =>
+          q.push({ ep: { key: e.key, name: e.name, ser: e.ser, sn: e.sn, n: e.n, kind: 'vod', url: e.url }, langs })
+        );
+        LS.set(DLQ_KEY, q);
+        dlSubsRun();
+      }
+      if (S.view === 'flix' && S.detail) renderFxDetail(S.detail);
+    };
+  };
+  draw();
+}
+// the season shown, or every season
+function dlSeriesAsk(c, sn) {
+  const seasons = Object.keys(S.deps || {});
+  const all = () => seasons.flatMap(s => (S.deps[s] || []).map((e, n) => epObj(c, s, e, n)));
+  const one = () => (S.deps[sn] || []).map((e, n) => epObj(c, sn, e, n));
+  if (seasons.length <= 1) return dlAsk(one(), c.name);
+  openDlg(
+    `<h2>${ic('dl')} ${t('Download for offline')}</h2><p><b>${esc(c.name)}</b></p>
+    <div class="row" style="flex-wrap:wrap;justify-content:flex-start"><button class="btn" id="dlS1">${t('This season')} (${t('Season')} ${esc(sn)}, ${one().length} ${t('episodes')})</button><button class="btn p" id="dlSA">${t('Whole series')} (${all().length} ${t('episodes')})</button></div>
+    <div class="row"><button class="btn" id="dx">${t('Cancel')}</button></div>`
+  );
+  $('#dx').onclick = () => dlg.close();
+  $('#dlS1').onclick = () => dlAsk(one(), c.name + ' · ' + t('Season') + ' ' + sn);
+  $('#dlSA').onclick = () => dlAsk(all(), c.name);
+}
+// online subtitles for downloaded episodes: one at a time, kept on the device (IndexedDB) for offline viewing
+let dlSubsBusy = false;
+async function dlSubsRun() {
+  if (dlSubsBusy || !navigator.onLine || !OSK()) return;
+  dlSubsBusy = true;
+  try {
+    let q = LS.get(DLQ_KEY, []);
+    while (q.length) {
+      const it = q[0],
+        have = (await idbGet('dlsub:' + it.ep.key)) || [];
+      const want = it.langs.filter(l => !have.some(h => h.lang === l));
+      if (want.length) {
+        const list = await subsSearch(it.ep);
+        for (const l of want) {
+          const r = list.find(x => x.lang === l);
+          if (!r) continue;
+          await subsVtt(r); // downloads and keeps the file (counts towards the daily limit)
+          have.push({ id: r.id, lang: r.lang, rel: r.rel });
+          await idbSet('dlsub:' + it.ep.key, have);
+          await new Promise(res => setTimeout(res, 1200));
+        }
+      }
+      q = LS.get(DLQ_KEY, []).filter(x => x.ep.key !== it.ep.key);
+      LS.set(DLQ_KEY, q);
+    }
+  } catch (e) {
+    if (e && (e.status === 406 || /limit|quota/i.test(e.message || '')))
+      toast(t('Online subtitles limit for today reached. The rest will be fetched tomorrow.'));
+  } finally {
+    dlSubsBusy = false;
+  }
+}
+// a downloaded episode or film: its saved subtitles, without internet
+async function dlSubsApply(c) {
+  const list = (await idbGet('dlsub:' + c.key)) || [];
+  if (!list.length || S.cur !== c) return;
+  S.subList = { k: c.key, list };
+  try {
+    if (await subsLoad(list[0], c)) toast(t('Subtitles') + ': ' + langName(list[0].lang));
+  } catch (e) {}
+}
+// no internet: straight to Downloads
+function dlOffline() {
+  if (navigator.onLine || !dlNative() || !Object.values(DLS).some(d => d.state === 'ok')) return;
+  if (S.cur && S.cur.local) return;
+  S.flixTab = 'dl';
+  go('flix');
+  toast(t('No internet. Here is what you downloaded.'));
+}
+window.addEventListener('offline', () => setTimeout(dlOffline, 1500));
+window.addEventListener('online', () => setTimeout(dlSubsRun, 5000));
+setTimeout(async () => {
+  await dlSync();
+  dlOffline();
+  dlSubsRun();
+}, 2500);
 })();

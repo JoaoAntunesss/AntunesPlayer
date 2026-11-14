@@ -143,7 +143,7 @@ function renderFxDetail(c) {
     ${main}${prog}
     ${S.dinfo == null ? `<p class="mut">${t('Loading…')}</p>` : i.plot || i.description ? `<p class="nfplot">${esc(i.plot || i.description)}</p>` : ''}
     ${i.cast ? `<p class="nfsmall"><b>${t('Cast')}:</b> ${esc(i.cast)}</p>` : ''}${i.director ? `<p class="nfsmall"><b>${t('Director')}:</b> ${esc(i.director)}</p>` : ''}${i.genre ? `<p class="nfsmall">${esc(i.genre)}</p>` : ''}
-    <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>${dlNative() && !c.seriesId && c.url ? `<button id="dDl">${ic('dl')}<span>${DLS[c.key] ? (DLS[c.key].state === 'ok' ? t('Downloaded') : t('Downloading…')) : t('Download')}</span></button>` : ''}</div>
+    <div class="nfacts"><button id="dFav">${ic(fav ? 'check' : 'plus')}<span>${t('My list')}</span></button>${c.seriesId ? '' : `<button id="dSeen">${ic('check')}<span>${SEEN[c.key] ? t('Watched') : t('Mark as watched')}</span></button>`}<button id="dTr">${ic('film')}<span>${t('Trailer')}</span></button>${dlNative() && c.seriesId ? `<button id="dDlS">${ic('dl')}<span>${t('Download')}</span></button>` : ''}${dlNative() && !c.seriesId && c.url ? `<button id="dDl">${ic('dl')}<span>${DLS[c.key] ? (DLS[c.key].state === 'ok' ? t('Downloaded') : t('Downloading…')) : t('Download')}</span></button>` : ''}</div>
     </div><div class="nftabs">${c.seriesId && seasons.length ? `<button data-dt="eps" class="${tab === 'eps' ? 'on' : ''}">${t('Episodes')}</button>` : ''}<button data-dt="sim" class="${tab === 'sim' ? 'on' : ''}">${t('More like this')}</button></div>
     ${
       tab === 'eps'
@@ -155,7 +155,7 @@ function renderFxDetail(c) {
                 ps = POS[ep.key],
                 dn = DUR[ep.key] || ep.dur || 2700,
                 img = e.info && e.info.movie_image;
-              return `<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round((ps / dn) * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>`;
+              return `${dlNative() ? '<div class="nfepw">' : ''}<button class="nfep ${SEEN[ep.key] && !ps ? 'seen' : ''}" data-i="${n}"><span class="nfth">${img ? `<img loading="lazy" decoding="async" src="${esc(img)}" alt="" onerror="this.remove()">` : `<em>${esc(e.episode_num || n + 1)}</em>`}<span class="cwplay">${ic('play')}</span>${ps ? `<i class="nfthp"><i style="width:${Math.max(4, Math.min(100, Math.round((ps / dn) * 100)))}%"></i></i>` : ''}</span><span class="nfet"><b>${esc(e.episode_num || n + 1)}. ${esc(e.title || t('Episode') + ' ' + (n + 1))}</b><small>${e.info && e.info.duration ? esc(e.info.duration) : ''}${SEEN[ep.key] && !ps ? ' · ' + t('Watched') : ''}</small>${e.info && e.info.plot ? `<span>${esc(e.info.plot)}</span>` : ''}</span></button>${dlNative() ? dlEpBtn(ep, n) + '</div>' : ''}`;
             })
             .join('')}</div>`
         : `<div class="fxgrid nfsim">${similar.map(posterHtml).join('') || `<p class="mut">—</p>`}</div>`
@@ -207,6 +207,20 @@ function renderFxDetail(c) {
       S.fxSn = sel.value;
       renderFxDetail(c);
     };
+  const dls = $('#dDlS');
+  if (dls) dls.onclick = () => dlSeriesAsk(c, sn);
+  $$('[data-dle]', box).forEach(
+    b =>
+      (b.onclick = () => {
+        const n = +b.dataset.dle,
+          ep = epObj(c, sn, S.deps[sn][n], n),
+          d = DLS[ep.key];
+        if (d && d.state === 'ok') {
+          S.flixTab = 'dl';
+          go('flix');
+        } else if (!d || d.state === 'stop' || d.state === 'err') dlAsk([ep], ep.name);
+      })
+  );
   $$('.nfep', box).forEach(
     b =>
       (b.onclick = () => {

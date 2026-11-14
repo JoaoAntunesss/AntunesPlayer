@@ -158,7 +158,7 @@ async function dlSync() {
     ((r && r.list) || []).forEach(d => (DLS[d.key] = d));
   } catch (e) {}
 }
-async function dlStart(c) {
+async function dlStart(c, quiet) {
   if (!c || !c.url || !dlNative()) return;
   const ext = (/\.(mp4|mkv|avi|mov|webm|ts)(\?|$)/i.exec(c.url) || [, 'mp4'])[1].toLowerCase();
   const base = c.ser && S.byKey[c.ser] ? S.byKey[c.ser] : c;
@@ -173,7 +173,7 @@ async function dlStart(c) {
       logo: base.logo || '',
       ser: c.ser || ''
     });
-    toast(t('Download started. Follow it in AntunesFlix → Downloads.'));
+    if (!quiet) toast(t('Download started. Follow it in AntunesFlix → Downloads.'));
     await dlSync();
     dlPoll();
   } catch (e) {
@@ -182,11 +182,12 @@ async function dlStart(c) {
 }
 function dlPoll() {
   clearTimeout(dlT);
-  const run = Object.values(DLS).some(d => d.state === 'run');
+  const run = Object.values(DLS).some(d => d.state === 'run' || d.state === 'queue');
   if (!run) return;
   dlT = setTimeout(async () => {
     await dlSync();
     if (S.view === 'flix' && S.flixTab === 'dl') renderFlix();
+    else if (S.view === 'flix' && S.detail && $('.nfdlb')) renderFxDetail(S.detail);
     dlPoll();
   }, 2000);
 }
@@ -195,21 +196,30 @@ const fmtMB = b =>
     ? (b / 1073741824).toFixed(1).replace('.', LANG === 'pt' ? ',' : '.') + ' GB'
     : Math.round(b / 1048576) + ' MB';
 function dlHtml() {
-  const L = Object.values(DLS).sort((a, b) => (b.at || 0) - (a.at || 0));
+  const grp = d => (d.ser ? (S.byKey[d.ser] && S.byKey[d.ser].name) || String(d.name).split(' · ')[0] : '');
+  const L = Object.values(DLS).sort(
+    (a, b) => grp(a).localeCompare(grp(b)) || String(a.name).localeCompare(String(b.name), undefined, { numeric: true })
+  );
+  let last = null;
   dlPoll();
   if (!L.length)
     return `<div class="empty"><p>${t('Nothing downloaded yet. Open a film and tap Download, or use More → Download while watching.')}</p></div>`;
   return `<div class="dlist">${L.map(d => {
+    const g = grp(d),
+      hd = g !== last ? `<h3 class="dlh">${esc(g || t('Films'))}</h3>` : '';
+    last = g;
     const pct = d.total ? Math.min(100, Math.round((d.size / d.total) * 100)) : 0,
       st =
         d.state === 'ok'
           ? fmtMB(d.size)
           : d.state === 'run'
             ? `${t('Downloading…')} ${d.total ? pct + '%' : fmtMB(d.size)}`
-            : d.state === 'stop'
-              ? t('Stopped')
-              : t('Failed');
-    return `<div class="dli"><button class="dlp" data-dlp="${esc(d.id)}" ${d.state === 'ok' ? '' : 'disabled'}><span class="dlimg">${d.logo ? `<img loading="lazy" src="${esc(d.logo)}" alt="" onerror="this.remove()">` : ''}${d.state === 'ok' ? `<i>${ic('play')}</i>` : ''}</span><span class="dlt"><b>${esc(d.name)}</b><small>${esc(st)}</small>${d.state === 'run' ? `<i class="dlbar"><i style="width:${pct}%"></i></i>` : ''}</span></button>${d.state === 'run' ? `<button class="btn" data-dls="${esc(d.id)}">${t('Stop')}</button>` : d.state !== 'ok' ? `<button class="btn" data-dlr="${esc(d.id)}">${t('Try again')}</button>` : ''}<button class="ib" data-dld="${esc(d.id)}" aria-label="${t('Delete download')}">${ic('close')}</button></div>`;
+            : d.state === 'queue'
+              ? t('Waiting')
+              : d.state === 'stop'
+                ? t('Stopped')
+                : t('Failed');
+    return `${hd}<div class="dli"><button class="dlp" data-dlp="${esc(d.id)}" ${d.state === 'ok' ? '' : 'disabled'}><span class="dlimg">${d.logo ? `<img loading="lazy" src="${esc(d.logo)}" alt="" onerror="this.remove()">` : ''}${d.state === 'ok' ? `<i>${ic('play')}</i>` : ''}</span><span class="dlt"><b>${esc(d.name)}</b><small>${esc(st)}</small>${d.state === 'run' ? `<i class="dlbar"><i style="width:${pct}%"></i></i>` : ''}</span></button>${d.state === 'run' || d.state === 'queue' ? `<button class="btn" data-dls="${esc(d.id)}">${t('Stop')}</button>` : d.state !== 'ok' ? `<button class="btn" data-dlr="${esc(d.id)}">${t('Try again')}</button>` : ''}<button class="ib" data-dld="${esc(d.id)}" aria-label="${t('Delete download')}">${ic('close')}</button></div>`;
   }).join('')}</div>`;
 }
 function dlWire(box) {

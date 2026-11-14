@@ -777,3 +777,12 @@ body.fsOn .trace .pulse,html.nv .trace .pulse{animation:none}
 #still .row{justify-content:flex-start;flex-wrap:wrap;gap:10px}
 #still .btn{font-size:clamp(14px,1.4vw,18px);padding:clamp(10px,1.3vh,14px) clamp(18px,1.8vw,26px)}
 #screen.asking #ov,#screen.asking #nextUp,#screen.asking #skipIntro{display:none!important}
+/* offline: download button next to each episode, downloads grouped by series */
+.nfepw{position:relative}.nfepw>.nfep{width:100%;padding-right:52px}
+.nfdlb{position:absolute;right:4px;top:4px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;display:grid;place-items:center;font-size:18px;line-height:1;cursor:pointer}
+.nfdlb svg{width:18px;height:18px}.nfdlb.ok{border-color:#46d369;color:#46d369}
+.nfdlb:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.dlh{margin:18px 0 6px;font-size:15px;font-weight:700;opacity:.85}.dlh:first-child{margin-top:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
+.chip{min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--line,#2a3550);background:transparent;color:inherit;font:inherit;cursor:pointer}
+.chip.on{background:var(--acc,#e50914);border-color:var(--acc,#e50914);color:#fff}

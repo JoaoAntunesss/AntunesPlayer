@@ -679,16 +679,30 @@ public class Dl {
     static synchronized void put(Context c, JSONObject d) { prefs(c).edit().putString(d.optString("id"), d.toString()).apply(); }
     static synchronized JSONArray all(Context c) {
         JSONArray a = new JSONArray();
-        for (Object v : prefs(c).getAll().values()) { try { JSONObject d = new JSONObject(String.valueOf(v)); if ("run".equals(d.optString("state")) && !DlService.ACTIVE.contains(d.optString("id"))) d.put("state", "stop"); a.put(d); } catch (Exception ignored) { } }
+        for (Object v : prefs(c).getAll().values()) { try { JSONObject d = new JSONObject(String.valueOf(v)); if ("run".equals(d.optString("state")) && !DlService.ACTIVE.contains(d.optString("id"))) d.put("state", "queue"); a.put(d); } catch (Exception ignored) { } }
         return a;
     }
+    /** The next download waiting in the queue (the oldest first), or null. */
+    static synchronized JSONObject nextQueued(Context c) {
+        JSONObject best = null;
+        for (Object v : prefs(c).getAll().values()) {
+            try { JSONObject d = new JSONObject(String.valueOf(v)); String st = d.optString("state"); String id = d.optString("id");
+                if (("queue".equals(st) || "run".equals(st)) && !DlService.ACTIVE.contains(id) && !DlService.STOP.contains(id) && (best == null || d.optLong("at") < best.optLong("at"))) best = d; } catch (Exception ignored) { }
+        }
+        return best;
+    }
+    /** Adds a download: it starts at once if fewer than two are running, otherwise it waits its turn (a whole series is a long queue). */
     static void start(Context c, JSONObject d) throws Exception {
         String id = d.optString("id"); JSONObject old = get(c, id);
         String ext = d.optString("ext", "mp4").replaceAll("[^a-z0-9]", ""); if (ext.isEmpty()) ext = "mp4";
-        d.put("path", new File(dir(c), id + "." + ext).getAbsolutePath()); d.put("state", "run"); d.put("at", System.currentTimeMillis());
+        d.put("path", new File(dir(c), id + "." + ext).getAbsolutePath()); d.put("state", "queue");
+        d.put("at", old != null && old.optLong("at") > 0 ? old.optLong("at") : System.currentTimeMillis());
         d.put("size", old != null ? old.optLong("size") : 0); d.put("total", old != null ? old.optLong("total") : 0);
         put(c, d); DlService.STOP.remove(id);
-        Intent s = new Intent(c, DlService.class).putExtra("id", id);
+        kick(c);
+    }
+    static void kick(Context c) {
+        Intent s = new Intent(c, DlService.class);
         if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(s); else c.startService(s);
     }
     static synchronized void delete(Context c, String id) { JSONObject d = get(c, id); if (d != null) { try { new File(d.optString("path")).delete(); } catch (Exception ignored) { } } prefs(c).edit().remove(id).apply(); }
@@ -737,18 +751,29 @@ public class DlService extends Service {
     @Override public int onStartCommand(Intent in, int flags, int startId) {
         Notification n = note("AntunesPlayer", "A descarregar…", 0, true);
         if (Build.VERSION.SDK_INT >= 29) startForeground(4343, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); else startForeground(4343, n);
-        final String id = in == null ? null : in.getStringExtra("id");
-        final JSONObject d = id == null ? null : Dl.get(this, id);
-        if (d == null || ACTIVE.contains(id)) { finishIfIdle(); return START_NOT_STICKY; }
-        synchronized (this) {
-            if (ACTIVE.isEmpty()) {
-                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE); if (pm != null) { wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "antunes:dl"); wake.acquire(8 * 3600 * 1000L); }
-                WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE); if (wm != null) { wifi = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "antunes:dl"); wifi.acquire(); }
-            }
-            ACTIVE.add(id);
-        }
-        new Thread(new Runnable() { public void run() { try { fetch(d); } finally { ACTIVE.remove(id); finishIfIdle(); } } }).start();
+        launch();
+        if (ACTIVE.isEmpty()) finishIfIdle();
         return START_NOT_STICKY;
+    }
+
+    /** Starts waiting downloads until two are running; each one, when it ends, starts the next in the queue. */
+    private void launch() {
+        while (true) {
+            final JSONObject d;
+            final String id;
+            synchronized (this) {
+                if (ACTIVE.size() >= 2) return;
+                d = Dl.nextQueued(this);
+                if (d == null) return;
+                id = d.optString("id");
+                if (ACTIVE.isEmpty()) {
+                    PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE); if (pm != null && (wake == null || !wake.isHeld())) { wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "antunes:dl"); wake.acquire(8 * 3600 * 1000L); }
+                    WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE); if (wm != null && (wifi == null || !wifi.isHeld())) { wifi = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "antunes:dl"); wifi.acquire(); }
+                }
+                ACTIVE.add(id);
+            }
+            new Thread(new Runnable() { public void run() { try { fetch(d); } finally { ACTIVE.remove(id); launch(); finishIfIdle(); } } }).start();
+        }
     }
 
     private synchronized void finishIfIdle() {
