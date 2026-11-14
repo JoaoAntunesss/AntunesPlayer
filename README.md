@@ -1,19 +1,19 @@
 # AWplayer
 
-An **IPTV player** (formerly AntunesPlayer) for Android phones, **Google TV** and the browser — with **AntunesFlix** inside: films and series organised like a streaming service. Bring your own Xtream login or M3U playlist; AWplayer comes with **no channels**.
+An **IPTV player** (formerly AntunesPlayer) for Android phones, **Google TV** and the browser — with **AWflix** inside: films and series organised like a streaming service. Bring your own Xtream login or M3U playlist; AWplayer comes with **no channels**.
 
-<p align="center"><img src="docs/antunesflix-home.jpg" width="24%" alt="AntunesFlix"> <img src="docs/antunesflix-rows.jpg" width="24%" alt="Continue watching and Top 10"> <img src="docs/ap-home-red.jpg" width="24%" alt="Home in red"> <img src="docs/ap-live-list.jpg" width="24%" alt="Live TV list"></p>
+<p align="center"><img src="docs/antunesflix-home.jpg" width="24%" alt="AWflix"> <img src="docs/antunesflix-rows.jpg" width="24%" alt="Continue watching and Top 10"> <img src="docs/ap-home-red.jpg" width="24%" alt="Home in red"> <img src="docs/ap-live-list.jpg" width="24%" alt="Live TV list"></p>
 
 **Download:** [latest APK](https://github.com/JoaoAntunesss/AntunesPlayer/releases/latest) (Android / Google TV) · **Web:** [joaoantunesss.github.io/AntunesPlayer](https://joaoantunesss.github.io/AntunesPlayer/) · TVs can open [/tv](https://joaoantunesss.github.io/AntunesPlayer/tv/) to download it.
 
 ## What it does
-- **AntunesFlix** — billboard, Top 10, a row per genre, My list, Continue watching across films and series, next-episode countdown, watched marks, resume “T1:E3”, Netflix-style title page, its own intro animation.
+- **AWflix** — billboard, Top 10, a row per genre, My list, Continue watching across films and series, next-episode countdown, watched marks, resume “T1:E3”, Netflix-style title page, its own intro animation.
 - **Live TV** — guide grid with catch-up and reminders, number zapping, favourites in your own order (import from other apps), own channel lists, see-through channel list on the remote's ◀, sleep timer, stream info and quality, open in VLC/MX Player.
 - **Your account** — sign in with Google: playlists (logins encrypted on the device), favourites, progress and settings follow you; a TV signs in with a short code from the phone.
 - **Subtitles** — found online (OpenSubtitles) in your languages and switched on by themselves.
-- **Yours to shape** — app colour, AntunesFlix colour, digits and background; settings in tabs; Portuguese and English; parental PIN; in-app updates.
+- **Yours to shape** — app colour, AWflix colour, digits and background; settings in tabs; Portuguese and English; parental PIN; in-app updates.
 
-<p align="center"><img src="docs/antunesflix-intro.jpg" width="49%" alt="AntunesFlix intro"> <img src="docs/ap-colours-settings.jpg" width="40%" alt="Colour settings"></p>
+<p align="center"><img src="docs/antunesflix-intro.jpg" width="49%" alt="AWflix intro"> <img src="docs/ap-colours-settings.jpg" width="40%" alt="Colour settings"></p>
 
 ## Earlier versions
 
@@ -73,13 +73,13 @@ The app is plain JavaScript with no framework. The source is split by feature in
 | `src/14-updates-extras.js` | app updates, sleep timer, reminders, stream info |
 | `src/15-sports.js` | games agenda from the TV guide |
 | `src/16-subtitles.js` | online subtitles (OpenSubtitles) |
-| `src/17-antunesflix.js` | AntunesFlix home and genre rows |
+| `src/17-antunesflix.js` | AWflix home and genre rows |
 | `src/18-cast-downloads.js` | Chromecast and offline downloads |
 | `src/19-flix-extras.js` | trailers, On now, new episodes, statistics |
 | `src/20-tutorial.js` | first-run tutorial |
 | `src/21-imdb-catalogue.js` | IMDb ratings, daily rows, full catalogue |
 | `src/22-skip-intro.js` | skip intro |
-| `src/23-flix-detail.js` | AntunesFlix intro and title page |
+| `src/23-flix-detail.js` | AWflix intro and title page |
 | `src/24-colours.js` | colour themes |
 | `src/25-cloud-sync.js` | Google sign-in and encrypted sync |
 | `src/26-profiles.js` | profiles and kids profile |

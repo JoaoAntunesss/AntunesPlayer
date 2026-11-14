@@ -282,7 +282,7 @@ function renderFlix() {
     if (byw) rows.push(byw);
     const rest = [
       [
-        t('New on AntunesFlix'),
+        t('New on AWflix'),
         pickRow(
           recent.filter(c => c.logo),
           24,
@@ -357,7 +357,7 @@ function renderFlix() {
       lazyRest.splice(0, 8).map(rowHtmlF).join('') + (lazyRest.length ? '<div class="fxmore" id="fxMore"></div>' : '');
   }
   box.innerHTML =
-    `<div class="fxbar"><button class="fxlogo" data-ft="all">Antunes<span>Flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs
+    `<div class="fxbar"><button class="fxlogo" data-ft="all">AW<span>flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs
       .filter(x => x[0] !== 'all')
       .map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`)
       .join(

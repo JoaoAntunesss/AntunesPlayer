@@ -1,4 +1,4 @@
-/* ---------- AntunesFlix, round 2: intro, Netflix-style continue cards, title page ---------- */
+/* ---------- AWflix, round 2: intro, Netflix-style continue cards, title page ---------- */
 Object.assign(PT, {
   'Details and more': 'Detalhes e mais',
   'Remove from row': 'Remover da faixa',
@@ -12,7 +12,7 @@ Object.assign(PT, {
   Rate: 'Classificar',
   Continue: 'Continuar'
 });
-// intro: our own red "A" monogram with light streaks (shown when AntunesFlix opens)
+// intro: our own red "A" monogram with light streaks (shown when AWflix opens)
 let fxIntroShown = false;
 function fxIntro() {
   if (fxIntroShown || RM || document.documentElement.classList.contains('lite')) return;
@@ -20,7 +20,7 @@ function fxIntro() {
   const o = document.createElement('div');
   o.id = 'fxIntro';
   o.setAttribute('aria-hidden', 'true');
-  o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">Antunes<span>Flix</span></div>`;
+  o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">AW<span>flix</span></div>`;
   document.body.appendChild(o);
   const end = () => {
     o.classList.add('out');
@@ -97,7 +97,7 @@ function wireCw(box) {
       })
   );
 }
-// title page like Netflix (used inside AntunesFlix)
+// title page like Netflix (used inside AWflix)
 function renderFxDetail(c) {
   const i = S.dinfo || {},
     box = $('#vDetail'),

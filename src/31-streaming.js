@@ -3,7 +3,7 @@
    1. the playlist's own categories ("NETFLIX SERIES", "HBO MAX", "DISNEY+"…), so it works straight away;
    2. data/streaming.json, built monthly from TMDB (what each service has in Portugal) by .github/workflows/streaming.yml,
       matched to the playlist by title and year like the IMDb ratings.
-   Each service becomes a genre-like row and chip in AntunesFlix, so it gets rows, "See all" and the full grid for free. */
+   Each service becomes a genre-like row and chip in AWflix, so it gets rows, "See all" and the full grid for free. */
 var PLATS = [
   ['p-netflix', 'On Netflix', /netflix/i],
   ['p-hbo', 'On HBO Max', /\bhbo\b/i],

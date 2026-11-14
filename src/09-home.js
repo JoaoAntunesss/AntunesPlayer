@@ -23,7 +23,7 @@ function renderHeader() {
 const NAV = [
   ['home', 'home', 'Home'],
   ['live', 'tv', 'Live TV'],
-  ['flix', 'film', 'AntunesFlix'],
+  ['flix', 'film', 'AWflix'],
   ['search', 'search', 'Search'],
   ['settings', 'gear', 'Settings']
 ];
@@ -143,7 +143,7 @@ function renderHome() {
       .slice(0, 14);
   box.innerHTML = `<div class="hgrid">
     <button class="tile t-live" data-go="live">${TRACE}${ic('tv')}<b>${t('Live TV')}</b>${cnt(L, t('channels'))}</button>
-    <button class="tile t-mov t-flix" data-go="flix">${TRACE}${ic('film')}<b>Antunes<span class="fxr">Flix</span></b>${ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(M, 'cnt')} ${t('movies')} · ${seg(Se, 'cnt')} ${t('series')}</small>`}<span class="fxchips"><span data-go2="movies">${ic('film')} ${t('Movies')}</span><span data-go2="series">${ic('series')} ${t('Series')}</span></span></button>
+    <button class="tile t-mov t-flix" data-go="flix">${TRACE}${ic('film')}<b>AW<span class="fxr">flix</span></b>${ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(M, 'cnt')} ${t('movies')} · ${seg(Se, 'cnt')} ${t('series')}</small>`}<span class="fxchips"><span data-go2="movies">${ic('film')} ${t('Movies')}</span><span data-go2="series">${ic('series')} ${t('Series')}</span></span></button>
     <div class="minis">
       <button class="mini" data-go="guide">${ic('guide')}<span>${t('TV guide')}</span></button>
       <button class="mini" data-go="sports">${ic('tv')}<span>${t('Games')}</span></button>

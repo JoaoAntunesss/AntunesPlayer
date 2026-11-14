@@ -532,7 +532,7 @@ html[data-style=circuit] body.pclear #chPanel{border-color:rgba(var(--ar),.14)}
 .epseen{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--acc);color:var(--onacc)}.epseen .i{width:18px;height:18px;stroke-width:2.6}
 .epp{transition:width .3s}
 html[data-style=circuit] .po .seen,html[data-style=circuit] .epseen{border-radius:4px}
-/* ---------- AntunesFlix ---------- */
+/* ---------- AWflix ---------- */
 body[data-view=flix] #vFlix{display:block;overflow:auto;padding:0 0 30px 22px}
 
 .fxlogo{font:900 26px/1 var(--fd);letter-spacing:.02em;text-transform:uppercase;color:#fff}.fxlogo span,.fxr{color:var(--fx)}
@@ -553,7 +553,7 @@ html[data-style=circuit] .t-flix{--c:var(--fx)}
 .nuacts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.nub{position:relative;overflow:hidden}.nub em{font-style:normal;font-variant-numeric:tabular-nums}.nubar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:currentColor;opacity:.5;transform-origin:left;transform:scaleX(0)}
 @media (max-width:720px){body[data-view=flix] #vFlix{padding:0 0 110px 12px}.t-flix{grid-column:1/-1}.t-flix b{font-size:28px}.fxchips{right:14px;top:14px}.fxchips span{padding:6px 10px;font-size:12px}.t10n{font-size:110px}.t10 .pc{width:110px!important}#nextUp{right:12px;left:12px;bottom:90px;max-width:none}}
 
-/* ---------- Netflix look inside AntunesFlix (red, black, white buttons) ---------- */
+/* ---------- Netflix look inside AWflix (red, black, white buttons) ---------- */
 body.fx{--acc:var(--fx);--ar:var(--fxr);--onacc:var(--fxon);--vfd:var(--fx);--bg:#141414;--surf:rgba(255,255,255,.06);--surf2:rgba(255,255,255,.12);--line:rgba(255,255,255,.1);--mut:#b3b3b3;--text:#fff}
 html[data-style] body.fx{background:#141414}
 body.fx .trace,body.fx .bgfx{display:none}
@@ -606,7 +606,7 @@ body.fx .dacts .btn,body.fx .seas button,body.fx .ep{border-radius:6px!important
 body.fx .dacts .btn:not(#dSer):not(#dPlay){background:rgba(109,109,110,.45);border-color:transparent;color:#fff}
 body.fx .chips span{border-radius:4px;background:rgba(255,255,255,.1);border-color:transparent}
 body.fx .ib{border-radius:50%!important;clip-path:none!important}
-/* ---------- AntunesFlix intro (original animation: red "A" with light rays) ---------- */
+/* ---------- AWflix intro (original animation: red "A" with light rays) ---------- */
 #fxIntro{position:fixed;inset:0;z-index:200;background:#000;display:grid;place-items:center;overflow:hidden;cursor:pointer;transition:opacity .45s}
 #fxIntro.out{opacity:0}
 .fxi-a{position:relative;z-index:2;font:900 min(42vw,46vh)/1 var(--fd);color:var(--fx);letter-spacing:-.04em;text-shadow:0 0 40px rgba(var(--fxr),.55);animation:fxiA 2.2s cubic-bezier(.6,.05,.25,1) forwards}
@@ -684,7 +684,7 @@ html.lite *{transition-duration:.08s!important}
 .catlist .oslang{margin:10px 6px 2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .splive{font-style:normal;font-size:11px;font-weight:800;background:#e50914;color:#fff;border-radius:4px;padding:1px 6px;margin-right:4px}.sports button span{display:block}
 .hprof{margin-top:8px;width:100%;justify-content:flex-start;gap:8px}.pfav{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:14px;color:#fff;font-weight:800;font-size:28px;text-shadow:0 1px 2px rgba(0,0,0,.4)}.pfav.sm{width:26px;height:26px;border-radius:7px;font-size:14px}.profs{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:14px 0}.prof{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;border-radius:14px;background:transparent;border:2px solid transparent;min-width:110px}.prof.on,.prof:focus-visible{border-color:var(--acc)}.prof small{opacity:.7}.pfc{width:34px;height:34px;border-radius:50%;border:3px solid transparent}.pfc.on{border-color:#fff}
-/* AntunesFlix title page on a TV or any landscape screen: the picture fills the screen and the details sit on the left,
+/* AWflix title page on a TV or any landscape screen: the picture fills the screen and the details sit on the left,
    like Netflix on a TV; sizes follow the screen so it looks the same on a small TV, a 4K TV or a tablet */
 @media (min-width:700px) and (min-aspect-ratio:4/3){
   body.fx[data-view=detail] #vDetail{padding-top:0}
@@ -706,7 +706,7 @@ html.lite *{transition-duration:.08s!important}
 }
 #skipIntro{position:absolute;right:clamp(18px,3vw,48px);bottom:clamp(90px,16vh,170px);z-index:9;padding:clamp(10px,1.4vh,16px) clamp(18px,1.8vw,30px);font-weight:800;font-size:clamp(14px,1.2vw,20px);background:rgba(20,20,20,.72)!important;color:#fff!important;border:2px solid rgba(255,255,255,.75)!important;border-radius:6px!important;clip-path:none!important;gap:8px}#skipIntro:focus-visible{background:#fff!important;color:#000!important}
 #qMic{display:inline-grid;place-items:center;width:34px;height:34px;margin-left:4px;border-radius:50%;background:transparent;border:0;color:inherit;flex:none;cursor:pointer}#qMic .i{width:20px;height:20px}#qMic:hover,#qMic:focus-visible{background:rgba(255,255,255,.12)}
-/* Fit every screen and orientation: the shortcuts never spill over the account box, and the AntunesFlix title fits narrow phones */
+/* Fit every screen and orientation: the shortcuts never spill over the account box, and the AWflix title fits narrow phones */
 .minis>*{min-width:0}.mini span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 @media (orientation:landscape) and (max-height:540px){
   .minis{grid-template-columns:repeat(3,1fr)}.mini span{white-space:nowrap}

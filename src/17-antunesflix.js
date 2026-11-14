@@ -1,8 +1,8 @@
-/* ---------- AntunesFlix: films and series together, organised like Netflix ---------- */
+/* ---------- AWflix: films and series together, organised like Netflix ---------- */
 Object.assign(PT, {
   'My list': 'A minha lista',
   'Top 10 today': 'Top 10 de hoje',
-  'New on AntunesFlix': 'Novidades no AntunesFlix',
+  'New on AWflix': 'Novidades no AWflix',
   'Top rated films': 'Filmes mais bem avaliados',
   'Top rated series': 'Séries mais bem avaliadas',
   'Your list is empty. Add films and series with the star.':
@@ -313,7 +313,7 @@ async function genEnrich() {
   } finally {
     genBusy = false;
   }
-  // show the new rows if the user is still at the top of AntunesFlix and not in the middle of something
+  // show the new rows if the user is still at the top of AWflix and not in the middle of something
   const box = $('#vFlix');
   if (
     got &&

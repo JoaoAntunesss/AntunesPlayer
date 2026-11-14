@@ -10,8 +10,8 @@ Object.assign(PT, {
   'Choose how to add your channels: your Xtream login, a playlist link, or the demo channels to look around.':
     'Escolhe como juntar os teus canais: o login Xtream, o link de uma lista ou os canais de demonstração para experimentar.',
   'Your films and series': 'Os teus filmes e séries',
-  'AntunesFlix puts all your films and series together, like Netflix. Tap it.':
-    'O AntunesFlix junta todos os teus filmes e séries, como na Netflix. Toca aqui.',
+  'AWflix puts all your films and series together, like Netflix. Tap it.':
+    'O AWflix junta todos os teus filmes e séries, como na Netflix. Toca aqui.',
   'The whole catalogue': 'O catálogo todo',
   'Here you see every title, a page at a time. Tap it.': 'Aqui vês todos os títulos, sem limite. Toca aqui.',
   'Sort and filter': 'Ordenar e filtrar',
@@ -48,7 +48,7 @@ var TOURS = {
     [
       '#vHome .t-flix',
       'Your films and series',
-      'AntunesFlix puts all your films and series together, like Netflix. Tap it.',
+      'AWflix puts all your films and series together, like Netflix. Tap it.',
       'click'
     ],
     [
@@ -172,7 +172,7 @@ function tourNext() {
   let tries = 0;
   clearInterval(T.wait);
   T.wait = setInterval(() => {
-    // the next screen may still be opening (and the AntunesFlix intro playing)
+    // the next screen may still be opening (and the AWflix intro playing)
     if (TOUR !== T) {
       clearInterval(T.wait);
       return;

@@ -1,8 +1,8 @@
-/* ---------- colours chosen by the person: app accent, AntunesFlix colour, digits, background ---------- */
+/* ---------- colours chosen by the person: app accent, AWflix colour, digits, background ---------- */
 Object.assign(PT, {
   Colours: 'Cores',
   'App colour (Live TV, menus, effects)': 'Cor da app (TV em direto, menus, efeitos)',
-  'AntunesFlix colour': 'Cor do AntunesFlix',
+  'AWflix colour': 'Cor do AWflix',
   'Numbers (clock and channels)': 'Números (relógio e canais)',
   'Theme default': 'Do tema',
   'Same as the app colour': 'Iguais à cor da app',

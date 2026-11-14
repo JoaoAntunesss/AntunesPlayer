@@ -658,7 +658,7 @@ with open('android/app/proguard-rules.pro', 'a', encoding='utf-8') as f:
     f.write('\n-keep class com.antunes.player.CastOpts { *; }\n-keep class com.antunes.player.DlService { *; }\n')
 print('chromecast added')
 
-# Downloads: copied to the app's own Movies folder (resumable), shown in AntunesFlix -> Downloads, played offline
+# Downloads: copied to the app's own Movies folder (resumable), shown in AWflix -> Downloads, played offline
 open(jd + 'Dl.java', 'w', encoding='utf-8').write(r"""package com.antunes.player;
 
 import android.content.Context;
@@ -823,7 +823,7 @@ public class DlService extends Service {
             if (Dl.get(this, id) == null) { f.delete(); return; } // deleted meanwhile
             d.put("size", done); d.put("total", total);
             d.put("state", STOP.contains(id) ? "stop" : (total > 0 && done >= total) ? "ok" : "err"); Dl.put(this, d);
-            if (nm != null && !STOP.contains(id)) nm.notify(id.hashCode(), note(name, "ok".equals(d.optString("state")) ? "Descarregado. Vê em AntunesFlix → Descarregados." : "Não foi possível descarregar.", -1, false));
+            if (nm != null && !STOP.contains(id)) nm.notify(id.hashCode(), note(name, "ok".equals(d.optString("state")) ? "Descarregado. Vê em AWflix → Descarregados." : "Não foi possível descarregar.", -1, false));
         } catch (Exception ignored) { }
         STOP.remove(id);
     }

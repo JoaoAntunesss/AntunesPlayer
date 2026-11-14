@@ -16,8 +16,8 @@ Object.assign(PT, {
   'No online subtitles': 'Sem legendas online',
   'Already downloaded': 'Já descarregados',
   Waiting: 'Em espera',
-  'downloads added. Follow them in AntunesFlix → Downloads.':
-    'transferências adicionadas. Acompanha em AntunesFlix → Descarregados.',
+  'downloads added. Follow them in AWflix → Downloads.':
+    'transferências adicionadas. Acompanha em AWflix → Descarregados.',
   'Online subtitles limit for today reached. The rest will be fetched tomorrow.':
     'Chegaste ao limite de legendas online de hoje. As que faltam vêm amanhã, sozinhas.',
   'No internet. Here is what you downloaded.': 'Sem internet. Aqui está o que descarregaste.',
@@ -61,8 +61,8 @@ function dlAsk(eps, title) {
       const langs = [...pick].slice(0, 3);
       for (const e of todo) await dlStart(e, true);
       if (todo.length > 1 || eps.length > 1)
-        toast(todo.length + ' ' + t('downloads added. Follow them in AntunesFlix → Downloads.'));
-      else toast(t('Download started. Follow it in AntunesFlix → Downloads.'));
+        toast(todo.length + ' ' + t('downloads added. Follow them in AWflix → Downloads.'));
+      else toast(t('Download started. Follow it in AWflix → Downloads.'));
       if (langs.length && OSK()) {
         const q = LS.get(DLQ_KEY, []);
         todo.forEach(e =>
