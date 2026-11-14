@@ -6512,7 +6512,7 @@ const imdbNorm = n =>
 async function imdbLoad() {
   if (IMDB || imdbBusy) return;
   imdbBusy = true;
-  for (const u of ['https://joaoantunesss.github.io/AntunesPlayer/data/imdb.json', 'data/imdb.json']) {
+  for (const u of ['https://player.awdigital.pt/data/imdb.json', 'data/imdb.json']) {
     try {
       const r = await fetch(u);
       if (r.ok) {
@@ -7977,7 +7977,7 @@ function pairDialog() {
     url = FB.databaseURL + '/pair/' + code + '.json',
     end = Date.now() + 10 * 60e3;
   openDlg(
-    `<h2>${ic('tv')} ${t('Sign in with a code (TV)')}</h2><p>${t('On your phone, open AWplayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="pSt">${t('Waiting for your phone…')}</p><p class="mut"><small>joaoantunesss.github.io/AntunesPlayer</small></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button></div>`
+    `<h2>${ic('tv')} ${t('Sign in with a code (TV)')}</h2><p>${t('On your phone, open AWplayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="pSt">${t('Waiting for your phone…')}</p><p class="mut"><small>player.awdigital.pt</small></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button></div>`
   );
   const stop = () => clearTimeout(pairT);
   $('#dx').onclick = () => {
@@ -8007,7 +8007,7 @@ function pairDialog() {
 /* Windows app: Google refuses to sign in inside app windows ("this browser or app may not be secure").
    The app opens the PC's own browser on the web version with a one-time code. You sign in there, and that page
    sends the Google credential back, encrypted with the code (same channel as "Send to a TV"). */
-const WEB_URL = 'https://joaoantunesss.github.io/AntunesPlayer/';
+const WEB_URL = 'https://player.awdigital.pt/';
 function desktopGoogle() {
   return new Promise((resolve, reject) => {
     const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => PAIR_ABC[b % 32]).join(''),
@@ -9016,7 +9016,7 @@ Object.assign(PT, {
 async function streamLoad() {
   if (STREAM || streamBusy) return;
   streamBusy = true;
-  for (const u of ['https://joaoantunesss.github.io/AntunesPlayer/data/streaming.json', 'data/streaming.json']) {
+  for (const u of ['https://player.awdigital.pt/data/streaming.json', 'data/streaming.json']) {
     try {
       const r = await fetch(u);
       if (r.ok) {

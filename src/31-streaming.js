@@ -36,7 +36,7 @@ Object.assign(PT, {
 async function streamLoad() {
   if (STREAM || streamBusy) return;
   streamBusy = true;
-  for (const u of ['https://joaoantunesss.github.io/AntunesPlayer/data/streaming.json', 'data/streaming.json']) {
+  for (const u of ['https://player.awdigital.pt/data/streaming.json', 'data/streaming.json']) {
     try {
       const r = await fetch(u);
       if (r.ok) {

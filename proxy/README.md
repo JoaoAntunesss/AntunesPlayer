@@ -11,5 +11,5 @@ The Android APK has no such limits. For the **web** version, deploy this tiny he
    - *Helper link*: `https://antunes-helper.<you>.workers.dev/?url={url}`
    - *Also use it for streams*: **Yes**
 
-Your IPTV login passes only through your own worker. Only `https://joaoantunesss.github.io` may use it (edit `ALLOWED` at the top of the file if your site address differs).
+Your IPTV login passes only through your own worker. Only `https://player.awdigital.pt` (and the old `https://joaoantunesss.github.io`) may use it (edit `ALLOWED` at the top of the file if your site address differs).
 Note: streaming video through a free worker counts toward Cloudflare's request limits and is best for personal use.

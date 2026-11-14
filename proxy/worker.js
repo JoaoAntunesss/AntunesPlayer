@@ -1,7 +1,7 @@
 // AntunesPlayer helper — your own tiny CORS/https bridge on Cloudflare Workers (free plan is enough to start).
 // It lets the WEB version open playlists and streams from http:// servers that block browsers.
 // Deploy it in YOUR account so your IPTV login only ever passes through you. See proxy/README.md.
-const ALLOWED = ['https://joaoantunesss.github.io', 'http://localhost:8790']; // add your own site address if different
+const ALLOWED = ['https://player.awdigital.pt', 'https://joaoantunesss.github.io', 'http://localhost:8790']; // add your own site address if different
 
 export default {
   async fetch(req) {

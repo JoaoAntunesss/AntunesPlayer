@@ -4,7 +4,7 @@ An **IPTV player** (formerly AntunesPlayer) for Android phones, **Google TV** an
 
 <p align="center"><img src="docs/antunesflix-home.jpg" width="24%" alt="AWflix"> <img src="docs/antunesflix-rows.jpg" width="24%" alt="Continue watching and Top 10"> <img src="docs/ap-home-red.jpg" width="24%" alt="Home in red"> <img src="docs/ap-live-list.jpg" width="24%" alt="Live TV list"></p>
 
-**Download:** [latest APK](https://github.com/JoaoAntunesss/AntunesPlayer/releases/latest) (Android / Google TV) · **Web:** [joaoantunesss.github.io/AntunesPlayer](https://joaoantunesss.github.io/AntunesPlayer/) · TVs can open [/tv](https://joaoantunesss.github.io/AntunesPlayer/tv/) to download it.
+**Download:** [latest APK](https://github.com/JoaoAntunesss/AntunesPlayer/releases/download/latest/AntunesPlayer.apk) (Android / Google TV) · **Web:** [player.awdigital.pt](https://player.awdigital.pt/) · TVs can open [/tv](https://player.awdigital.pt/tv/) to download it.
 
 ## What it does
 - **AWflix** — billboard, Top 10, a row per genre, My list, Continue watching across films and series, next-episode countdown, watched marks, resume “T1:E3”, Netflix-style title page, its own intro animation.

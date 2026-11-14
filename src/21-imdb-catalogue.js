@@ -15,7 +15,7 @@ const imdbNorm = n =>
 async function imdbLoad() {
   if (IMDB || imdbBusy) return;
   imdbBusy = true;
-  for (const u of ['https://joaoantunesss.github.io/AntunesPlayer/data/imdb.json', 'data/imdb.json']) {
+  for (const u of ['https://player.awdigital.pt/data/imdb.json', 'data/imdb.json']) {
     try {
       const r = await fetch(u);
       if (r.ok) {
