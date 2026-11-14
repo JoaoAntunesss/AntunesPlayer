@@ -33,7 +33,9 @@ const spin = on => {
 function showMsg(title, text, retry) {
   spin(false);
   const m = $('#msg');
-  m.innerHTML = `<b>${esc(title)}</b><p>${text}</p>${retry ? `<div><button class="btn p" id="mRetry">${t('Retry')}</button></div>` : ''}`;
+  m.innerHTML = `<b>${esc(title)}</b><p>${text}</p><div>${retry ? `<button class="btn p" id="mRetry">${t('Retry')}</button> ` : ''}<button class="btn" id="mBug">${t('Report a problem')}</button></div>`;
+  S.lastErr = (title + ' · ' + String(text).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').slice(0, 280);
+  $('#mBug').onclick = () => bugDialog();
   m.hidden = false;
   const b = $('#mRetry');
   if (b) b.onclick = () => play(S.cur, true);
@@ -119,7 +121,7 @@ Object.assign(PT, {
 });
 async function play(c, isRetry) {
   if (!c) return;
-  if (!isRetry && !planoOk()) {
+  if (!isRetry && !(await planoPode())) {
     planoShow(); // free day over and not paid
     return;
   }

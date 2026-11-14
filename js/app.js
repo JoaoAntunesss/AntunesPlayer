@@ -976,7 +976,9 @@ const spin = on => {
 function showMsg(title, text, retry) {
   spin(false);
   const m = $('#msg');
-  m.innerHTML = `<b>${esc(title)}</b><p>${text}</p>${retry ? `<div><button class="btn p" id="mRetry">${t('Retry')}</button></div>` : ''}`;
+  m.innerHTML = `<b>${esc(title)}</b><p>${text}</p><div>${retry ? `<button class="btn p" id="mRetry">${t('Retry')}</button> ` : ''}<button class="btn" id="mBug">${t('Report a problem')}</button></div>`;
+  S.lastErr = (title + ' · ' + String(text).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').slice(0, 280);
+  $('#mBug').onclick = () => bugDialog();
   m.hidden = false;
   const b = $('#mRetry');
   if (b) b.onclick = () => play(S.cur, true);
@@ -1062,7 +1064,7 @@ Object.assign(PT, {
 });
 async function play(c, isRetry) {
   if (!c) return;
-  if (!isRetry && !planoOk()) {
+  if (!isRetry && !(await planoPode())) {
     planoShow(); // free day over and not paid
     return;
   }
@@ -1613,6 +1615,7 @@ const SET_TABS = [
 ];
 const SET_MAP = {
   sAcc: 'account',
+  sBug: 'account',
   sPin: 'account',
   sStart: 'general',
   sNum: 'general',
@@ -1728,7 +1731,7 @@ function tabifySettings() {
 }
 function settingsDialog() {
   const s = S.set;
-  openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
+  openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><button class="btn" id="sBug" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('info')} ${t('Report a problem')}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
   <label>${t('When the app opens')}</label><select id="sStart"><option value="last" ${(s.startup || 'last') === 'last' ? 'selected' : ''}>${t('Last channel in full screen (favourites)')}</option><option value="home" ${s.startup === 'home' ? 'selected' : ''}>${t('Home screen')}</option></select><label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('TV mode (remote, bigger text)')}</label><select id="sTv"><option value="auto" ${(s.tvMode || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${isTvDevice() ? t('TV detected') : t('no TV detected')}</option><option value="on" ${s.tvMode === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.tvMode === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
   <label>${t('Light mode (smoother on weak TVs)')}</label><select id="sLite"><option value="auto" ${(s.lite || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${liteOn() ? t('on') : t('off')}</option><option value="on" ${s.lite === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.lite === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
@@ -1898,6 +1901,7 @@ function settingsDialog() {
   );
   $('#sOk').onclick = () => dlg.close();
   $('#sAcc').onclick = accountDialog;
+  $('#sBug').onclick = () => bugDialog();
   $('#sCats').onclick = catsDialog;
   $('#sFavs').onclick = favsDialog;
   $('#sBak').onclick = backupDialog;
@@ -9440,6 +9444,9 @@ let PLANO = LS.get('ap.plano', null), // { estado: 'gratis'|'pago'|'teste'|'paga
   planoBusy = null;
 Object.assign(PT, {
   'Your free day is over': 'O teu dia grátis acabou',
+  'Sign in to start watching': 'Entra para começares a ver',
+  'Sign in with your Google account to start your 24 free hours. Your playlists, favourites and subscription stay in the account, on every device.':
+    'Entra com a tua conta Google para começares as tuas 24 horas grátis. As tuas listas, favoritos e subscrição ficam na conta, em todos os aparelhos.',
   'AWplayer costs 1 € a month. You can cancel whenever you want.':
     'O AWplayer custa 1 € por mês, ou 10 € por ano (dois meses grátis). Cancelas quando quiseres.',
   '10 € a year': '10 € por ano',
@@ -9469,19 +9476,61 @@ const planoFmt = ms =>
     hour: '2-digit',
     minute: '2-digit'
   });
-// can watch now?
-function planoOk() {
-  const now = Date.now(),
-    p = PLANO;
-  if (p && now - p.t < 7 * 86400e3 && (!C.user || !p.uid || p.uid === C.user.uid)) {
-    if (p.estado === 'gratis') return true;
-    if (p.estado === 'pago') return !p.ate || p.ate > now - 3 * 86400e3;
-    if (p.estado === 'teste') return p.fimTeste > now;
+/* The server signs its answer (ECDSA P-256) for this account and this device, valid until "x" (at most 3 days ahead,
+   or the end of the free day). Only a signed answer unlocks the app: editing what is saved on the device does nothing. */
+const PLANO_KEY = {
+  kty: 'EC',
+  crv: 'P-256',
+  x: 'AEtPOwcg3a3u9zpnVB2kdU61vBXrbn-D7L7xlpTpXPA',
+  y: 'TySk6YCt5kn0jNtm9F25FglDds32SM6roEydzGEVRCo'
+};
+let planoKeyP = null,
+  PLANO_V = null; // the verified answer: { u: account, d: device, e: state, x: valid until }
+const b64uDec = s => {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(s + '='.repeat((4 - (s.length % 4)) % 4)), c => c.charCodeAt(0));
+};
+async function planoVerify(tok) {
+  try {
+    if (!tok || !(window.crypto && crypto.subtle)) return null;
+    const [c, s] = String(tok).split('.');
+    planoKeyP =
+      planoKeyP || crypto.subtle.importKey('jwk', PLANO_KEY, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const ok = await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      await planoKeyP,
+      b64uDec(s),
+      new TextEncoder().encode(c)
+    );
+    return ok ? JSON.parse(new TextDecoder().decode(b64uDec(c))) : null;
+  } catch (e) {
+    return null;
   }
-  if (!C.user) return now < planoIni + PLANO_TESTE; // not signed in: the device's own free day
-  if (p && p.estado === 'limite' && now - p.t < 7 * 86400e3) return false; // the account is on too many devices
-  return !p || p.estado !== 'pagar' ? now < planoIni + PLANO_TESTE : false;
 }
+// can watch now? (a Google account is needed: the free day and the subscription belong to the account)
+function planoOk() {
+  const v = PLANO_V;
+  return !!(
+    C.user &&
+    v &&
+    v.u === C.user.uid &&
+    v.d === C.dev &&
+    v.x > Date.now() &&
+    ['gratis', 'pago', 'teste'].includes(v.e)
+  );
+}
+// before playing: wait for the saved sign-in to come back, ask the server if needed
+async function planoPode() {
+  if (planoOk()) return true;
+  if (!C.user && LS.get('ap.cloudUid', ''))
+    for (let i = 0; i < 30 && !C.user; i++) await new Promise(r => setTimeout(r, 200));
+  if (!C.user) return false;
+  if (!PLANO_V && PLANO) PLANO_V = await planoVerify(PLANO.token);
+  if (planoOk()) return true;
+  await planoCheck();
+  return planoOk();
+}
+planoVerify(PLANO && PLANO.token).then(v => (PLANO_V = PLANO_V || v));
 // how this device appears in the account's list of devices
 const planoDevName = () => {
   const ua = navigator.userAgent;
@@ -9510,9 +9559,10 @@ function planoCheck(pago) {
   if (!C.user || !navigator.onLine) return Promise.resolve(PLANO);
   if (planoBusy && !pago) return planoBusy;
   planoBusy = planoCall('playerEstado', pago ? { pago: 1 } : null)
-    .then(j => {
+    .then(async j => {
       PLANO = Object.assign(j, { t: Date.now(), uid: C.user.uid });
       LS.set('ap.plano', PLANO);
+      PLANO_V = await planoVerify(j.token);
       if (!planoOk() && S.cur && !v.paused) {
         stopPlayback();
         planoShow();
@@ -9532,8 +9582,13 @@ function planoShow() {
     tv = !!S.set.tv;
   if (u && PLANO && PLANO.estado === 'limite') return planoDevices();
   openDlg(
-    `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AWplayer costs 1 € a month. You can cancel whenever you want.')}</p>
-    ${u ? (tv ? `<p class="mut">${t('Pay on your phone: open AWplayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : '') : `<p class="mut">${t('Sign in with your Google account to pay, so the subscription works on all your devices.')}</p>`}
+    `${
+      u
+        ? `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AWplayer costs 1 € a month. You can cancel whenever you want.')}</p>
+    ${tv ? `<p class="mut">${t('Pay on your phone: open AWplayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : ''}`
+        : `<h2>${ic('user')} ${t('Sign in to start watching')}</h2><p>${t('Sign in with your Google account to start your 24 free hours. Your playlists, favourites and subscription stay in the account, on every device.')}</p>
+    <p class="mut">${t('AWplayer costs 1 € a month. You can cancel whenever you want.')}</p>`
+    }
     <p class="mut" id="plSt" aria-live="polite">${u ? t('Signed in as') + ' <b>' + esc(u.email || '') + '</b>' : ''}</p>
     <div class="row" style="flex-wrap:wrap">${
       u
@@ -9659,7 +9714,7 @@ function planoLinha() {
   const p = PLANO,
     now = Date.now();
   if (!C.user || !p)
-    return `<p class="mut">${t('Free time left')}: ${Math.max(0, Math.ceil((planoIni + PLANO_TESTE - now) / 3600e3))} h</p>`;
+    return `<p class="mut">${t('Sign in with your Google account to start your 24 free hours. Your playlists, favourites and subscription stay in the account, on every device.')}</p>`;
   const txt =
     p.estado === 'gratis'
       ? t('Free account')
@@ -9845,4 +9900,85 @@ setTimeout(async () => {
   dlOffline();
   dlSubsRun();
 }, 2500);
+
+// ===== src/36-suporte.js =====
+/* ---------- report a problem: goes straight to the AWplayer support list (AW panel) and to João on Telegram ----------
+   Sends what the person wrote plus a short diagnosis of the app. Never the playlist links or logins. */
+Object.assign(PT, {
+  'Report a problem': 'Reportar um problema',
+  'What happened? Tell us what you were doing and what went wrong.':
+    'O que aconteceu? Diz o que estavas a fazer e o que correu mal.',
+  'How can we reply? (optional)': 'Como te respondemos? (opcional)',
+  'Email or phone': 'Email ou telemóvel',
+  'Sent with it: app version, device, the screen you were on and the last error. Never your playlist links or logins.':
+    'Vai junto: versão da app, aparelho, o ecrã onde estavas e o último erro. Nunca os links nem os logins das tuas listas.',
+  Send: 'Enviar',
+  'Sending…': 'A enviar…',
+  'Thank you! We will look into it.': 'Obrigado! Vamos ver o que se passa.',
+  'Could not send. Check the internet and try again.': 'Não deu para enviar. Confirma a internet e tenta outra vez.',
+  'Write a little more about the problem.': 'Escreve um pouco mais sobre o problema.'
+});
+function bugDiag() {
+  const c = S.cur,
+    src = typeof curSrc === 'function' ? curSrc() : null;
+  return {
+    app:
+      'AWplayer build ' +
+      (BUILD || 'web') +
+      (NATIVE ? ' · Android' : DESKTOP ? ' · Windows' : ' · web') +
+      (S.set.tv ? ' · TV' : ''),
+    aparelho: planoDevName(),
+    navegador: navigator.userAgent.slice(0, 160),
+    ecra: (S.view || '') + (fsOn ? ' · ecrã inteiro' : ''),
+    lista: src ? (src.type === 'xtream' ? 'Xtream' : 'M3U') : 'nenhuma',
+    a_ver: c ? `${c.kind || ''}: ${String(c.name || '').slice(0, 80)}${c.local ? ' (descarregado)' : ''}` : '',
+    motor: typeof NV !== 'undefined' && NV.on ? 'nativo (ExoPlayer)' : 'web',
+    erro: S.lastErr || '',
+    rede: navigator.onLine ? 'online' : 'sem internet',
+    subscricao: PLANO ? PLANO.estado || '' : ''
+  };
+}
+function bugDialog() {
+  const d = bugDiag();
+  openDlg(
+    `<h2>${ic('info')} ${t('Report a problem')}</h2>
+    <label for="bgTx">${t('What happened? Tell us what you were doing and what went wrong.')}</label>
+    <textarea id="bgTx" rows="5" maxlength="3000" style="width:100%"></textarea>
+    <label for="bgCt">${t('How can we reply? (optional)')}</label>
+    <input id="bgCt" maxlength="120" placeholder="${t('Email or phone')}" value="${esc((C.user && C.user.email) || '')}">
+    <p class="mut"><small>${t('Sent with it: app version, device, the screen you were on and the last error. Never your playlist links or logins.')}</small></p>
+    <p class="mut" id="bgSt" aria-live="polite">${d.erro ? '<small>' + esc(d.erro) + '</small>' : ''}</p>
+    <div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="bgGo">${t('Send')}</button></div>`
+  );
+  $('#dx').onclick = () => dlg.close();
+  $('#bgTx').focus();
+  $('#bgGo').onclick = async () => {
+    const tx = $('#bgTx').value.trim(),
+      st = $('#bgSt');
+    if (tx.length < 5) {
+      st.textContent = t('Write a little more about the problem.');
+      return;
+    }
+    $('#bgGo').disabled = true;
+    st.textContent = t('Sending…');
+    try {
+      const h = { 'Content-Type': 'application/json' };
+      if (C.user) h.Authorization = 'Bearer ' + (await C.user.getIdToken());
+      const r = await fetch(PLANO_API + 'playerSuporte', {
+        method: 'POST',
+        headers: h,
+        body: JSON.stringify({ texto: tx, contacto: $('#bgCt').value.trim(), dev: C.dev, diag: d })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.erro || 'HTTP ' + r.status);
+      dlg.close();
+      toast(t('Thank you! We will look into it.'));
+    } catch (e) {
+      $('#bgGo').disabled = false;
+      st.textContent =
+        (e && e.message && !/fetch|network/i.test(e.message) ? e.message + ' · ' : '') +
+        t('Could not send. Check the internet and try again.');
+    }
+  };
+}
 })();

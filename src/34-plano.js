@@ -11,6 +11,9 @@ let PLANO = LS.get('ap.plano', null), // { estado: 'gratis'|'pago'|'teste'|'paga
   planoBusy = null;
 Object.assign(PT, {
   'Your free day is over': 'O teu dia grátis acabou',
+  'Sign in to start watching': 'Entra para começares a ver',
+  'Sign in with your Google account to start your 24 free hours. Your playlists, favourites and subscription stay in the account, on every device.':
+    'Entra com a tua conta Google para começares as tuas 24 horas grátis. As tuas listas, favoritos e subscrição ficam na conta, em todos os aparelhos.',
   'AWplayer costs 1 € a month. You can cancel whenever you want.':
     'O AWplayer custa 1 € por mês, ou 10 € por ano (dois meses grátis). Cancelas quando quiseres.',
   '10 € a year': '10 € por ano',
@@ -40,19 +43,61 @@ const planoFmt = ms =>
     hour: '2-digit',
     minute: '2-digit'
   });
-// can watch now?
-function planoOk() {
-  const now = Date.now(),
-    p = PLANO;
-  if (p && now - p.t < 7 * 86400e3 && (!C.user || !p.uid || p.uid === C.user.uid)) {
-    if (p.estado === 'gratis') return true;
-    if (p.estado === 'pago') return !p.ate || p.ate > now - 3 * 86400e3;
-    if (p.estado === 'teste') return p.fimTeste > now;
+/* The server signs its answer (ECDSA P-256) for this account and this device, valid until "x" (at most 3 days ahead,
+   or the end of the free day). Only a signed answer unlocks the app: editing what is saved on the device does nothing. */
+const PLANO_KEY = {
+  kty: 'EC',
+  crv: 'P-256',
+  x: 'AEtPOwcg3a3u9zpnVB2kdU61vBXrbn-D7L7xlpTpXPA',
+  y: 'TySk6YCt5kn0jNtm9F25FglDds32SM6roEydzGEVRCo'
+};
+let planoKeyP = null,
+  PLANO_V = null; // the verified answer: { u: account, d: device, e: state, x: valid until }
+const b64uDec = s => {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(s + '='.repeat((4 - (s.length % 4)) % 4)), c => c.charCodeAt(0));
+};
+async function planoVerify(tok) {
+  try {
+    if (!tok || !(window.crypto && crypto.subtle)) return null;
+    const [c, s] = String(tok).split('.');
+    planoKeyP =
+      planoKeyP || crypto.subtle.importKey('jwk', PLANO_KEY, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const ok = await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      await planoKeyP,
+      b64uDec(s),
+      new TextEncoder().encode(c)
+    );
+    return ok ? JSON.parse(new TextDecoder().decode(b64uDec(c))) : null;
+  } catch (e) {
+    return null;
   }
-  if (!C.user) return now < planoIni + PLANO_TESTE; // not signed in: the device's own free day
-  if (p && p.estado === 'limite' && now - p.t < 7 * 86400e3) return false; // the account is on too many devices
-  return !p || p.estado !== 'pagar' ? now < planoIni + PLANO_TESTE : false;
 }
+// can watch now? (a Google account is needed: the free day and the subscription belong to the account)
+function planoOk() {
+  const v = PLANO_V;
+  return !!(
+    C.user &&
+    v &&
+    v.u === C.user.uid &&
+    v.d === C.dev &&
+    v.x > Date.now() &&
+    ['gratis', 'pago', 'teste'].includes(v.e)
+  );
+}
+// before playing: wait for the saved sign-in to come back, ask the server if needed
+async function planoPode() {
+  if (planoOk()) return true;
+  if (!C.user && LS.get('ap.cloudUid', ''))
+    for (let i = 0; i < 30 && !C.user; i++) await new Promise(r => setTimeout(r, 200));
+  if (!C.user) return false;
+  if (!PLANO_V && PLANO) PLANO_V = await planoVerify(PLANO.token);
+  if (planoOk()) return true;
+  await planoCheck();
+  return planoOk();
+}
+planoVerify(PLANO && PLANO.token).then(v => (PLANO_V = PLANO_V || v));
 // how this device appears in the account's list of devices
 const planoDevName = () => {
   const ua = navigator.userAgent;
@@ -81,9 +126,10 @@ function planoCheck(pago) {
   if (!C.user || !navigator.onLine) return Promise.resolve(PLANO);
   if (planoBusy && !pago) return planoBusy;
   planoBusy = planoCall('playerEstado', pago ? { pago: 1 } : null)
-    .then(j => {
+    .then(async j => {
       PLANO = Object.assign(j, { t: Date.now(), uid: C.user.uid });
       LS.set('ap.plano', PLANO);
+      PLANO_V = await planoVerify(j.token);
       if (!planoOk() && S.cur && !v.paused) {
         stopPlayback();
         planoShow();
@@ -103,8 +149,13 @@ function planoShow() {
     tv = !!S.set.tv;
   if (u && PLANO && PLANO.estado === 'limite') return planoDevices();
   openDlg(
-    `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AWplayer costs 1 € a month. You can cancel whenever you want.')}</p>
-    ${u ? (tv ? `<p class="mut">${t('Pay on your phone: open AWplayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : '') : `<p class="mut">${t('Sign in with your Google account to pay, so the subscription works on all your devices.')}</p>`}
+    `${
+      u
+        ? `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AWplayer costs 1 € a month. You can cancel whenever you want.')}</p>
+    ${tv ? `<p class="mut">${t('Pay on your phone: open AWplayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : ''}`
+        : `<h2>${ic('user')} ${t('Sign in to start watching')}</h2><p>${t('Sign in with your Google account to start your 24 free hours. Your playlists, favourites and subscription stay in the account, on every device.')}</p>
+    <p class="mut">${t('AWplayer costs 1 € a month. You can cancel whenever you want.')}</p>`
+    }
     <p class="mut" id="plSt" aria-live="polite">${u ? t('Signed in as') + ' <b>' + esc(u.email || '') + '</b>' : ''}</p>
     <div class="row" style="flex-wrap:wrap">${
       u
@@ -230,7 +281,7 @@ function planoLinha() {
   const p = PLANO,
     now = Date.now();
   if (!C.user || !p)
-    return `<p class="mut">${t('Free time left')}: ${Math.max(0, Math.ceil((planoIni + PLANO_TESTE - now) / 3600e3))} h</p>`;
+    return `<p class="mut">${t('Sign in with your Google account to start your 24 free hours. Your playlists, favourites and subscription stay in the account, on every device.')}</p>`;
   const txt =
     p.estado === 'gratis'
       ? t('Free account')

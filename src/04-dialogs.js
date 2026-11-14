@@ -97,6 +97,7 @@ const SET_TABS = [
 ];
 const SET_MAP = {
   sAcc: 'account',
+  sBug: 'account',
   sPin: 'account',
   sStart: 'general',
   sNum: 'general',
@@ -212,7 +213,7 @@ function tabifySettings() {
 }
 function settingsDialog() {
   const s = S.set;
-  openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
+  openDlg(`<h2>${ic('gear')} ${t('Settings')}</h2><button class="btn" id="sAcc" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('user')} ${t('Google account')}${C.user ? ' · ' + esc(C.user.email || '') : ''}</button><button class="btn" id="sBug" style="width:100%;justify-content:flex-start;margin-bottom:6px">${ic('info')} ${t('Report a problem')}</button><label>${t('Style')}</label><select id="sStyle"><option value="circuit" ${(s.style || 'circuit') === 'circuit' ? 'selected' : ''}>${t('Circuit (electronic)')}</option><option value="soft" ${s.style === 'soft' ? 'selected' : ''}>${t('Soft')}</option></select><label>${t('Theme')}</label><select id="sTheme">${THEMES.map(x => `<option value="${x[0]}" ${s.theme === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>
   <label>${t('When the app opens')}</label><select id="sStart"><option value="last" ${(s.startup || 'last') === 'last' ? 'selected' : ''}>${t('Last channel in full screen (favourites)')}</option><option value="home" ${s.startup === 'home' ? 'selected' : ''}>${t('Home screen')}</option></select><label>${t('Number keys jump to')}</label><select id="sNum"><option value="chno" ${s.numberMode === 'chno' ? 'selected' : ''}>${t('Channel numbers from the playlist')}</option><option value="favs" ${s.numberMode === 'favs' ? 'selected' : ''}>${t('My favourites, in order')}</option></select>
   <label>${t('TV mode (remote, bigger text)')}</label><select id="sTv"><option value="auto" ${(s.tvMode || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${isTvDevice() ? t('TV detected') : t('no TV detected')}</option><option value="on" ${s.tvMode === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.tvMode === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
   <label>${t('Light mode (smoother on weak TVs)')}</label><select id="sLite"><option value="auto" ${(s.lite || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${liteOn() ? t('on') : t('off')}</option><option value="on" ${s.lite === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.lite === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
@@ -382,6 +383,7 @@ function settingsDialog() {
   );
   $('#sOk').onclick = () => dlg.close();
   $('#sAcc').onclick = accountDialog;
+  $('#sBug').onclick = () => bugDialog();
   $('#sCats').onclick = catsDialog;
   $('#sFavs').onclick = favsDialog;
   $('#sBak').onclick = backupDialog;
