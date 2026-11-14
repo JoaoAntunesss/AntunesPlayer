@@ -76,6 +76,7 @@ async function planoVerify(tok) {
 }
 // can watch now? (a Google account is needed: the free day and the subscription belong to the account)
 function planoOk() {
+  if (window.AP_TEST) return true; // automatic emulator test build only (set by native-player-test.yml)
   const v = PLANO_V;
   return !!(
     C.user &&

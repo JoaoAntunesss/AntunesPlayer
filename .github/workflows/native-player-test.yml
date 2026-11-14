@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - run: npm install
+      - name: Test build only (the automatic test plays without a Google account; release builds never have this)
+        run: echo 'window.AP_BUILD = 0; window.AP_TEST = true;' > js/build.js
       - run: node scripts/prepare-www.mjs
       - run: npx cap add android
       - run: pip install pillow && NATIVE_TEST=1 python scripts/android_patch.py
