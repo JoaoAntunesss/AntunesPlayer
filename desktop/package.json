@@ -2,7 +2,7 @@
   "name": "antunesplayer-desktop",
   "productName": "AntunesPlayer",
   "version": "1.0.0",
-  "description": "AntunesPlayer para Windows",
+  "description": "AWplayer para Windows",
   "author": "João Antunes",
   "main": "main.js",
   "license": "MIT",
@@ -14,6 +14,6 @@
     "directories": { "output": "dist", "buildResources": "build" },
     "win": { "icon": "build/icon.png" },
     "portable": { "artifactName": "AntunesPlayer-portatil.exe" },
-    "nsis": { "artifactName": "AntunesPlayer-instalador.exe", "oneClick": false, "allowToChangeInstallationDirectory": true, "shortcutName": "AntunesPlayer" }
+    "nsis": { "artifactName": "AntunesPlayer-instalador.exe", "oneClick": false, "allowToChangeInstallationDirectory": true, "shortcutName": "AWplayer" }
   }
 }

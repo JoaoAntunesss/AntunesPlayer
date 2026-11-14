@@ -105,7 +105,7 @@ const TRACE =
 function renderHome() {
   const box = $('#vHome');
   if (!S.sources.length) {
-    box.innerHTML = `<div class="welcome"><div class="wmark">${ic('tv')}</div><h2>${t('Welcome to AntunesPlayer')}</h2><p>${t('AntunesPlayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.')}</p>
+    box.innerHTML = `<div class="welcome"><div class="wmark">${ic('tv')}</div><h2>${t('Welcome to AWplayer')}</h2><p>${t('AWplayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.')}</p>
     <div class="wacts"><button class="btn p big" id="wX">${ic('user')} ${t('Xtream login')}</button><button class="btn big" id="wU">${ic('plus')} ${t('Add a playlist')}</button><button class="btn big ghost" id="wD">${ic('play')} ${t('Try demo channels')}</button><button class="btn big ghost" id="wS">${ic('gear')} ${t('Settings')}</button></div>${C.user ? `<p class="mut">${ic('user')} ${t('Signed in as')} <b>${esc(C.user.email || '')}</b> · ${t('Synced')}. ${t('Playlists you add here are saved to your account.')}</p>` : `<div class="wacts"><button class="btn big" id="wG">${ic('user')} ${t('Sign in with Google')}</button><button class="btn big ghost" id="wC">${ic('tv')} ${t('Sign in with a code (TV)')}</button></div><p class="mut">${t('Your playlists are already in your Google account. Sign in to get them back.')}</p>`}</div>`;
     tourMaybe('welcome');
     $('#wX').onclick = () => addDialog('xt');

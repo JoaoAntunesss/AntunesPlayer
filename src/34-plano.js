@@ -11,8 +11,8 @@ let PLANO = LS.get('ap.plano', null), // { estado: 'gratis'|'pago'|'teste'|'paga
   planoBusy = null;
 Object.assign(PT, {
   'Your free day is over': 'O teu dia grátis acabou',
-  'AntunesPlayer costs 1 € a month. You can cancel whenever you want.':
-    'O AntunesPlayer custa 1 € por mês, ou 10 € por ano (dois meses grátis). Cancelas quando quiseres.',
+  'AWplayer costs 1 € a month. You can cancel whenever you want.':
+    'O AWplayer custa 1 € por mês, ou 10 € por ano (dois meses grátis). Cancelas quando quiseres.',
   '10 € a year': '10 € por ano',
   'Sign in with your Google account to pay, so the subscription works on all your devices.':
     'Entra com a tua conta Google para pagares. Assim a subscrição funciona em todos os teus aparelhos.',
@@ -22,8 +22,8 @@ Object.assign(PT, {
   'Payment not found yet. If you just paid, wait a minute and try again.':
     'Ainda não encontrei o pagamento. Se acabaste de pagar, espera um minuto e tenta outra vez.',
   'Thank you! Enjoy.': 'Obrigado! Bom proveito.',
-  'Pay on your phone: open AntunesPlayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.':
-    'Paga no telemóvel: abre lá o AntunesPlayer com a mesma conta Google e carrega em “Pagar 1 € por mês”. Depois carrega aqui em “Já paguei”.',
+  'Pay on your phone: open AWplayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.':
+    'Paga no telemóvel: abre lá o AWplayer com a mesma conta Google e carrega em “Pagar 1 € por mês”. Depois carrega aqui em “Já paguei”.',
   Subscription: 'Subscrição',
   'Free account': 'Conta grátis',
   'Active until': 'Ativa até',
@@ -103,8 +103,8 @@ function planoShow() {
     tv = !!S.set.tv;
   if (u && PLANO && PLANO.estado === 'limite') return planoDevices();
   openDlg(
-    `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AntunesPlayer costs 1 € a month. You can cancel whenever you want.')}</p>
-    ${u ? (tv ? `<p class="mut">${t('Pay on your phone: open AntunesPlayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : '') : `<p class="mut">${t('Sign in with your Google account to pay, so the subscription works on all your devices.')}</p>`}
+    `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AWplayer costs 1 € a month. You can cancel whenever you want.')}</p>
+    ${u ? (tv ? `<p class="mut">${t('Pay on your phone: open AWplayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : '') : `<p class="mut">${t('Sign in with your Google account to pay, so the subscription works on all your devices.')}</p>`}
     <p class="mut" id="plSt" aria-live="polite">${u ? t('Signed in as') + ' <b>' + esc(u.email || '') + '</b>' : ''}</p>
     <div class="row" style="flex-wrap:wrap">${
       u

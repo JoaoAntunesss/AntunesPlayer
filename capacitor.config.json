@@ -1,6 +1,6 @@
 {
   "appId": "com.antunes.player",
-  "appName": "AntunesPlayer",
+  "appName": "AWplayer",
   "webDir": "www",
   "server": {
     "androidScheme": "http",

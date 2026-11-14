@@ -34,9 +34,9 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk AntunesPlayer.apk
           if gh release view latest >/dev/null 2>&1; then
             gh release upload latest AntunesPlayer.apk --clobber
-            gh release edit latest --title "AntunesPlayer build ${{ github.run_number }}" --prerelease
+            gh release edit latest --title "AWplayer build ${{ github.run_number }}" --prerelease
           else
-            gh release create latest AntunesPlayer.apk --prerelease --title "AntunesPlayer build ${{ github.run_number }}" --notes "Android / Android TV app. Install the APK (allow installs from this source). Updates replace the previous version."
+            gh release create latest AntunesPlayer.apk --prerelease --title "AWplayer build ${{ github.run_number }}" --notes "Android / Android TV app. Install the APK (allow installs from this source). Updates replace the previous version."
           fi
       - uses: actions/upload-artifact@v4
         with: { name: AntunesPlayer-apk, path: AntunesPlayer.apk }

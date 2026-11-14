@@ -1,6 +1,6 @@
-# AntunesPlayer
+# AWplayer
 
-An **IPTV player** for Android phones, **Google TV** and the browser — with **AntunesFlix** inside: films and series organised like a streaming service. Bring your own Xtream login or M3U playlist; AntunesPlayer comes with **no channels**.
+An **IPTV player** (formerly AntunesPlayer) for Android phones, **Google TV** and the browser — with **AntunesFlix** inside: films and series organised like a streaming service. Bring your own Xtream login or M3U playlist; AWplayer comes with **no channels**.
 
 <p align="center"><img src="docs/antunesflix-home.jpg" width="24%" alt="AntunesFlix"> <img src="docs/antunesflix-rows.jpg" width="24%" alt="Continue watching and Top 10"> <img src="docs/ap-home-red.jpg" width="24%" alt="Home in red"> <img src="docs/ap-live-list.jpg" width="24%" alt="Live TV list"></p>
 
@@ -44,9 +44,9 @@ Open the page, press **Add playlist**, paste your link (or *Try demo channels* f
 ## Good to know (honest limits)
 Browsers are stricter than VLC or Kodi:
 - The server must allow web pages to read it (**CORS**). If a playlist fails with a network error, use the *helper link* in Settings (a small CORS proxy you control: `https://your-helper.example/?url={url}`).
-- If AntunesPlayer is served over `https`, streams must be `https` too (mixed content is blocked).
+- If AWplayer is served over `https`, streams must be `https` too (mixed content is blocked).
 - Recording uses the browser's MediaRecorder and only works for streams the page is allowed to capture.
-- AntunesPlayer only plays what you give it. Use playlists you are entitled to watch.
+- AWplayer only plays what you give it. Use playlists you are entitled to watch.
 
 ## Host it
 Any static host works: GitHub Pages (branch `main`, root) or Firebase Hosting (`firebase deploy`).

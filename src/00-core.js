@@ -48,9 +48,9 @@ const PT = {
   'TV guide link (XMLTV, optional)': 'Link do guia de programação (XMLTV, opcional)',
   'Playlist text': 'Texto da lista',
   'or choose a file': 'ou escolhe um ficheiro',
-  'Welcome to AntunesPlayer': 'Bem-vindo ao AntunesPlayer',
-  'AntunesPlayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.':
-    'O AntunesPlayer reproduz as listas que lhe deres — não traz canais. Adiciona a tua lista ou experimenta com emissões de teste gratuitas.',
+  'Welcome to AWplayer': 'Bem-vindo ao AWplayer',
+  'AWplayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.':
+    'O AWplayer reproduz as listas que lhe deres — não traz canais. Adiciona a tua lista ou experimenta com emissões de teste gratuitas.',
   'Try demo channels': 'Experimentar canais de demonstração',
   'Nothing found': 'Nada encontrado',
   'Show more': 'Mostrar mais',

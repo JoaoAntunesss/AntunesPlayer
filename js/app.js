@@ -53,9 +53,9 @@ const PT = {
   'TV guide link (XMLTV, optional)': 'Link do guia de programação (XMLTV, opcional)',
   'Playlist text': 'Texto da lista',
   'or choose a file': 'ou escolhe um ficheiro',
-  'Welcome to AntunesPlayer': 'Bem-vindo ao AntunesPlayer',
-  'AntunesPlayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.':
-    'O AntunesPlayer reproduz as listas que lhe deres — não traz canais. Adiciona a tua lista ou experimenta com emissões de teste gratuitas.',
+  'Welcome to AWplayer': 'Bem-vindo ao AWplayer',
+  'AWplayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.':
+    'O AWplayer reproduz as listas que lhe deres — não traz canais. Adiciona a tua lista ou experimenta com emissões de teste gratuitas.',
   'Try demo channels': 'Experimentar canais de demonstração',
   'Nothing found': 'Nada encontrado',
   'Show more': 'Mostrar mais',
@@ -3103,7 +3103,7 @@ const TRACE =
 function renderHome() {
   const box = $('#vHome');
   if (!S.sources.length) {
-    box.innerHTML = `<div class="welcome"><div class="wmark">${ic('tv')}</div><h2>${t('Welcome to AntunesPlayer')}</h2><p>${t('AntunesPlayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.')}</p>
+    box.innerHTML = `<div class="welcome"><div class="wmark">${ic('tv')}</div><h2>${t('Welcome to AWplayer')}</h2><p>${t('AWplayer plays the streams you give it — it comes with no channels. Add your own playlist, or look around with free test streams.')}</p>
     <div class="wacts"><button class="btn p big" id="wX">${ic('user')} ${t('Xtream login')}</button><button class="btn big" id="wU">${ic('plus')} ${t('Add a playlist')}</button><button class="btn big ghost" id="wD">${ic('play')} ${t('Try demo channels')}</button><button class="btn big ghost" id="wS">${ic('gear')} ${t('Settings')}</button></div>${C.user ? `<p class="mut">${ic('user')} ${t('Signed in as')} <b>${esc(C.user.email || '')}</b> · ${t('Synced')}. ${t('Playlists you add here are saved to your account.')}</p>` : `<div class="wacts"><button class="btn big" id="wG">${ic('user')} ${t('Sign in with Google')}</button><button class="btn big ghost" id="wC">${ic('tv')} ${t('Sign in with a code (TV)')}</button></div><p class="mut">${t('Your playlists are already in your Google account. Sign in to get them back.')}</p>`}</div>`;
     tourMaybe('welcome');
     $('#wX').onclick = () => addDialog('xt');
@@ -7597,8 +7597,8 @@ Object.assign(PT, {
   'Code shown on the TV': 'Código que aparece na TV',
   'Sent. Look at the TV.': 'Enviado. Olha para a TV.',
   'The code has 8 letters/numbers': 'O código tem 8 letras/números',
-  'On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:':
-    'No telemóvel, abre o AntunesPlayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:',
+  'On your phone, open AWplayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:':
+    'No telemóvel, abre o AWplayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:',
   'Waiting for your phone…': 'À espera do telemóvel…',
   'The code expired. Open it again for a new one.': 'O código expirou. Abre outra vez para teres um novo.',
   'Playlists in your account': 'Listas na tua conta',
@@ -7975,7 +7975,7 @@ function pairDialog() {
     url = FB.databaseURL + '/pair/' + code + '.json',
     end = Date.now() + 10 * 60e3;
   openDlg(
-    `<h2>${ic('tv')} ${t('Sign in with a code (TV)')}</h2><p>${t('On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="pSt">${t('Waiting for your phone…')}</p><p class="mut"><small>joaoantunesss.github.io/AntunesPlayer</small></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button></div>`
+    `<h2>${ic('tv')} ${t('Sign in with a code (TV)')}</h2><p>${t('On your phone, open AWplayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="pSt">${t('Waiting for your phone…')}</p><p class="mut"><small>joaoantunesss.github.io/AntunesPlayer</small></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button></div>`
   );
   const stop = () => clearTimeout(pairT);
   $('#dx').onclick = () => {
@@ -8070,7 +8070,7 @@ function desktopGoogle() {
 // web version opened by the Windows app: sign in here and send the credential to the PC
 function loginPcDialog(code) {
   openDlg(
-    `<h2>${ic('user')} ${t('Sign in on the PC app')}</h2><p>${t('Sign in with Google here to finish signing in on AntunesPlayer for Windows. Check that the code is the same as on the PC:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="lpSt"></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="lpGo">${ic('user')} ${t('Continue with Google')}</button></div>`
+    `<h2>${ic('user')} ${t('Sign in on the PC app')}</h2><p>${t('Sign in with Google here to finish signing in on AWplayer for Windows. Check that the code is the same as on the PC:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="lpSt"></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="lpGo">${ic('user')} ${t('Continue with Google')}</button></div>`
   );
   $('#dx').onclick = () => dlg.close();
   $('#lpGo').onclick = async () => {
@@ -8109,8 +8109,8 @@ Object.assign(PT, {
   'Open the browser again': 'Abrir o navegador outra vez',
   'Signing in…': 'A entrar…',
   'Sign in on the PC app': 'Entrar na app do PC',
-  'Sign in with Google here to finish signing in on AntunesPlayer for Windows. Check that the code is the same as on the PC:':
-    'Entra com a Google aqui para acabares de entrar no AntunesPlayer para Windows. Confirma que o código é igual ao do PC:',
+  'Sign in with Google here to finish signing in on AWplayer for Windows. Check that the code is the same as on the PC:':
+    'Entra com a Google aqui para acabares de entrar no AWplayer para Windows. Confirma que o código é igual ao do PC:',
   'Continue with Google': 'Continuar com a Google',
   'You can go back to the PC app: it is signing in now. You can close this tab.':
     'Podes voltar à app do PC: já está a entrar. Podes fechar este separador.'
@@ -9441,8 +9441,8 @@ let PLANO = LS.get('ap.plano', null), // { estado: 'gratis'|'pago'|'teste'|'paga
   planoBusy = null;
 Object.assign(PT, {
   'Your free day is over': 'O teu dia grátis acabou',
-  'AntunesPlayer costs 1 € a month. You can cancel whenever you want.':
-    'O AntunesPlayer custa 1 € por mês, ou 10 € por ano (dois meses grátis). Cancelas quando quiseres.',
+  'AWplayer costs 1 € a month. You can cancel whenever you want.':
+    'O AWplayer custa 1 € por mês, ou 10 € por ano (dois meses grátis). Cancelas quando quiseres.',
   '10 € a year': '10 € por ano',
   'Sign in with your Google account to pay, so the subscription works on all your devices.':
     'Entra com a tua conta Google para pagares. Assim a subscrição funciona em todos os teus aparelhos.',
@@ -9452,8 +9452,8 @@ Object.assign(PT, {
   'Payment not found yet. If you just paid, wait a minute and try again.':
     'Ainda não encontrei o pagamento. Se acabaste de pagar, espera um minuto e tenta outra vez.',
   'Thank you! Enjoy.': 'Obrigado! Bom proveito.',
-  'Pay on your phone: open AntunesPlayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.':
-    'Paga no telemóvel: abre lá o AntunesPlayer com a mesma conta Google e carrega em “Pagar 1 € por mês”. Depois carrega aqui em “Já paguei”.',
+  'Pay on your phone: open AWplayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.':
+    'Paga no telemóvel: abre lá o AWplayer com a mesma conta Google e carrega em “Pagar 1 € por mês”. Depois carrega aqui em “Já paguei”.',
   Subscription: 'Subscrição',
   'Free account': 'Conta grátis',
   'Active until': 'Ativa até',
@@ -9533,8 +9533,8 @@ function planoShow() {
     tv = !!S.set.tv;
   if (u && PLANO && PLANO.estado === 'limite') return planoDevices();
   openDlg(
-    `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AntunesPlayer costs 1 € a month. You can cancel whenever you want.')}</p>
-    ${u ? (tv ? `<p class="mut">${t('Pay on your phone: open AntunesPlayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : '') : `<p class="mut">${t('Sign in with your Google account to pay, so the subscription works on all your devices.')}</p>`}
+    `<h2>${ic('play')} ${t('Your free day is over')}</h2><p>${t('AWplayer costs 1 € a month. You can cancel whenever you want.')}</p>
+    ${u ? (tv ? `<p class="mut">${t('Pay on your phone: open AWplayer there with the same Google account and tap “Pay 1 € a month”. Then tap “I have paid” here.')}</p>` : '') : `<p class="mut">${t('Sign in with your Google account to pay, so the subscription works on all your devices.')}</p>`}
     <p class="mut" id="plSt" aria-live="polite">${u ? t('Signed in as') + ' <b>' + esc(u.email || '') + '</b>' : ''}</p>
     <div class="row" style="flex-wrap:wrap">${
       u

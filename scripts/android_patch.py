@@ -494,7 +494,7 @@ public class RecService extends Service {
             if (nm != null && nm.getNotificationChannel("rec") == null) nm.createNotificationChannel(new NotificationChannel("rec", "Gravações", NotificationManager.IMPORTANCE_LOW));
             b = new Notification.Builder(this, "rec");
         } else b = new Notification.Builder(this);
-        b.setSmallIcon(getApplicationInfo().icon).setContentTitle("AntunesPlayer · a gravar").setContentText(text).setOngoing(true);
+        b.setSmallIcon(getApplicationInfo().icon).setContentTitle("AWplayer · a gravar").setContentText(text).setOngoing(true);
         if (id != null) {
             Intent s = new Intent(this, RecReceiver.class).setAction("com.antunes.player.REC_STOP").putExtra("id", id);
             PendingIntent p = PendingIntent.getBroadcast(this, ("stop" + id).hashCode(), s, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
@@ -749,7 +749,7 @@ public class DlService extends Service {
     }
 
     @Override public int onStartCommand(Intent in, int flags, int startId) {
-        Notification n = note("AntunesPlayer", "A descarregar…", 0, true);
+        Notification n = note("AWplayer", "A descarregar…", 0, true);
         if (Build.VERSION.SDK_INT >= 29) startForeground(4343, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC); else startForeground(4343, n);
         launch();
         if (ACTIVE.isEmpty()) finishIfIdle();

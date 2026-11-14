@@ -38,8 +38,8 @@ Object.assign(PT, {
   'Code shown on the TV': 'Código que aparece na TV',
   'Sent. Look at the TV.': 'Enviado. Olha para a TV.',
   'The code has 8 letters/numbers': 'O código tem 8 letras/números',
-  'On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:':
-    'No telemóvel, abre o AntunesPlayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:',
+  'On your phone, open AWplayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:':
+    'No telemóvel, abre o AWplayer (app ou site), entra com o Google e vai a Definições → Conta Google → Enviar para uma TV, e escreve este código:',
   'Waiting for your phone…': 'À espera do telemóvel…',
   'The code expired. Open it again for a new one.': 'O código expirou. Abre outra vez para teres um novo.',
   'Playlists in your account': 'Listas na tua conta',
@@ -416,7 +416,7 @@ function pairDialog() {
     url = FB.databaseURL + '/pair/' + code + '.json',
     end = Date.now() + 10 * 60e3;
   openDlg(
-    `<h2>${ic('tv')} ${t('Sign in with a code (TV)')}</h2><p>${t('On your phone, open AntunesPlayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="pSt">${t('Waiting for your phone…')}</p><p class="mut"><small>joaoantunesss.github.io/AntunesPlayer</small></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button></div>`
+    `<h2>${ic('tv')} ${t('Sign in with a code (TV)')}</h2><p>${t('On your phone, open AWplayer (app or website), sign in with Google, then Settings → Google account → Send to a TV, and type this code:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="pSt">${t('Waiting for your phone…')}</p><p class="mut"><small>joaoantunesss.github.io/AntunesPlayer</small></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button></div>`
   );
   const stop = () => clearTimeout(pairT);
   $('#dx').onclick = () => {
@@ -511,7 +511,7 @@ function desktopGoogle() {
 // web version opened by the Windows app: sign in here and send the credential to the PC
 function loginPcDialog(code) {
   openDlg(
-    `<h2>${ic('user')} ${t('Sign in on the PC app')}</h2><p>${t('Sign in with Google here to finish signing in on AntunesPlayer for Windows. Check that the code is the same as on the PC:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="lpSt"></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="lpGo">${ic('user')} ${t('Continue with Google')}</button></div>`
+    `<h2>${ic('user')} ${t('Sign in on the PC app')}</h2><p>${t('Sign in with Google here to finish signing in on AWplayer for Windows. Check that the code is the same as on the PC:')}</p><div class="paircode">${code.slice(0, 4)}-${code.slice(4)}</div><p class="mut" id="lpSt"></p><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="lpGo">${ic('user')} ${t('Continue with Google')}</button></div>`
   );
   $('#dx').onclick = () => dlg.close();
   $('#lpGo').onclick = async () => {
@@ -550,8 +550,8 @@ Object.assign(PT, {
   'Open the browser again': 'Abrir o navegador outra vez',
   'Signing in…': 'A entrar…',
   'Sign in on the PC app': 'Entrar na app do PC',
-  'Sign in with Google here to finish signing in on AntunesPlayer for Windows. Check that the code is the same as on the PC:':
-    'Entra com a Google aqui para acabares de entrar no AntunesPlayer para Windows. Confirma que o código é igual ao do PC:',
+  'Sign in with Google here to finish signing in on AWplayer for Windows. Check that the code is the same as on the PC:':
+    'Entra com a Google aqui para acabares de entrar no AWplayer para Windows. Confirma que o código é igual ao do PC:',
   'Continue with Google': 'Continuar com a Google',
   'You can go back to the PC app: it is signing in now. You can close this tab.':
     'Podes voltar à app do PC: já está a entrar. Podes fechar este separador.'

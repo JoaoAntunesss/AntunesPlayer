@@ -1,4 +1,4 @@
-// AntunesPlayer para Windows (Electron).
+// AWplayer para Windows (Electron).
 // Serve a app web a partir de http://localhost (para o início de sessão Google funcionar)
 // e desliga as restrições de CORS e de conteúdo misto, como a app Android faz com o HTTP nativo.
 const { app, BrowserWindow, shell, session, Menu } = require('electron');
@@ -46,7 +46,7 @@ app.whenReady().then(async () => {
 
   win = new BrowserWindow({
     width: 1280, height: 800, minWidth: 360, minHeight: 480,
-    backgroundColor: '#0b0b10', title: 'AntunesPlayer', show: false,
+    backgroundColor: '#0b0b10', title: 'AWplayer', show: false,
     icon: path.join(ROOT, 'icon-512.png'),
     webPreferences: { webSecurity: false, allowRunningInsecureContent: true, contextIsolation: true, sandbox: true, autoplayPolicy: 'no-user-gesture-required' }
   });

@@ -36,7 +36,7 @@ jobs:
           if gh release view latest >/dev/null 2>&1; then
             gh release upload latest AntunesPlayer-portatil.exe AntunesPlayer-instalador.exe --clobber
           else
-            gh release create latest AntunesPlayer-portatil.exe AntunesPlayer-instalador.exe --prerelease --title "AntunesPlayer build ${{ github.run_number }}" --notes "Android APK and Windows EXE."
+            gh release create latest AntunesPlayer-portatil.exe AntunesPlayer-instalador.exe --prerelease --title "AWplayer build ${{ github.run_number }}" --notes "Android APK and Windows EXE."
           fi
       - uses: actions/upload-artifact@v4
         with:
