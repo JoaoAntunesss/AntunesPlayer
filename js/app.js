@@ -1064,7 +1064,8 @@ Object.assign(PT, {
 });
 async function play(c, isRetry) {
   if (!c) return;
-  if (!isRetry && !(await planoPode())) {
+  // planoOk first: when the plan is already confirmed there is no await, so S.cur is set right away (enterFs needs it)
+  if (!isRetry && !planoOk() && !(await planoPode())) {
     planoShow(); // free day over and not paid
     return;
   }
@@ -3885,8 +3886,9 @@ function enterFsFor(c) {
     if (ks.length > 60) delete EPS[ks[0]];
     LS.set('ap.eps', EPS);
   }
-  play(c);
-  enterFs();
+  const p = play(c);
+  if (S.cur === c) enterFs();
+  else p.then(() => S.cur === c && enterFs()); // plan still being checked: go full screen once it plays
 }
 
 // ===== src/12-favourites-guide.js =====
@@ -4927,10 +4929,7 @@ function checkReminders() {
       if (S.view === 'browse' && S.mode === 'live') play(c);
       else {
         go('live');
-        setTimeout(() => {
-          play(c);
-          enterFs();
-        }, 30);
+        setTimeout(() => enterFsFor(c), 30);
       }
     };
   setTimeout(() => {

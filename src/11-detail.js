@@ -165,6 +165,7 @@ function enterFsFor(c) {
     if (ks.length > 60) delete EPS[ks[0]];
     LS.set('ap.eps', EPS);
   }
-  play(c);
-  enterFs();
+  const p = play(c);
+  if (S.cur === c) enterFs();
+  else p.then(() => S.cur === c && enterFs()); // plan still being checked: go full screen once it plays
 }

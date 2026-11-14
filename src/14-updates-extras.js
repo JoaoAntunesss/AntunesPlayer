@@ -195,10 +195,7 @@ function checkReminders() {
       if (S.view === 'browse' && S.mode === 'live') play(c);
       else {
         go('live');
-        setTimeout(() => {
-          play(c);
-          enterFs();
-        }, 30);
+        setTimeout(() => enterFsFor(c), 30);
       }
     };
   setTimeout(() => {

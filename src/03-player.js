@@ -121,7 +121,8 @@ Object.assign(PT, {
 });
 async function play(c, isRetry) {
   if (!c) return;
-  if (!isRetry && !(await planoPode())) {
+  // planoOk first: when the plan is already confirmed there is no await, so S.cur is set right away (enterFs needs it)
+  if (!isRetry && !planoOk() && !(await planoPode())) {
     planoShow(); // free day over and not paid
     return;
   }
