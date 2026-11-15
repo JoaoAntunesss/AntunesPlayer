@@ -188,7 +188,7 @@ function renderFxDetail(c) {
       if (DLS[c.key] && DLS[c.key].state === 'ok') {
         S.flixTab = 'dl';
         go('flix');
-      } else dlStart(c);
+      } else dlAsk([c], c.name);
     };
   if (c.seriesId && NEWEP[c.key]) {
     delete NEWEP[c.key];

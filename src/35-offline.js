@@ -9,6 +9,9 @@ Object.assign(PT, {
   'Download for offline': 'Descarregar para ver sem internet',
   'This season': 'Esta temporada',
   'Whole series': 'Série completa',
+  'Episodes to download': 'Episódios a descarregar',
+  All: 'Todos',
+  None: 'Nenhum',
   episodes: 'episódios',
   'Subtitles to save': 'Legendas a guardar',
   'Subtitles inside the video always come with it. Online subtitles are saved for these languages:':
@@ -31,21 +34,53 @@ function dlEpBtn(ep, n) {
   const icon = st === 'ok' ? ic('check') : st === 'run' || st === 'queue' ? '⋯' : ic('dl');
   return `<button class="nfdlb${st === 'ok' ? ' ok' : ''}" data-dle="${n}" aria-label="${esc(t('Download episode') + ' ' + ep.name)}">${icon}</button>`;
 }
-// ask which subtitles to save, then download
+// ask which episodes and which subtitles to save, then download
 function dlAsk(eps, title) {
   const pick = new Set(subLangs()),
     todo = eps.filter(
       e => !(DLS[e.key] && (DLS[e.key].state === 'ok' || DLS[e.key].state === 'run' || DLS[e.key].state === 'queue'))
     ),
     done = eps.length - todo.length;
+  const chosen = new Set(todo.map(e => e.key)),
+    multi = todo.length > 1,
+    epLabel = e => esc((e.n != null ? e.n + 1 + '. ' : '') + (e.name || ''));
   const draw = () => {
     openDlg(
-      `<h2>${ic('dl')} ${t('Download for offline')}</h2><p><b>${esc(title)}</b><br><small class="mut">${todo.length} ${t('episodes')}${done ? ' · ' + done + ' ' + t('Already downloaded').toLowerCase() : ''}</small></p>
+      `<h2>${ic('dl')} ${t('Download for offline')}</h2><p><b>${esc(title)}</b><br><small class="mut">${multi ? chosen.size + '/' + todo.length : todo.length} ${t('episodes')}${done ? ' · ' + done + ' ' + t('Already downloaded').toLowerCase() : ''}</small></p>
+      ${
+        multi
+          ? `<label>${t('Episodes to download')}</label>
+      <div class="row" style="justify-content:flex-start;gap:.5rem;margin:.1rem 0 .4rem"><button class="btn" id="dlAll">${t('All')}</button><button class="btn" id="dlNone">${t('None')}</button></div>
+      <div class="chips" id="dlEps">${todo.map(e => `<button class="chip${chosen.has(e.key) ? ' on' : ''}" data-dlep="${esc(e.key)}" aria-pressed="${chosen.has(e.key)}">${epLabel(e)}</button>`).join('')}</div>`
+          : ''
+      }
       <label>${t('Subtitles to save')}</label><p class="mut"><small>${t('Subtitles inside the video always come with it. Online subtitles are saved for these languages:')}</small></p>
       <div class="chips" id="dlLangs">${SUBL.map(([k, n]) => `<button class="chip${pick.has(k) ? ' on' : ''}" data-dll="${k}" aria-pressed="${pick.has(k)}">${esc(n)}</button>`).join('')}</div>
-      <div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="dlGo" ${todo.length ? '' : 'disabled'}>${ic('dl')} ${t('Download')}</button></div>`
+      <div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="dlGo" ${chosen.size ? '' : 'disabled'}>${ic('dl')} ${t('Download')}</button></div>`
     );
     $('#dx').onclick = () => dlg.close();
+    const aa = $('#dlAll');
+    if (aa)
+      aa.onclick = () => {
+        todo.forEach(e => chosen.add(e.key));
+        draw();
+      };
+    const an = $('#dlNone');
+    if (an)
+      an.onclick = () => {
+        chosen.clear();
+        draw();
+      };
+    $$('[data-dlep]', dlg).forEach(
+      b =>
+        (b.onclick = () => {
+          const k = b.dataset.dlep;
+          chosen.has(k) ? chosen.delete(k) : chosen.add(k);
+          draw();
+          const nb = $(`[data-dlep="${k}"]`, dlg);
+          if (nb) nb.focus();
+        })
+    );
     $$('[data-dll]', dlg).forEach(
       b =>
         (b.onclick = () => {
@@ -58,14 +93,16 @@ function dlAsk(eps, title) {
     );
     $('#dlGo').onclick = async () => {
       dlg.close();
+      const sel = todo.filter(e => chosen.has(e.key));
+      if (!sel.length) return;
       const langs = [...pick].slice(0, 3);
-      for (const e of todo) await dlStart(e, true);
-      if (todo.length > 1 || eps.length > 1)
-        toast(todo.length + ' ' + t('downloads added. Follow them in AWFLIX → Downloads.'));
+      for (const e of sel) await dlStart(e, true);
+      if (sel.length > 1 || eps.length > 1)
+        toast(sel.length + ' ' + t('downloads added. Follow them in AWFLIX → Downloads.'));
       else toast(t('Download started. Follow it in AWFLIX → Downloads.'));
       if (langs.length && OSK()) {
         const q = LS.get(DLQ_KEY, []);
-        todo.forEach(e =>
+        sel.forEach(e =>
           q.push({ ep: { key: e.key, name: e.name, ser: e.ser, sn: e.sn, n: e.n, kind: 'vod', url: e.url }, langs })
         );
         LS.set(DLQ_KEY, q);
