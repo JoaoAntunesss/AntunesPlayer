@@ -39,6 +39,8 @@ function showMsg(title, text, retry) {
   m.hidden = false;
   const b = $('#mRetry');
   if (b) b.onclick = () => play(S.cur, true);
+  // On a TV, land the focus on the dialog so the remote can press it right away.
+  if (S.set && S.set.tv) try { (b || $('#mBug')).focus({ preventScroll: true }); } catch (e) {}
   if (retry && S.cur) {
     const c = S.cur,
       u = proxied(c.useTs ? c.url.replace(/\.m3u8(\?.*)?$/, '.ts$1') : c.url);

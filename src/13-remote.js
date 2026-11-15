@@ -214,6 +214,26 @@ function spatial(k, scope) {
 document.addEventListener('keydown', e => {
   const k = e.key;
   if (e.defaultPrevented) return;
+  // Error overlay (#msg, e.g. "Retry"/"Next channel" when a channel fails): keep its buttons reachable
+  // with the remote/D-pad even during fullscreen playback, where arrows otherwise drive the player.
+  const msgEl = $('#msg');
+  if (msgEl && !msgEl.hidden) {
+    const btns = $$('button', msgEl).filter(b => b.offsetParent !== null);
+    if (btns.length) {
+      if (k === 'Enter' || k === ' ') {
+        e.preventDefault();
+        ((msgEl.contains(document.activeElement) && document.activeElement) || btns[0]).click();
+        return;
+      }
+      if (k.startsWith('Arrow')) {
+        e.preventDefault();
+        const i = btns.indexOf(document.activeElement),
+          fwd = k === 'ArrowRight' || k === 'ArrowDown';
+        btns[i < 0 ? 0 : (i + (fwd ? 1 : btns.length - 1)) % btns.length].focus();
+        return;
+      }
+    }
+  }
   if (dlg.open) {
     if (k.startsWith('Arrow') && !/input|textarea|select/i.test(e.target.tagName)) {
       if (spatial(k, dlg)) e.preventDefault();
