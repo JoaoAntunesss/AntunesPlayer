@@ -268,12 +268,17 @@ function bootLast() {
   if ((S.set.startup || 'last') !== 'last' || !['home', 'live', ''].includes(location.hash.slice(1))) return;
   const c = S.byKey[LS.get('ap.cur', '')];
   if (!c || c.kind !== 'live' || !S.vis.includes(c)) return;
-  if (favLive().includes(c)) {
-    S.gsel.live = 'fav';
-    LS.set('ap.gsel', S.gsel);
-  }
-  go('live');
-  enterFsFor(c);
+  const play = () => {
+    if (favLive().includes(c)) {
+      S.gsel.live = 'fav';
+      LS.set('ap.gsel', S.gsel);
+    }
+    go('live');
+    enterFsFor(c);
+  };
+  if (!dlNative()) return play();
+  // without internet, open on the downloads instead of a channel that cannot play
+  netCheck().then(ok => (ok ? play() : dlOffline(true).then(went => went || play())));
 }
 const fold = x =>
   String(x || '')

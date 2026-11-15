@@ -873,12 +873,17 @@ function bootLast() {
   if ((S.set.startup || 'last') !== 'last' || !['home', 'live', ''].includes(location.hash.slice(1))) return;
   const c = S.byKey[LS.get('ap.cur', '')];
   if (!c || c.kind !== 'live' || !S.vis.includes(c)) return;
-  if (favLive().includes(c)) {
-    S.gsel.live = 'fav';
-    LS.set('ap.gsel', S.gsel);
-  }
-  go('live');
-  enterFsFor(c);
+  const play = () => {
+    if (favLive().includes(c)) {
+      S.gsel.live = 'fav';
+      LS.set('ap.gsel', S.gsel);
+    }
+    go('live');
+    enterFsFor(c);
+  };
+  if (!dlNative()) return play();
+  // without internet, open on the downloads instead of a channel that cannot play
+  netCheck().then(ok => (ok ? play() : dlOffline(true).then(went => went || play())));
 }
 const fold = x =>
   String(x || '')
@@ -9947,19 +9952,37 @@ async function dlSubsApply(c) {
     if (await subsLoad(list[0], c)) toast(t('Subtitles') + ': ' + langName(list[0].lang));
   } catch (e) {}
 }
-// no internet: straight to Downloads
-function dlOffline() {
-  if (navigator.onLine || !dlNative() || !Object.values(DLS).some(d => d.state === 'ok')) return;
-  if (S.cur && S.cur.local) return;
+// is there really internet? (on Android "online" is true whenever Wi-Fi is on, even with no internet behind it)
+async function netCheck() {
+  if (!navigator.onLine) return false;
+  const ac = new AbortController(),
+    tm = setTimeout(() => ac.abort(), 3500);
+  try {
+    await fetch('https://www.gstatic.com/generate_204', { mode: 'no-cors', cache: 'no-store', signal: ac.signal });
+    return true;
+  } catch (e) {
+    return false;
+  } finally {
+    clearTimeout(tm);
+  }
+}
+// no internet: straight to Downloads (returns true when it went there)
+async function dlOffline(known) {
+  if (!dlNative() || (S.cur && S.cur.local)) return false;
+  if (!known && (await netCheck())) return false;
+  await dlSync();
+  if (!Object.values(DLS).some(d => d.state === 'ok')) return false;
+  S.offShown = true;
   S.flixTab = 'dl';
   go('flix');
   toast(t('No internet. Here is what you downloaded.'));
+  return true;
 }
 window.addEventListener('offline', () => setTimeout(dlOffline, 1500));
 window.addEventListener('online', () => setTimeout(dlSubsRun, 5000));
 setTimeout(async () => {
   await dlSync();
-  dlOffline();
+  if (!S.offShown) await dlOffline();
   dlSubsRun();
 }, 2500);
 
