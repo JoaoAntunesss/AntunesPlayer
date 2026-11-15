@@ -3151,7 +3151,7 @@ function renderHome() {
       .slice(0, 14);
   box.innerHTML = `<div class="hgrid">
     <button class="tile t-live" data-go="live">${TRACE}${ic('tv')}<b>${t('Live TV')}</b>${cnt(L, t('channels'))}</button>
-    <button class="tile t-mov t-flix" data-go="flix">${TRACE}${ic('film')}<b>AW<span class="fxr">flix</span></b>${ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(M, 'cnt')} ${t('movies')} · ${seg(Se, 'cnt')} ${t('series')}</small>`}<span class="fxchips"><span data-go2="movies">${ic('film')} ${t('Movies')}</span><span data-go2="series">${ic('series')} ${t('Series')}</span></span></button>
+    <button class="tile t-mov t-flix" data-go="flix">${TRACE}${ic('film')}<b>AW<span class="fxr">FLIX</span></b>${ld ? `<small>${t('Loading your playlist…')}</small>` : `<small>${seg(M, 'cnt')} ${t('movies')} · ${seg(Se, 'cnt')} ${t('series')}</small>`}<span class="fxchips"><span data-go2="movies">${ic('film')} ${t('Movies')}</span><span data-go2="series">${ic('series')} ${t('Series')}</span></span></button>
     <div class="minis">
       <button class="mini" data-go="guide">${ic('guide')}<span>${t('TV guide')}</span></button>
       <button class="mini" data-go="sports">${ic('tv')}<span>${t('Games')}</span></button>
@@ -6879,7 +6879,7 @@ function renderFlix() {
       lazyRest.splice(0, 8).map(rowHtmlF).join('') + (lazyRest.length ? '<div class="fxmore" id="fxMore"></div>' : '');
   }
   box.innerHTML =
-    `<div class="fxbar"><button class="fxlogo" data-ft="all">AW<span>flix</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs
+    `<div class="fxbar"><button class="fxlogo" data-ft="all">AW<span>FLIX</span></button><span class="gap"></span>${tab !== 'mylist' && withArt.length ? `<button class="btn fxsurp" id="fxR" aria-label="${t('Surprise me')}">${ic('shuffle')} <span>${t('Surprise me')}</span></button>` : ''}<button class="ib fxic" id="fxS" aria-label="${t('Search')}">${ic('search')}</button><button class="ib fxic" id="fxH" aria-label="${t('Home')}">${ic('home')}</button></div><nav class="fxtabs">${tabs
       .filter(x => x[0] !== 'all')
       .map(x => `<button data-ft="${x[0]}" class="${tab === x[0] ? 'on' : ''}">${t(x[1])}</button>`)
       .join(
@@ -7276,14 +7276,14 @@ Object.assign(PT, {
   Continue: 'Continuar'
 });
 // intro: our own red "A" monogram with light streaks (shown when AWFLIX opens)
-let fxIntroShown = false;
 function fxIntro() {
-  if (fxIntroShown || RM || document.documentElement.classList.contains('lite')) return;
-  fxIntroShown = true;
+  if (RM || document.documentElement.classList.contains('lite')) return;
+  const prev = document.getElementById('fxIntro');
+  if (prev) prev.remove();
   const o = document.createElement('div');
   o.id = 'fxIntro';
   o.setAttribute('aria-hidden', 'true');
-  o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">AW<span>flix</span></div>`;
+  o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">AW<span>FLIX</span></div>`;
   document.body.appendChild(o);
   const end = () => {
     o.classList.add('out');

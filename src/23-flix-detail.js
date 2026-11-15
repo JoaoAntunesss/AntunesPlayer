@@ -13,14 +13,14 @@ Object.assign(PT, {
   Continue: 'Continuar'
 });
 // intro: our own red "A" monogram with light streaks (shown when AWFLIX opens)
-let fxIntroShown = false;
 function fxIntro() {
-  if (fxIntroShown || RM || document.documentElement.classList.contains('lite')) return;
-  fxIntroShown = true;
+  if (RM || document.documentElement.classList.contains('lite')) return;
+  const prev = document.getElementById('fxIntro');
+  if (prev) prev.remove();
   const o = document.createElement('div');
   o.id = 'fxIntro';
   o.setAttribute('aria-hidden', 'true');
-  o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">AW<span>flix</span></div>`;
+  o.innerHTML = `<div class="fxi-rays">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><div class="fxi-a">A</div><div class="fxi-word">AW<span>FLIX</span></div>`;
   document.body.appendChild(o);
   const end = () => {
     o.classList.add('out');
