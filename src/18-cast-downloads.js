@@ -12,7 +12,7 @@ Object.assign(PT, {
   Download: 'Descarregar',
   Downloaded: 'Descarregado',
   'Downloading…': 'A descarregar…',
-  'Download started. Follow it in AWflix → Downloads.': 'Começou a descarregar. Acompanha em AWflix → Descarregados.',
+  'Download started. Follow it in AWFLIX → Downloads.': 'Começou a descarregar. Acompanha em AWFLIX → Descarregados.',
   'Nothing downloaded yet. Open a film and tap Download, or use More → Download while watching.':
     'Ainda não descarregaste nada. Abre um filme e toca em Descarregar, ou usa Mais → Descarregar enquanto vês.',
   'Delete download': 'Apagar',
@@ -172,7 +172,7 @@ async function dlStart(c, quiet) {
       logo: base.logo || '',
       ser: c.ser || ''
     });
-    if (!quiet) toast(t('Download started. Follow it in AWflix → Downloads.'));
+    if (!quiet) toast(t('Download started. Follow it in AWFLIX → Downloads.'));
     await dlSync();
     dlPoll();
   } catch (e) {

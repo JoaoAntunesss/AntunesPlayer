@@ -1,4 +1,4 @@
-/* ---------- AWflix, round 2: intro, Netflix-style continue cards, title page ---------- */
+/* ---------- AWFLIX, round 2: intro, Netflix-style continue cards, title page ---------- */
 Object.assign(PT, {
   'Details and more': 'Detalhes e mais',
   'Remove from row': 'Remover da faixa',
@@ -12,7 +12,7 @@ Object.assign(PT, {
   Rate: 'Classificar',
   Continue: 'Continuar'
 });
-// intro: our own red "A" monogram with light streaks (shown when AWflix opens)
+// intro: our own red "A" monogram with light streaks (shown when AWFLIX opens)
 let fxIntroShown = false;
 function fxIntro() {
   if (fxIntroShown || RM || document.documentElement.classList.contains('lite')) return;
@@ -97,7 +97,7 @@ function wireCw(box) {
       })
   );
 }
-// title page like Netflix (used inside AWflix)
+// title page like Netflix (used inside AWFLIX)
 function renderFxDetail(c) {
   const i = S.dinfo || {},
     box = $('#vDetail'),

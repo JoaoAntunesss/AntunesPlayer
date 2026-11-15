@@ -1737,7 +1737,7 @@ function settingsDialog() {
   <label>${t('TV mode (remote, bigger text)')}</label><select id="sTv"><option value="auto" ${(s.tvMode || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${isTvDevice() ? t('TV detected') : t('no TV detected')}</option><option value="on" ${s.tvMode === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.tvMode === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
   <label>${t('Light mode (smoother on weak TVs)')}</label><select id="sLite"><option value="auto" ${(s.lite || 'auto') === 'auto' ? 'selected' : ''}>${t('Automatic')} · ${liteOn() ? t('on') : t('off')}</option><option value="on" ${s.lite === 'on' ? 'selected' : ''}>${t('Always on')}</option><option value="off" ${s.lite === 'off' ? 'selected' : ''}>${t('Off')}</option></select>
   <h2 style="margin-top:18px">${ic('cc')} ${t('Online subtitles')}</h2><label>${t('Subtitle languages (in order)')}</label><div class="row" style="justify-content:flex-start;gap:8px">${[0, 1, 2].map(i => `<select data-sl2="${i}" style="flex:1;min-width:120px"><option value="">—</option>${SUBL.map(x => `<option value="${x[0]}" ${subLangs()[i] === x[0] ? 'selected' : ''}>${x[1]}</option>`).join('')}</select>`).join('')}</div><label>${t('Turn on subtitles automatically')}</label><select id="sSA"><option value="1" ${s.subAuto !== false ? 'selected' : ''}>${t('Yes')}</option><option value="0" ${s.subAuto === false ? 'selected' : ''}>${t('No')}</option></select><label>${t('OpenSubtitles API key')}</label><input id="sOK" value="${esc(s.osKey || '')}" autocomplete="off" placeholder="${t('Built in (optional: your own key)')}"><label>${t('OpenSubtitles account (optional: 20 a day instead of 5)')}</label><div class="row" style="justify-content:flex-start;gap:8px"><input id="sOU" placeholder="${t('Username')}" value="${esc((LS.get('ap.osu', null) || {}).u || '')}" autocomplete="off" style="flex:1"><input id="sOP" type="password" placeholder="${t('Password')}" value="${esc((LS.get('ap.osu', null) || {}).p || '')}" autocomplete="off" style="flex:1"></div>
-  <h2 style="margin-top:18px">${t('Colours')}</h2><label>${t('App colour (Live TV, menus, effects)')}</label>${colorPicker('cAcc', s.accent, getComputedStyle(document.documentElement).getPropertyValue('--acc').trim())}<label>${t('AWflix colour')}</label>${colorPicker('cFx', s.fxColor, '#e50914')}<label>${t('Numbers (clock and channels)')}</label><select id="sDig"><option value="" ${!s.digits ? 'selected' : ''}>${t('Theme default')}</option><option value="accent" ${s.digits === 'accent' ? 'selected' : ''}>${t('Same as the app colour')}</option></select><label>${t('Background')}</label><select id="sBg">${[
+  <h2 style="margin-top:18px">${t('Colours')}</h2><label>${t('App colour (Live TV, menus, effects)')}</label>${colorPicker('cAcc', s.accent, getComputedStyle(document.documentElement).getPropertyValue('--acc').trim())}<label>${t('AWFLIX colour')}</label>${colorPicker('cFx', s.fxColor, '#e50914')}<label>${t('Numbers (clock and channels)')}</label><select id="sDig"><option value="" ${!s.digits ? 'selected' : ''}>${t('Theme default')}</option><option value="accent" ${s.digits === 'accent' ? 'selected' : ''}>${t('Same as the app colour')}</option></select><label>${t('Background')}</label><select id="sBg">${[
     ['circuit', 'Circuit lines'],
     ['plain', 'Plain'],
     ['black', 'Black']
@@ -3026,7 +3026,7 @@ function renderHeader() {
 const NAV = [
   ['home', 'home', 'Home'],
   ['live', 'tv', 'Live TV'],
-  ['flix', 'film', 'AWflix'],
+  ['flix', 'film', 'AWFLIX'],
   ['search', 'search', 'Search'],
   ['settings', 'gear', 'Settings']
 ];
@@ -5436,11 +5436,11 @@ function wireOnlineSubs(c, reopen) {
 }
 
 // ===== src/17-antunesflix.js =====
-/* ---------- AWflix: films and series together, organised like Netflix ---------- */
+/* ---------- AWFLIX: films and series together, organised like Netflix ---------- */
 Object.assign(PT, {
   'My list': 'A minha lista',
   'Top 10 today': 'Top 10 de hoje',
-  'New on AWflix': 'Novidades no AWflix',
+  'New on AWFLIX': 'Novidades no AWFLIX',
   'Top rated films': 'Filmes mais bem avaliados',
   'Top rated series': 'Séries mais bem avaliadas',
   'Your list is empty. Add films and series with the star.':
@@ -5751,7 +5751,7 @@ async function genEnrich() {
   } finally {
     genBusy = false;
   }
-  // show the new rows if the user is still at the top of AWflix and not in the middle of something
+  // show the new rows if the user is still at the top of AWFLIX and not in the middle of something
   const box = $('#vFlix');
   if (
     got &&
@@ -5779,7 +5779,7 @@ Object.assign(PT, {
   Download: 'Descarregar',
   Downloaded: 'Descarregado',
   'Downloading…': 'A descarregar…',
-  'Download started. Follow it in AWflix → Downloads.': 'Começou a descarregar. Acompanha em AWflix → Descarregados.',
+  'Download started. Follow it in AWFLIX → Downloads.': 'Começou a descarregar. Acompanha em AWFLIX → Descarregados.',
   'Nothing downloaded yet. Open a film and tap Download, or use More → Download while watching.':
     'Ainda não descarregaste nada. Abre um filme e toca em Descarregar, ou usa Mais → Descarregar enquanto vês.',
   'Delete download': 'Apagar',
@@ -5939,7 +5939,7 @@ async function dlStart(c, quiet) {
       logo: base.logo || '',
       ser: c.ser || ''
     });
-    if (!quiet) toast(t('Download started. Follow it in AWflix → Downloads.'));
+    if (!quiet) toast(t('Download started. Follow it in AWFLIX → Downloads.'));
     await dlSync();
     dlPoll();
   } catch (e) {
@@ -6258,8 +6258,8 @@ Object.assign(PT, {
   'Choose how to add your channels: your Xtream login, a playlist link, or the demo channels to look around.':
     'Escolhe como juntar os teus canais: o login Xtream, o link de uma lista ou os canais de demonstração para experimentar.',
   'Your films and series': 'Os teus filmes e séries',
-  'AWflix puts all your films and series together, like Netflix. Tap it.':
-    'O AWflix junta todos os teus filmes e séries, como na Netflix. Toca aqui.',
+  'AWFLIX puts all your films and series together, like Netflix. Tap it.':
+    'O AWFLIX junta todos os teus filmes e séries, como na Netflix. Toca aqui.',
   'The whole catalogue': 'O catálogo todo',
   'Here you see every title, a page at a time. Tap it.': 'Aqui vês todos os títulos, sem limite. Toca aqui.',
   'Sort and filter': 'Ordenar e filtrar',
@@ -6296,7 +6296,7 @@ var TOURS = {
     [
       '#vHome .t-flix',
       'Your films and series',
-      'AWflix puts all your films and series together, like Netflix. Tap it.',
+      'AWFLIX puts all your films and series together, like Netflix. Tap it.',
       'click'
     ],
     [
@@ -6420,7 +6420,7 @@ function tourNext() {
   let tries = 0;
   clearInterval(T.wait);
   T.wait = setInterval(() => {
-    // the next screen may still be opening (and the AWflix intro playing)
+    // the next screen may still be opening (and the AWFLIX intro playing)
     if (TOUR !== T) {
       clearInterval(T.wait);
       return;
@@ -6779,7 +6779,7 @@ function renderFlix() {
     if (byw) rows.push(byw);
     const rest = [
       [
-        t('New on AWflix'),
+        t('New on AWFLIX'),
         pickRow(
           recent.filter(c => c.logo),
           24,
@@ -7236,7 +7236,7 @@ v.addEventListener('seeked', () => {
 });
 
 // ===== src/23-flix-detail.js =====
-/* ---------- AWflix, round 2: intro, Netflix-style continue cards, title page ---------- */
+/* ---------- AWFLIX, round 2: intro, Netflix-style continue cards, title page ---------- */
 Object.assign(PT, {
   'Details and more': 'Detalhes e mais',
   'Remove from row': 'Remover da faixa',
@@ -7250,7 +7250,7 @@ Object.assign(PT, {
   Rate: 'Classificar',
   Continue: 'Continuar'
 });
-// intro: our own red "A" monogram with light streaks (shown when AWflix opens)
+// intro: our own red "A" monogram with light streaks (shown when AWFLIX opens)
 let fxIntroShown = false;
 function fxIntro() {
   if (fxIntroShown || RM || document.documentElement.classList.contains('lite')) return;
@@ -7335,7 +7335,7 @@ function wireCw(box) {
       })
   );
 }
-// title page like Netflix (used inside AWflix)
+// title page like Netflix (used inside AWFLIX)
 function renderFxDetail(c) {
   const i = S.dinfo || {},
     box = $('#vDetail'),
@@ -7470,11 +7470,11 @@ function renderFxDetail(c) {
 }
 
 // ===== src/24-colours.js =====
-/* ---------- colours chosen by the person: app accent, AWflix colour, digits, background ---------- */
+/* ---------- colours chosen by the person: app accent, AWFLIX colour, digits, background ---------- */
 Object.assign(PT, {
   Colours: 'Cores',
   'App colour (Live TV, menus, effects)': 'Cor da app (TV em direto, menus, efeitos)',
-  'AWflix colour': 'Cor do AWflix',
+  'AWFLIX colour': 'Cor do AWFLIX',
   'Numbers (clock and channels)': 'Números (relógio e canais)',
   'Theme default': 'Do tema',
   'Same as the app colour': 'Iguais à cor da app',
@@ -8983,7 +8983,7 @@ function searchItems(qRaw, kinds) {
    1. the playlist's own categories ("NETFLIX SERIES", "HBO MAX", "DISNEY+"…), so it works straight away;
    2. data/streaming.json, built monthly from TMDB (what each service has in Portugal) by .github/workflows/streaming.yml,
       matched to the playlist by title and year like the IMDb ratings.
-   Each service becomes a genre-like row and chip in AWflix, so it gets rows, "See all" and the full grid for free. */
+   Each service becomes a genre-like row and chip in AWFLIX, so it gets rows, "See all" and the full grid for free. */
 var PLATS = [
   ['p-netflix', 'On Netflix', /netflix/i],
   ['p-hbo', 'On HBO Max', /\bhbo\b/i],
@@ -9769,8 +9769,8 @@ Object.assign(PT, {
   'No online subtitles': 'Sem legendas online',
   'Already downloaded': 'Já descarregados',
   Waiting: 'Em espera',
-  'downloads added. Follow them in AWflix → Downloads.':
-    'transferências adicionadas. Acompanha em AWflix → Descarregados.',
+  'downloads added. Follow them in AWFLIX → Downloads.':
+    'transferências adicionadas. Acompanha em AWFLIX → Descarregados.',
   'Online subtitles limit for today reached. The rest will be fetched tomorrow.':
     'Chegaste ao limite de legendas online de hoje. As que faltam vêm amanhã, sozinhas.',
   'No internet. Here is what you downloaded.': 'Sem internet. Aqui está o que descarregaste.',
@@ -9814,8 +9814,8 @@ function dlAsk(eps, title) {
       const langs = [...pick].slice(0, 3);
       for (const e of todo) await dlStart(e, true);
       if (todo.length > 1 || eps.length > 1)
-        toast(todo.length + ' ' + t('downloads added. Follow them in AWflix → Downloads.'));
-      else toast(t('Download started. Follow it in AWflix → Downloads.'));
+        toast(todo.length + ' ' + t('downloads added. Follow them in AWFLIX → Downloads.'));
+      else toast(t('Download started. Follow it in AWFLIX → Downloads.'));
       if (langs.length && OSK()) {
         const q = LS.get(DLQ_KEY, []);
         todo.forEach(e =>

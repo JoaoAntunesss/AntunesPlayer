@@ -282,7 +282,7 @@ function renderFlix() {
     if (byw) rows.push(byw);
     const rest = [
       [
-        t('New on AWflix'),
+        t('New on AWFLIX'),
         pickRow(
           recent.filter(c => c.logo),
           24,

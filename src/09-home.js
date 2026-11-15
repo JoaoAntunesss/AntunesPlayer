@@ -23,7 +23,7 @@ function renderHeader() {
 const NAV = [
   ['home', 'home', 'Home'],
   ['live', 'tv', 'Live TV'],
-  ['flix', 'film', 'AWflix'],
+  ['flix', 'film', 'AWFLIX'],
   ['search', 'search', 'Search'],
   ['settings', 'gear', 'Settings']
 ];
