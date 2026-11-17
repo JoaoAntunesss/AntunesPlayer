@@ -113,7 +113,7 @@ Object.assign(PT, {
   Favourite: 'Favorito',
   Categories: 'Categorias',
   TV: 'TV',
-  Season: 'Época',
+  Season: 'Temporada',
   Episodes: 'Episódios',
   'Loading…': 'A carregar…',
   'No episodes found': 'Sem episódios'
@@ -2103,7 +2103,9 @@ const openTracks = async () => {
     });
   } else if (hls) {
     (hls.audioTracks || []).forEach((x, i) => au.push({ i, n: x.name || x.lang || 'Audio ' + (i + 1) }));
-    (hls.subtitleTracks || []).forEach((x, i) => su.push({ i, n: x.name || x.lang || 'Sub ' + (i + 1) }));
+    (hls.subtitleTracks || []).forEach((x, i) =>
+      su.push({ i, n: x.name || x.lang || 'Sub ' + (i + 1), l: x.lang || '' })
+    );
     cur = { a: hls.audioTrack, s: hls.subtitleTrack };
   } else {
     if (v.audioTracks && v.audioTracks.length > 1)
@@ -2114,7 +2116,7 @@ const openTracks = async () => {
     [...v.textTracks]
       .filter(x => x.kind === 'subtitles' || x.kind === 'captions')
       .forEach((x, i) => {
-        su.push({ i, n: x.label || x.language || 'Sub ' + (i + 1) });
+        su.push({ i, n: x.label || x.language || 'Sub ' + (i + 1), l: x.language || '' });
         if (x.mode === 'showing') cur.s = i;
       });
   }
@@ -2142,6 +2144,12 @@ const openTracks = async () => {
     b =>
       (b.onclick = () => {
         const i = +b.dataset.i;
+        if (b.dataset.k === 's' && S.cur && S.cur.ser) {
+          // series: remember it for the next episodes (an online subtitle remembers itself when it is chosen)
+          const x = su.find(y => y.i === i);
+          if (i === -1) subMem.set(S.cur, { k: 'off' });
+          else if (x && !/· online$/.test(x.n)) subMem.set(S.cur, { k: 'tr', n: x.n, l: x.l || '' });
+        }
         if (NV.on) nvCmd(b.dataset.k === 'a' ? 'audio' : 'text', i);
         else if (b.dataset.k === 'a') {
           if (hls) hls.audioTrack = i;
@@ -2343,7 +2351,7 @@ Object.assign(PT, {
   'Tap again for full screen': 'Toca outra vez para ecrã inteiro',
   'Pick a channel': 'Escolhe um canal',
   Episode: 'Episódio',
-  Seasons: 'Épocas',
+  Seasons: 'Temporadas',
   'No details from the provider': 'O fornecedor não enviou detalhes',
   Status: 'Estado',
   'Xtream login': 'Login Xtream'
@@ -5201,7 +5209,8 @@ Object.assign(PT, {
   'Could not get subtitles': 'Não foi possível obter as legendas',
   'left today': 'restantes hoje',
   downloads: 'downloads',
-  'Built in (optional: your own key)': 'Já incluída (opcional: a tua chave)'
+  'Built in (optional: your own key)': 'Já incluída (opcional: a tua chave)',
+  'as in the last episode': 'como no episódio anterior'
 });
 const SUBL = [
   ['pt-pt', 'Português (PT)'],
@@ -5398,16 +5407,113 @@ function subsErr(e) {
   if (e && (e.status === 406 || /limit|quota/i.test(e.message || ''))) toast(t('Daily download limit reached'));
   else toast(t('Could not get subtitles') + (e && e.message ? ': ' + e.message : ''));
 }
+/* ---------- series memory: the subtitle you choose in one episode is used again in the next ones ----------
+   Kept per series name (the same show in another playlist counts too), so a new episode or a new season starts with
+   the same choice: the same online subtitle "family" (language, CC, and the release name with S01E02 left out),
+   the same subtitle track of the stream, or subtitles off. */
+const subMemKey = c => {
+  if (!c || !c.ser) return '';
+  const s = S.byKey[c.ser];
+  return cleanTitle(s ? s.name : c.name).toLowerCase();
+};
+const subMem = {
+  all: () => LS.get('ap.submem', {}),
+  get(c) {
+    const k = subMemKey(c);
+    return k ? this.all()[k] || null : null;
+  },
+  set(c, m) {
+    const k = subMemKey(c);
+    if (!k) return;
+    const a = this.all();
+    a[k] = Object.assign(m, { t: Date.now() });
+    Object.keys(a)
+      .sort((x, y) => a[y].t - a[x].t)
+      .slice(100)
+      .forEach(x => delete a[x]); // the 100 series used last are enough
+    LS.set('ap.submem', a);
+  }
+};
+// "Show.Name.S01E03.1080p.WEB-DL.x264-GROUP" → "show name 1080p web dl x264 group": what stays the same from episode to episode
+const relWords = r =>
+  String(r || '')
+    .toLowerCase()
+    .replace(/\.(srt|vtt|ass|ssa|sub)$/, '')
+    .replace(
+      /s\d{1,2}[ ._-]*e\d{1,3}(?:-?e\d{1,3})?|\b\d{1,2}x\d{1,3}\b|\b(?:season|temporada|epis[oó]dio|episode|ep|e)[ ._-]*\d+/g,
+      ' '
+    )
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(w => w && !/^\d+$/.test(w));
+// the online subtitle most like the one chosen before; without a memory, the first one (best language, most downloaded)
+function subsPick(list, m) {
+  if (!m || m.k !== 'os') return list[0];
+  const same = list.filter(r => r.lang === m.lang);
+  if (!same.length) return list[0];
+  const want = new Set(relWords(m.rel)),
+    like = r => {
+      const w = new Set(relWords(r.rel));
+      let n = 0;
+      w.forEach(x => want.has(x) && n++);
+      return want.size + w.size ? n / (want.size + w.size - n) : 0;
+    };
+  return same
+    .map(r => ({ r, s: like(r) + (r.hi === !!m.hi ? 0.2 : 0) + Math.min(r.dl, 1e5) / 1e7 }))
+    .sort((a, b) => b.s - a.s)[0].r;
+}
+// the stream's own subtitle tracks (same numbering as the Audio / Subtitles menu); online ones left out
+async function subTracks() {
+  let L = [];
+  if (NV.on) L = ((await nvTracks()).text || []).map(x => ({ i: x.i, n: x.n || '' }));
+  else if (hls)
+    L = (hls.subtitleTracks || []).map((x, i) => ({ i, n: x.name || x.lang || 'Sub ' + (i + 1), l: x.lang || '' }));
+  else
+    L = [...v.textTracks]
+      .filter(x => x.kind === 'subtitles' || x.kind === 'captions')
+      .map((x, i) => ({ i, n: x.label || x.language || 'Sub ' + (i + 1), l: x.language || '' }));
+  return L.filter(x => !/· online$/.test(x.n));
+}
+function subTrackSet(i) {
+  if (NV.on) nvCmd('text', i);
+  else if (hls) hls.subtitleTrack = i;
+  else
+    [...v.textTracks]
+      .filter(x => x.kind === 'subtitles' || x.kind === 'captions')
+      .forEach((x, n) => (x.mode = n === i ? 'showing' : 'disabled'));
+}
+// the stream's tracks appear a moment after it starts: look for the remembered one for a few seconds
+async function subTrackAgain(c, m) {
+  for (let k = 0; k < 12; k++) {
+    if (S.cur !== c) return true;
+    const L = await subTracks(),
+      hit = L.find(x => x.n === m.n) || (m.l ? L.find(x => x.l && x.l === m.l) : null);
+    if (hit) {
+      subTrackSet(hit.i);
+      toast(t('Subtitles') + ': ' + hit.n + ' · ' + t('as in the last episode'));
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  return false;
+}
 async function autoSubs(c) {
   if (c && c.local) return dlSubsApply(c); // downloaded: the subtitles saved with it, no internet needed
-  if (!c || c.kind === 'live' || c.kind === 'catchup' || S.set.subAuto === false || !OSK()) return;
+  if (!c || c.kind === 'live' || c.kind === 'catchup') return;
+  const m = subMem.get(c);
+  if (m && m.k === 'off') return; // subtitles were switched off for this series
+  if (m && m.k === 'tr' && (await subTrackAgain(c, m))) return;
+  if ((!m && S.set.subAuto === false) || !OSK()) return;
   try {
     const list = await subsSearch(c);
     if (S.cur !== c) return;
     S.subList = { k: c.key, list };
     if (!list.length) return;
-    const ok = await subsLoad(list[0], c);
-    if (ok) toast(t('Subtitles') + ': ' + langName(list[0].lang));
+    const r = subsPick(list, m),
+      again = m && m.k === 'os' && r.lang === m.lang;
+    const ok = await subsLoad(r, c);
+    if (ok) toast(t('Subtitles') + ': ' + langName(r.lang) + (again ? ' · ' + t('as in the last episode') : ''));
   } catch (e) {
     if (S.cur === c) subsErr(e);
   }
@@ -5457,7 +5563,10 @@ function wireOnlineSubs(c, reopen) {
         const r = S.subList.list[+b.dataset.os];
         dlg.close();
         try {
-          if (await subsLoad(r, c)) toast(t('Subtitles') + ': ' + langName(r.lang));
+          if (await subsLoad(r, c)) {
+            toast(t('Subtitles') + ': ' + langName(r.lang));
+            subMem.set(c, { k: 'os', lang: r.lang, hi: r.hi, rel: r.rel }); // the next episodes start with this one
+          }
         } catch (e) {
           subsErr(e);
         }

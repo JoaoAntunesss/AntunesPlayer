@@ -150,7 +150,9 @@ const openTracks = async () => {
     });
   } else if (hls) {
     (hls.audioTracks || []).forEach((x, i) => au.push({ i, n: x.name || x.lang || 'Audio ' + (i + 1) }));
-    (hls.subtitleTracks || []).forEach((x, i) => su.push({ i, n: x.name || x.lang || 'Sub ' + (i + 1) }));
+    (hls.subtitleTracks || []).forEach((x, i) =>
+      su.push({ i, n: x.name || x.lang || 'Sub ' + (i + 1), l: x.lang || '' })
+    );
     cur = { a: hls.audioTrack, s: hls.subtitleTrack };
   } else {
     if (v.audioTracks && v.audioTracks.length > 1)
@@ -161,7 +163,7 @@ const openTracks = async () => {
     [...v.textTracks]
       .filter(x => x.kind === 'subtitles' || x.kind === 'captions')
       .forEach((x, i) => {
-        su.push({ i, n: x.label || x.language || 'Sub ' + (i + 1) });
+        su.push({ i, n: x.label || x.language || 'Sub ' + (i + 1), l: x.language || '' });
         if (x.mode === 'showing') cur.s = i;
       });
   }
@@ -189,6 +191,12 @@ const openTracks = async () => {
     b =>
       (b.onclick = () => {
         const i = +b.dataset.i;
+        if (b.dataset.k === 's' && S.cur && S.cur.ser) {
+          // series: remember it for the next episodes (an online subtitle remembers itself when it is chosen)
+          const x = su.find(y => y.i === i);
+          if (i === -1) subMem.set(S.cur, { k: 'off' });
+          else if (x && !/· online$/.test(x.n)) subMem.set(S.cur, { k: 'tr', n: x.n, l: x.l || '' });
+        }
         if (NV.on) nvCmd(b.dataset.k === 'a' ? 'audio' : 'text', i);
         else if (b.dataset.k === 'a') {
           if (hls) hls.audioTrack = i;

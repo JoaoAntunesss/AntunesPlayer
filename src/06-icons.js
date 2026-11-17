@@ -181,7 +181,7 @@ Object.assign(PT, {
   'Tap again for full screen': 'Toca outra vez para ecrã inteiro',
   'Pick a channel': 'Escolhe um canal',
   Episode: 'Episódio',
-  Seasons: 'Épocas',
+  Seasons: 'Temporadas',
   'No details from the provider': 'O fornecedor não enviou detalhes',
   Status: 'Estado',
   'Xtream login': 'Login Xtream'

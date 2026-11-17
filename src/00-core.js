@@ -108,7 +108,7 @@ Object.assign(PT, {
   Favourite: 'Favorito',
   Categories: 'Categorias',
   TV: 'TV',
-  Season: 'Época',
+  Season: 'Temporada',
   Episodes: 'Episódios',
   'Loading…': 'A carregar…',
   'No episodes found': 'Sem episódios'
