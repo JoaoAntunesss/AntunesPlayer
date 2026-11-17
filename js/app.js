@@ -5447,22 +5447,77 @@ const relWords = r =>
     .trim()
     .split(' ')
     .filter(w => w && !/^\d+$/.test(w));
-// the online subtitle most like the one chosen before; without a memory, the first one (best language, most downloaded)
-function subsPick(list, m) {
-  if (!m || m.k !== 'os') return list[0];
-  const same = list.filter(r => r.lang === m.lang);
-  if (!same.length) return list[0];
-  const want = new Set(relWords(m.rel)),
+/* Which online subtitle to use.
+   - Same version as the video: a 1280×720 picture prefers subtitles made for "720p"/"HD", 1080 for "1080p"/"FHD", and
+     the source words in the episode or film name (WEB-DL, BluRay, HDTV, x265…) count too: the same release is in sync.
+   - A series remembers the choice (subMem). A language chosen while a preferred one was there (BR with PT available)
+     was on purpose and is kept; one chosen only because the preferred ones were missing (fb) gives way to them again. */
+const RES = [
+  [2000, ['2160p', '4k', 'uhd']],
+  [1000, ['1080p', '1080i', 'fhd']],
+  [700, ['720p', 'hd']],
+  [1, ['480p', '576p', 'sd', 'dvdrip']]
+];
+const RES_ALL = new Set(RES.flatMap(x => x[1]));
+const SRC_WORDS = new Set(
+  'web dl webdl webrip bluray brrip bdrip hdtv hdrip dvdrip remux amzn nf dsnp hmax atvp hulu x264 x265 h264 h265 hevc'.split(
+    ' '
+  )
+);
+const vidRes = () => {
+  const h = v.videoHeight || 0;
+  return h ? (RES.find(x => h >= x[0]) || RES[3])[1] : [];
+};
+// how well a subtitle's release name fits the video playing now (resolution + source words of its name)
+function fitVideo(r, c) {
+  const w = new Set(relWords(r.rel)),
+    res = vidRes(),
+    src = relWords(c && c.name).filter(x => SRC_WORDS.has(x));
+  let s = 0;
+  if (res.length) {
+    if (res.some(x => w.has(x))) s += 0.3;
+    else if ([...w].some(x => RES_ALL.has(x))) s -= 0.15; // made for another resolution
+  }
+  s += Math.min(src.filter(x => w.has(x)).length * 0.1, 0.3);
+  return s;
+}
+const langRank = l => {
+  const i = subLangs().indexOf(String(l).toLowerCase());
+  return i < 0 ? 99 : i;
+};
+// the best of one language: like the remembered release, fits the video, not CC unless CC was chosen, most downloaded
+function bestOf(list, lang, c, m) {
+  const want = m && m.rel ? new Set(relWords(m.rel)) : null,
     like = r => {
+      if (!want || !want.size) return 0;
       const w = new Set(relWords(r.rel));
       let n = 0;
       w.forEach(x => want.has(x) && n++);
-      return want.size + w.size ? n / (want.size + w.size - n) : 0;
-    };
-  return same
-    .map(r => ({ r, s: like(r) + (r.hi === !!m.hi ? 0.2 : 0) + Math.min(r.dl, 1e5) / 1e7 }))
+      return n / (want.size + w.size - n);
+    },
+    cc = m ? !!m.hi : false;
+  return list
+    .filter(r => r.lang === lang)
+    .map(r => ({ r, s: like(r) + fitVideo(r, c) + (r.hi === cc ? 0.2 : 0) + Math.min(r.dl, 1e5) / 1e7 }))
     .sort((a, b) => b.s - a.s)[0].r;
 }
+function subsPick(list, m, c) {
+  if (m && m.k === 'os') {
+    const has = l => list.some(r => r.lang === l);
+    // chosen only for lack of a preferred language: if a preferred one is there now, it wins
+    if (m.fb) {
+      const better = list
+        .filter(r => langRank(r.lang) < langRank(m.lang))
+        .sort((a, b) => langRank(a.lang) - langRank(b.lang))[0];
+      if (better) return { r: bestOf(list, better.lang, c, null), again: false };
+    }
+    if (has(m.lang)) return { r: bestOf(list, m.lang, c, m), again: true };
+  }
+  return { r: bestOf(list, list[0].lang, c, null), again: false };
+}
+// was a language the user ranks higher available when this one was chosen? if not, it was only a fallback
+const subFallback = (list, r) => !(list || []).some(x => langRank(x.lang) < langRank(r.lang));
+const subResLabel = r => (relWords(r.rel).find(x => vidRes().includes(x)) || '').toUpperCase();
 // the stream's own subtitle tracks (same numbering as the Audio / Subtitles menu); online ones left out
 async function subTracks() {
   let L = [];
@@ -5510,10 +5565,20 @@ async function autoSubs(c) {
     if (S.cur !== c) return;
     S.subList = { k: c.key, list };
     if (!list.length) return;
-    const r = subsPick(list, m),
-      again = m && m.k === 'os' && r.lang === m.lang;
+    // the picture size is known a moment after the start: wait for it (up to 4 s) to match the subtitle's version
+    for (let k = 0; k < 8 && !v.videoHeight && S.cur === c; k++) await new Promise(res => setTimeout(res, 500));
+    if (S.cur !== c) return;
+    const { r, again } = subsPick(list, m, c),
+      q = subResLabel(r);
     const ok = await subsLoad(r, c);
-    if (ok) toast(t('Subtitles') + ': ' + langName(r.lang) + (again ? ' · ' + t('as in the last episode') : ''));
+    if (ok)
+      toast(
+        t('Subtitles') +
+          ': ' +
+          langName(r.lang) +
+          (q ? ' · ' + q : '') +
+          (again ? ' · ' + t('as in the last episode') : '')
+      );
   } catch (e) {
     if (S.cur === c) subsErr(e);
   }
@@ -5565,7 +5630,7 @@ function wireOnlineSubs(c, reopen) {
         try {
           if (await subsLoad(r, c)) {
             toast(t('Subtitles') + ': ' + langName(r.lang));
-            subMem.set(c, { k: 'os', lang: r.lang, hi: r.hi, rel: r.rel }); // the next episodes start with this one
+            subMem.set(c, { k: 'os', lang: r.lang, hi: r.hi, rel: r.rel, fb: subFallback(S.subList.list, r) }); // the next episodes start with this one
           }
         } catch (e) {
           subsErr(e);
