@@ -2289,6 +2289,24 @@ Object.assign(PT, {
   'The web version is always up to date': 'A versão web está sempre atualizada',
   'You have the latest version': 'Já tens a versão mais recente',
   'New version available': 'Há uma versão nova',
+  'It downloads here in the app and then installs over this version; your lists and favourites stay.':
+    'É descarregada aqui na app e depois instalada por cima desta versão; as tuas listas e favoritos ficam.',
+  'Update now': 'Atualizar agora',
+  'Updating to build': 'A atualizar para a build',
+  'Starting the download…': 'A iniciar a transferência…',
+  'The download failed': 'A transferência falhou',
+  'Check the internet connection and try again. You can also download it in the browser.':
+    'Verifica a ligação à internet e tenta outra vez. Também podes descarregar no navegador.',
+  'Download in the browser': 'Descarregar no navegador',
+  'Try again': 'Tentar outra vez',
+  'Confirm the installation on the Android screen': 'Confirma a instalação no ecrã do Android',
+  'One step left': 'Falta um passo',
+  'Android needs your permission for AWplayer to install updates.':
+    'O Android precisa da tua autorização para o AWplayer instalar atualizações.',
+  'On the next screen turn on “Allow from this source” and come back to the app: the installation continues by itself.':
+    'No ecrã seguinte liga «Permitir desta fonte» e volta à app: a instalação continua sozinha.',
+  Allow: 'Permitir',
+  'Without that permission the update cannot be installed': 'Sem essa autorização a atualização não pode ser instalada',
   Build: 'Versão',
   'you have': 'tens a',
   'The download opens in the browser. Then open the file to install it over this version; your lists and favourites stay.':
@@ -4813,17 +4831,96 @@ async function checkUpdate(manual) {
       if (manual) toast(t('You have the latest version') + (BUILD ? ' · build ' + BUILD : ''));
       return;
     }
+    const UP = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.AppUpdate;
+    const mb = x => (x / 1048576).toFixed(1).replace('.', ',');
     openDlg(
-      `<h2>${ic('refresh')} ${t('New version available')}</h2><p>${t('Build')} ${n} · ${t('you have')} ${BUILD || '—'}</p><p class="mut">${t('The download opens in the browser. Then open the file to install it over this version; your lists and favourites stay.')}</p><div class="row"><button class="btn" id="dx">${t('Later')}</button><button class="btn p" id="uGo">${ic('plus')} ${t('Download')}</button></div>`
+      `<h2>${ic('refresh')} ${t('New version available')}</h2><p>${t('Build')} ${n} · ${t('you have')} ${BUILD || '—'}${a.size ? ' · ' + mb(a.size) + ' MB' : ''}</p><p class="mut">${UP ? t('It downloads here in the app and then installs over this version; your lists and favourites stay.') : t('The download opens in the browser. Then open the file to install it over this version; your lists and favourites stay.')}</p><div class="row"><button class="btn" id="dx">${t('Later')}</button><button class="btn p" id="uGo">${ic('plus')} ${UP ? t('Update now') : t('Download')}</button></div>`
     );
     $('#dx').onclick = () => dlg.close();
     $('#uGo').onclick = () => {
-      dlg.close();
-      openExternal(a.browser_download_url);
+      if (!UP) {
+        dlg.close();
+        openExternal(a.browser_download_url);
+        return;
+      }
+      updInstalar(UP, a, n);
     };
   } catch (e) {
     if (manual) toast(t('Could not check for updates') + ': ' + e.message);
   }
+}
+
+/* In-app update (Android): download with a progress bar, then the Android installer opens on top of the app.
+   The first time, Android asks to allow installs from AWplayer: we open that setting and continue when the app comes back. */
+async function updInstalar(UP, a, n) {
+  const mb = x => (x / 1048576).toFixed(1).replace('.', ',');
+  let ouvinte = null;
+  const fim = () => {
+    if (ouvinte) {
+      ouvinte.remove && ouvinte.remove();
+      ouvinte = null;
+    }
+  };
+  openDlg(
+    `<h2>${ic('refresh')} ${t('Updating to build')} ${n}</h2><div class="upbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="upBar"><i style="width:0%"></i></div><p class="mut" id="upTxt">${t('Starting the download…')}</p><div class="row"><button class="btn" id="upX">${t('Cancel')}</button></div>`
+  );
+  $('#upX').onclick = () => {
+    UP.cancel().catch(() => {});
+    fim();
+    dlg.close();
+  };
+  try {
+    ouvinte = await UP.addListener('progress', d => {
+      const tot = d.total > 0 ? d.total : a.size || 0,
+        pct = tot ? Math.min(100, Math.round((d.done / tot) * 100)) : 0;
+      const bar = $('#upBar');
+      if (!bar) return;
+      bar.setAttribute('aria-valuenow', pct);
+      bar.firstElementChild.style.width = pct + '%';
+      $('#upTxt').textContent = tot ? `${pct}% · ${mb(d.done)} / ${mb(tot)} MB` : `${mb(d.done)} MB`;
+    });
+    await UP.download({ url: a.browser_download_url });
+    fim();
+    await updAbrirInstalador(UP);
+  } catch (e) {
+    fim();
+    if (String(e && e.message).includes('cancelled')) return;
+    openDlg(
+      `<h2>${ic('refresh')} ${t('The download failed')}</h2><p class="mut">${t('Check the internet connection and try again. You can also download it in the browser.')}</p><div class="row"><button class="btn" id="dx">${t('Close')}</button><button class="btn" id="upBr">${t('Download in the browser')}</button><button class="btn p" id="upRe">${t('Try again')}</button></div>`
+    );
+    $('#dx').onclick = () => dlg.close();
+    $('#upBr').onclick = () => {
+      dlg.close();
+      openExternal(a.browser_download_url);
+    };
+    $('#upRe').onclick = () => updInstalar(UP, a, n);
+  }
+}
+async function updAbrirInstalador(UP) {
+  const { ok } = await UP.canInstall();
+  if (ok) {
+    if (dlg.open) dlg.close();
+    toast(t('Confirm the installation on the Android screen'));
+    await UP.install();
+    return;
+  }
+  openDlg(
+    `<h2>${ic('refresh')} ${t('One step left')}</h2><p>${t('Android needs your permission for AWplayer to install updates.')}</p><p class="mut">${t('On the next screen turn on “Allow from this source” and come back to the app: the installation continues by itself.')}</p><div class="row"><button class="btn" id="dx">${t('Later')}</button><button class="btn p" id="upPerm">${t('Allow')}</button></div>`
+  );
+  $('#dx').onclick = () => dlg.close();
+  $('#upPerm').onclick = async () => {
+    const volta = async () => {
+      window.removeEventListener('ap-resume', volta);
+      const r = await UP.canInstall();
+      if (r.ok) {
+        if (dlg.open) dlg.close();
+        toast(t('Confirm the installation on the Android screen'));
+        UP.install().catch(() => {});
+      } else toast(t('Without that permission the update cannot be installed'));
+    };
+    window.addEventListener('ap-resume', volta);
+    await UP.openInstallSettings();
+  };
 }
 
 /* ---------- extras found in other IPTV players: sleep timer, reminders, stream info, external player, guide offset, subtitles size, User-Agent ---------- */

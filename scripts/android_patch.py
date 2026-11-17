@@ -36,6 +36,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ExtPlayerPlugin.class);
+        registerPlugin(AppUpdatePlugin.class);
         super.onCreate(savedInstanceState);
         sendAmbient(getIntent());
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -1232,3 +1233,131 @@ gp = 'android/gradle.properties'
 if os.path.exists(gp) and 'suppressUnsupportedCompileSdk' not in open(gp, encoding='utf-8').read():
     open(gp, 'a', encoding='utf-8').write('\nandroid.suppressUnsupportedCompileSdk=35\n')
 print('native video engine (Dolby / DTS sound) added')
+
+# In-app updates: downloads the new APK from GitHub Releases with progress (events "progress") and opens the
+# Android installer on top of the app. Android always asks the person to confirm the install; the first time it
+# also asks to allow installs from this app ("Install unknown apps"), which openInstallSettings() opens.
+s = open(m, encoding='utf-8').read()
+if 'REQUEST_INSTALL_PACKAGES' not in s:
+    s = s.replace('<application', '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <application', 1)
+    open(m, 'w', encoding='utf-8').write(s)
+open(jd + 'AppUpdatePlugin.java', 'w', encoding='utf-8').write(r"""package com.antunes.player;
+
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
+import androidx.core.content.FileProvider;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+@CapacitorPlugin(name = "AppUpdate")
+public class AppUpdatePlugin extends Plugin {
+    private volatile boolean cancelled;
+    private volatile boolean running;
+
+    private File apk() { return new File(getContext().getCacheDir(), "update/AWplayer-update.apk"); }
+
+    @PluginMethod
+    public void download(PluginCall call) {
+        final String url = call.getString("url");
+        if (url == null || !url.startsWith("https://")) { call.reject("bad url"); return; }
+        if (running) { call.reject("busy"); return; }
+        running = true; cancelled = false;
+        call.setKeepAlive(true);
+        new Thread(() -> {
+            HttpURLConnection c = null;
+            File out = apk(), tmp = new File(out.getPath() + ".part");
+            try {
+                out.getParentFile().mkdirs();
+                String u = url;
+                for (int hop = 0; hop < 6; hop++) { // GitHub sends the file from another host: follow the redirects
+                    c = (HttpURLConnection) new URL(u).openConnection();
+                    c.setInstanceFollowRedirects(false);
+                    c.setConnectTimeout(20000); c.setReadTimeout(30000);
+                    c.setRequestProperty("User-Agent", "AWplayer-App");
+                    int code = c.getResponseCode();
+                    if (code >= 300 && code < 400 && c.getHeaderField("Location") != null) { u = new URL(new URL(u), c.getHeaderField("Location")).toString(); c.disconnect(); continue; }
+                    if (code != 200) throw new Exception("HTTP " + code);
+                    break;
+                }
+                long total = c.getContentLengthLong(), done = 0, last = 0;
+                try (InputStream in = c.getInputStream(); FileOutputStream fo = new FileOutputStream(tmp)) {
+                    byte[] b = new byte[65536]; int n;
+                    while ((n = in.read(b)) > 0) {
+                        if (cancelled) throw new Exception("cancelled");
+                        fo.write(b, 0, n); done += n;
+                        long now = System.currentTimeMillis();
+                        if (now - last > 150) { last = now; emit(done, total); }
+                    }
+                }
+                if (total > 0 && done != total) throw new Exception("incomplete");
+                if (out.exists()) out.delete();
+                if (!tmp.renameTo(out)) throw new Exception("rename");
+                emit(done, total);
+                JSObject o = new JSObject(); o.put("bytes", done); call.resolve(o);
+            } catch (Exception e) {
+                tmp.delete();
+                call.reject(cancelled ? "cancelled" : String.valueOf(e.getMessage()));
+            } finally {
+                if (c != null) c.disconnect();
+                running = false;
+                getBridge().releaseCall(call);
+            }
+        }).start();
+    }
+
+    private void emit(long done, long total) {
+        JSObject o = new JSObject();
+        o.put("done", done); o.put("total", total);
+        notifyListeners("progress", o);
+    }
+
+    @PluginMethod
+    public void cancel(PluginCall call) { cancelled = true; call.resolve(); }
+
+    // Android 8+: is this app allowed to install apps? (Settings > Apps > AWplayer > Install unknown apps)
+    @PluginMethod
+    public void canInstall(PluginCall call) {
+        JSObject o = new JSObject();
+        o.put("ok", Build.VERSION.SDK_INT < 26 || getContext().getPackageManager().canRequestPackageInstalls());
+        call.resolve(o);
+    }
+
+    @PluginMethod
+    public void openInstallSettings(PluginCall call) {
+        try {
+            Intent i = Build.VERSION.SDK_INT >= 26
+                ? new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getContext().getPackageName()))
+                : new Intent(Settings.ACTION_SECURITY_SETTINGS);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(i);
+            call.resolve();
+        } catch (Exception e) { call.reject("settings", e); }
+    }
+
+    // Opens the system installer for the downloaded APK (it installs over this version; data stays)
+    @PluginMethod
+    public void install(PluginCall call) {
+        File f = apk();
+        if (!f.exists() || f.length() == 0) { call.reject("no file"); return; }
+        try {
+            Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(uri, "application/vnd.android.package-archive");
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(i);
+            call.resolve();
+        } catch (Exception e) { call.reject("install", e); }
+    }
+}
+""")
+print('in-app updates added')

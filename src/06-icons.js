@@ -119,6 +119,24 @@ Object.assign(PT, {
   'The web version is always up to date': 'A versão web está sempre atualizada',
   'You have the latest version': 'Já tens a versão mais recente',
   'New version available': 'Há uma versão nova',
+  'It downloads here in the app and then installs over this version; your lists and favourites stay.':
+    'É descarregada aqui na app e depois instalada por cima desta versão; as tuas listas e favoritos ficam.',
+  'Update now': 'Atualizar agora',
+  'Updating to build': 'A atualizar para a build',
+  'Starting the download…': 'A iniciar a transferência…',
+  'The download failed': 'A transferência falhou',
+  'Check the internet connection and try again. You can also download it in the browser.':
+    'Verifica a ligação à internet e tenta outra vez. Também podes descarregar no navegador.',
+  'Download in the browser': 'Descarregar no navegador',
+  'Try again': 'Tentar outra vez',
+  'Confirm the installation on the Android screen': 'Confirma a instalação no ecrã do Android',
+  'One step left': 'Falta um passo',
+  'Android needs your permission for AWplayer to install updates.':
+    'O Android precisa da tua autorização para o AWplayer instalar atualizações.',
+  'On the next screen turn on “Allow from this source” and come back to the app: the installation continues by itself.':
+    'No ecrã seguinte liga «Permitir desta fonte» e volta à app: a instalação continua sozinha.',
+  Allow: 'Permitir',
+  'Without that permission the update cannot be installed': 'Sem essa autorização a atualização não pode ser instalada',
   Build: 'Versão',
   'you have': 'tens a',
   'The download opens in the browser. Then open the file to install it over this version; your lists and favourites stay.':

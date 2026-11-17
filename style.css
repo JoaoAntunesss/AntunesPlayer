@@ -786,3 +786,8 @@ body.fsOn .trace .pulse,html.nv .trace .pulse{animation:none}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
 .chip{min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--line,#2a3550);background:transparent;color:inherit;font:inherit;cursor:pointer}
 .chip.on{background:var(--acc,#e50914);border-color:var(--acc,#e50914);color:#fff}
+
+/* in-app update progress */
+.upbar{height:10px;border-radius:6px;background:var(--surf2);overflow:hidden;margin:14px 0 8px}
+.upbar i{display:block;height:100%;background:var(--acc);border-radius:6px;transition:width .15s linear}
+@media (prefers-reduced-motion:reduce){.upbar i{transition:none}}
