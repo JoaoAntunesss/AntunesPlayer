@@ -161,10 +161,13 @@ function planoShow() {
     <div class="row" style="flex-wrap:wrap">${
       u
         ? `<button class="btn" id="plDone">${t('I have paid')}</button>${tv ? '' : `<button class="btn" id="plPayY">${t('10 € a year')}</button><button class="btn p" id="plPay">${t('Pay 1 € a month')}</button>`}`
-        : `<button class="btn p" id="plIn">${ic('user')} ${t('Sign in with Google')}</button>`
+        : `<button class="btn p" id="plIn">${ic('user')} ${t('Sign in with Google')}</button><button class="btn" id="plCode">${ic('tv')} ${t('Sign in with a code (TV)')}</button><button class="btn" id="plX">${t('Close')}</button>`
     }</div>`
   );
   if (!u) {
+    // boxes and TVs often have no Google account: sign in with a code from the phone instead
+    $('#plCode').onclick = () => pairDialog();
+    $('#plX').onclick = () => dlg.close();
     $('#plIn').onclick = async () => {
       await signInFlow();
       if (C.user) {
