@@ -340,6 +340,25 @@ async function googleSignIn() {
     }
   }
 }
+// a fresh Google credential for the same account, to hand to a TV (does not change who is signed in here)
+async function googleToken() {
+  const P = window.Capacitor && Capacitor.Plugins;
+  if (NATIVE) {
+    if (!P || !P.FirebaseAuthentication) return null;
+    const r = await P.FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
+    const c = (r && r.credential) || {};
+    return c.idToken ? { idToken: c.idToken, accessToken: c.accessToken || '' } : null;
+  }
+  if (DESKTOP) return null;
+  const fb = await fbLoad(),
+    u = fb.auth().currentUser;
+  if (!u) return null;
+  const p = new firebase.auth.GoogleAuthProvider();
+  p.setCustomParameters({ prompt: 'select_account', login_hint: u.email || '' });
+  const r = await u.reauthenticateWithPopup(p),
+    c = (r && r.credential) || {};
+  return c.idToken ? { idToken: c.idToken, accessToken: c.accessToken || '' } : null;
+}
 let authHooked = false;
 async function cloudBoot(force) {
   if (!force && !LS.get('ap.cloudUid', '')) return;
@@ -435,6 +454,22 @@ function pairDialog() {
       if (v && v.d) {
         fetch(url, { method: 'DELETE' }).catch(() => {});
         const data = await unseal(v.d, code + PEPPER);
+        const g = data && data._g;
+        if (data) delete data._g;
+        if (g && g.idToken) {
+          $('#pSt').textContent = t('Signing in…');
+          try {
+            const boot = cloudBoot(true),
+              fb = await fbLoad();
+            await fb
+              .auth()
+              .signInWithCredential(firebase.auth.GoogleAuthProvider.credential(g.idToken, g.accessToken || null));
+            await boot;
+            if (typeof planoCheck === 'function') planoCheck(true);
+          } catch (e) {
+            toast(t('Could not sign in') + ': ' + (e.message || e.code));
+          }
+        }
         connectDialog(data, S.sources.length ? 'merge' : 'replace', () => {});
         return;
       }
@@ -569,12 +604,23 @@ function sendToTvDialog() {
       toast(t('The code has 8 letters/numbers'));
       return;
     }
+    // also send a fresh Google sign-in, so the TV enters the same account (boxes often have no Google account)
+    let g = null;
+    try {
+      g = await googleToken();
+    } catch (e) {
+      const m = String((e && (e.message || e.code)) || e);
+      if (/cancel|closed-by-user|12501|12502/i.test(m)) return;
+    }
     try {
       const fb = await fbLoad();
       await fb
         .database()
         .ref('pair/' + code)
-        .set({ d: await seal(bundle(), code + PEPPER), t: firebase.database.ServerValue.TIMESTAMP });
+        .set({
+          d: await seal(Object.assign(bundle(), g ? { _g: g } : {}), code + PEPPER),
+          t: firebase.database.ServerValue.TIMESTAMP
+        });
       toast(t('Sent. Look at the TV.'));
       dlg.close();
     } catch (e) {
