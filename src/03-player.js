@@ -361,7 +361,18 @@ function noteStall() {
     play(c, true);
   }
 }
+const STAB_OPTS = [
+  ['auto', 'Automatic'],
+  ['normal', 'Normal'],
+  ['stable', 'Stable'],
+  ['max', 'Maximum']
+];
+const STAB_NAME = { normal: 'Normal', stable: 'Stable', max: 'Maximum' };
 Object.assign(PT, {
+  Stable: 'Estável',
+  Maximum: 'Máxima',
+  Now: 'Agora',
+  'Channel keeps stopping? Choose Stable or Maximum.': 'O canal está sempre a parar? Escolha Estável ou Máxima.',
   'Live stream stability': 'Estabilidade do direto',
   'Automatic (recommended)': 'Automática (recomendado)',
   'Normal (less delay)': 'Normal (menos atraso)',

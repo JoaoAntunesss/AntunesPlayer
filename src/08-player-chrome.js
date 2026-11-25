@@ -370,6 +370,7 @@ $('#cInfo').onclick = () => {
 $('#cMore').onclick = () => {
   const sp = [0.5, 0.75, 1, 1.25, 1.5, 2];
   openDlg(`<h2>${t('More')}</h2>${isVodNow() ? `<label>${t('Speed')}</label><div class="tabs">${sp.map(x => `<button data-sp="${x}" class="${v.playbackRate === x ? 'on' : ''}">${x}×</button>`).join('')}</div>` : ''}
+  ${S.cur && S.cur.kind === 'live' && !isVodNow() ? `<label>${t('Live stream stability')} <small class="mut">${t('Channel keeps stopping? Choose Stable or Maximum.')}${(S.set.stab || 'auto') === 'auto' && stabLevel(S.cur) !== 'normal' ? ' ' + t('Now') + ': ' + t(STAB_NAME[stabLevel(S.cur)]) + '.' : ''}</small></label><div class="tabs">${STAB_OPTS.map(x => `<button data-st="${x[0]}" class="${(S.set.stab || 'auto') === x[0] ? 'on' : ''}">${t(x[1])}</button>`).join('')}</div>` : ''}
   <label>${t('Picture size')}</label><div class="tabs">${ASP.map((x, i) => `<button data-as="${i}" class="${aspI === i ? 'on' : ''}">${t(x[1])}</button>`).join('')}</div>
   <label>${t('Colours')} <small class="mut">${t('Colours wrong? Try the options below (saved for this channel).')}</small></label><div class="tabs">${['Normal', 'Swap red / blue', 'Compatible'].map((x, i) => `<button data-cf="${i}" class="${((S.cur && COLFIX[S.cur.key]) || 0) === i ? 'on' : ''}">${t(x)}</button>`).join('')}</div>
   <div class="row" style="justify-content:flex-start">${document.pictureInPictureEnabled ? `<button class="btn" id="mPip">${ic('pip')} ${t('Picture in picture')}</button>` : ''}${!isVodNow() ? `<button class="btn" id="mRec">${ic('rec')} ${rec ? t('Stop recording') : t('Record')}</button><button class="btn" id="mMv">${ic('stack')} ${t('Multi-screen')}</button>` : ''}${recNative() ? `<button class="btn" id="mRecs">${ic('clock')} ${t('Scheduled recordings')}</button>` : ''}</div>${!isVodNow() ? `<div class="row" style="justify-content:flex-start"><button class="btn" id="mList">${ic('stack')} ${t('Add to list')}</button></div>` : ''}<label>${t('Sleep timer')}${sleepAt ? ' · ' + sleepLeft() + ' ' + t('min') : ''}</label><div class="tabs">${[0, 15, 30, 60, 90, 120].map(m => `<button data-sl="${m}" class="${!sleepAt && !m ? 'on' : ''}">${m ? m + ' ' + t('min') : t('Off ').trim()}</button>`).join('')}</div>
@@ -392,6 +393,17 @@ $('#cMore').onclick = () => {
   );
   const ml = $('#mList');
   if (ml) ml.onclick = () => addToListDialog(S.cur);
+  $$('[data-st]', dlg).forEach(
+    b =>
+      (b.onclick = () => {
+        S.set.stab = b.dataset.st;
+        saveSet();
+        stabBoost = { k: '', lvl: '' };
+        $$('[data-st]', dlg).forEach(x => x.classList.toggle('on', x === b));
+        toast(t('Live stream stability') + ': ' + t(b.textContent.trim()));
+        if (S.cur && S.cur.kind === 'live') play(S.cur, true);
+      })
+  );
   $$('[data-sp]', dlg).forEach(
     b =>
       (b.onclick = () => {
