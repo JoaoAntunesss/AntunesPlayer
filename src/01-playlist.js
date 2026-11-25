@@ -1,5 +1,18 @@
 /* ---------- playlist parsing ---------- */
+// os vídeos de exemplo do Google (gtv-videos-bucket) deixaram de ser públicos (403): quem já tinha a lista de demonstração passa a usar as cópias do W3C
+const DEMO_MP4 = {
+  'commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4':
+    'https://media.w3.org/2010/05/bunny/trailer.mp4',
+  'commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4':
+    'https://media.w3.org/2010/05/sintel/trailer.mp4'
+};
 function parseM3U(text) {
+  if (text.includes('gtv-videos-bucket/sample/ElephantsDream.mp4'))
+    text = text.replace(',Elephants Dream (mp4)', ',Sintel (mp4)');
+  text = text.replace(
+    /https?:\/\/(commondatastorage\.googleapis\.com\/gtv-videos-bucket\/sample\/\w+\.mp4)/g,
+    (m, k) => DEMO_MP4[k] || m
+  );
   const out = [],
     lines = text.split(/\r?\n/);
   let cur = null,
