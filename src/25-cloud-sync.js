@@ -13,6 +13,10 @@ const CK = ['ap.sources', 'ap.favs', 'ap.lists', 'ap.set'],
   PEPPER = '|AntunesPlayer.sync.v1';
 const C = {
   user: null,
+  // only true after this device has reconciled with the account (lists loaded or account empty);
+  // until then nothing is sent to the account, so a new device can never overwrite the saved playlists
+  sync: false,
+  pendingConnect: null,
   pushT: 0,
   applying: false,
   dev:
@@ -59,7 +63,9 @@ Object.assign(PT, {
   Watched: 'Visto',
   'Mark as watched': 'Marcar como visto',
   'Opening Google…': 'A abrir o Google…',
-  'Playlists you add here are saved to your account.': 'As listas que adicionares aqui ficam guardadas na conta.'
+  'Playlists you add here are saved to your account.': 'As listas que adicionares aqui ficam guardadas na conta.',
+  'Your account was not changed. Sign in again to connect its playlists.':
+    'A conta não foi alterada. Inicia sessão outra vez para ligar as listas dela.'
 });
 let fbp;
 const fbLoad = () =>
@@ -205,7 +211,7 @@ function applyBundle(b, mode, pick) {
   else render();
 }
 async function cloudPush() {
-  if (!C.user) return;
+  if (!C.user || !C.sync) return;
   const fb = await fbLoad(),
     now = Date.now();
   await fb
@@ -219,7 +225,7 @@ async function cloudPush() {
 const schedulePush = () => {
   if (C.applying) return;
   LS.set('ap.dirty', true);
-  if (!C.user) return;
+  if (!C.user || !C.sync) return;
   clearTimeout(C.pushT);
   C.pushT = setTimeout(
     () =>
@@ -249,11 +255,19 @@ async function readRemote() {
 }
 async function onSignedIn(u) {
   C.user = u;
+  C.sync = false;
   planoCheck().then(() => {
     if (!planoOk() && !dlg.open) planoShow();
   });
   const first = LS.get('ap.cloudUid', '') !== u.uid;
   LS.set('ap.cloudUid', u.uid);
+  // a device counts as reconciled only after the account's playlists were loaded here (or the account was empty);
+  // devices from before this check are asked once again, in merge mode, so nothing on them is lost
+  const fresh = LS.get('ap.cloudOk', '') !== u.uid;
+  const ready = () => {
+    C.sync = true;
+    LS.set('ap.cloudOk', u.uid);
+  };
   if (signing || first) toast(t('Signed in as') + ' ' + (u.email || ''));
   render();
   let r;
@@ -265,17 +279,23 @@ async function onSignedIn(u) {
     return;
   }
   if (!r) {
+    ready();
     await cloudPush().catch(e => {
       C.err = e.message;
     });
     if (first) toast(t('Nothing saved in your account yet. What you add here will be saved.'));
-  } else if (first) {
-    if ((r.data.sources || []).length) connectDialog(r.data, S.sources.length ? 'merge' : 'replace');
-    else {
-      applyBundle(r.data, 'merge');
-      await cloudPush().catch(() => {});
+  } else if (first || fresh) {
+    if ((r.data.sources || []).length) {
+      connectDialog(r.data, S.sources.length ? 'merge' : 'replace', () => {
+        ready();
+        cloudPush().catch(() => {});
+      });
+      return listenRemote(u);
     }
-  } else if (LS.get('ap.dirty', false))
+    applyBundle(r.data, 'merge');
+    ready();
+    await cloudPush().catch(() => {});
+  } else if ((ready(), LS.get('ap.dirty', false)))
     await cloudPush().catch(e => {
       C.err = e.message;
     });
@@ -283,13 +303,25 @@ async function onSignedIn(u) {
     applyBundle(r.data, 'replace');
     LS.set('ap.cloudT', r.t);
   }
-  // changes made on other devices arrive while the app is open
+  listenRemote(u);
+}
+// changes made on other devices arrive while the app is open (only once this device is reconciled)
+async function listenRemote(u) {
   const fb = await fbLoad();
   fb.database()
     .ref('users/' + u.uid)
     .on('value', async s => {
       const v = s.val();
-      if (!v || !v.d || v.dev === C.dev || v.t <= LS.get('ap.cloudT', 0) || LS.get('ap.dirty', false) || dlg.open)
+      if (
+        !C.sync ||
+        C.user !== u ||
+        !v ||
+        !v.d ||
+        v.dev === C.dev ||
+        v.t <= LS.get('ap.cloudT', 0) ||
+        LS.get('ap.dirty', false) ||
+        dlg.open
+      )
         return;
       try {
         applyBundle(await unseal(v.d, userSecret()), 'replace');
@@ -299,14 +331,23 @@ async function onSignedIn(u) {
 }
 function connectDialog(data, mode, after) {
   const src = data.sources || [];
+  // another dialog (plan, devices…) is open: show this one when it closes, never on top of it
+  C.pendingConnect = { data, mode, after };
+  if (dlg.open) return;
   openDlg(
     `<h2>${ic('user')} ${t('Playlists in your account')}</h2><p class="mut">${t('Pick the playlists to connect on this device:')}</p><div class="srcs">${src.map(x => `<label class="srow"><input type="checkbox" data-pk="${esc(x.id)}" checked><span class="sic">${ic(x.type === 'xtream' ? 'user' : 'stack')}</span><div><b>${esc(x.name)}</b><small>${x.type === 'xtream' ? 'Xtream' : 'M3U'}${S.sources.some(y => sameSrc(x, y)) ? ' · ' + t('on this device') : ''}</small></div></label>`).join('')}</div><div class="row"><button class="btn" id="dx">${t('Cancel')}</button><button class="btn p" id="pkGo">${t('Connect')}</button></div>`
   );
-  $('#dx').onclick = () => dlg.close();
+  dlg.dataset.connect = '1';
+  $('#dx').onclick = () => {
+    C.pendingConnect = null;
+    dlg.close();
+    toast(t('Your account was not changed. Sign in again to connect its playlists.'));
+  };
   $('#pkGo').onclick = async () => {
     const pick = $$('[data-pk]', dlg)
       .filter(c => c.checked)
       .map(c => c.dataset.pk);
+    C.pendingConnect = null;
     dlg.close();
     applyBundle(data, mode, pick);
     if (S.sources.length && !S.srcId) selectSource(S.sources[0].id);
@@ -315,6 +356,15 @@ function connectDialog(data, mode, after) {
     else if (C.user) cloudPush().catch(() => {});
   };
 }
+// if the connect dialog was replaced by another one, or something opened first, bring it back when that one closes
+dlg.addEventListener('close', () => {
+  delete dlg.dataset.connect;
+  const p = C.pendingConnect;
+  if (p && C.user)
+    setTimeout(() => {
+      if (!dlg.open && C.pendingConnect === p) connectDialog(p.data, p.mode, p.after);
+    }, 300);
+});
 async function googleSignIn() {
   const P = window.Capacitor && Capacitor.Plugins;
   if (NATIVE) {
@@ -367,7 +417,11 @@ async function cloudBoot(force) {
   authHooked = true;
   fb.auth().onAuthStateChanged(u => {
     if (u && (!C.user || C.user.uid !== u.uid)) onSignedIn(u);
-    if (!u) C.user = null;
+    if (!u) {
+      C.user = null;
+      C.sync = false;
+      C.pendingConnect = null;
+    }
   });
 }
 function accountDialog() {
@@ -402,6 +456,8 @@ function accountDialog() {
         if (NATIVE && P && P.FirebaseAuthentication) P.FirebaseAuthentication.signOut().catch(() => {});
       } catch (e) {}
       C.user = null;
+      C.sync = false;
+      C.pendingConnect = null;
       LS.set('ap.cloudUid', '');
       dlg.close();
       toast(t('Signed out. Your data stays on this device.'));
@@ -470,7 +526,12 @@ function pairDialog() {
             toast(t('Could not sign in') + ': ' + (e.message || e.code));
           }
         }
-        connectDialog(data, S.sources.length ? 'merge' : 'replace', () => {});
+        connectDialog(data, S.sources.length ? 'merge' : 'replace', () => {
+          if (C.user) {
+            C.sync = true;
+            LS.set('ap.cloudOk', C.user.uid);
+          }
+        });
         return;
       }
     } catch (e) {}
